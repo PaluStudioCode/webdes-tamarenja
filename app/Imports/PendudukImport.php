@@ -1,0 +1,428 @@
+<?php
+
+namespace App\Imports;
+
+use App\Enums\StatusKependudukan;
+use App\Enums\StatusKesejahteraan;
+use App\Enums\StatusPesertaBansos;
+use App\Models\KartuKeluarga;
+use App\Models\Penduduk;
+use Carbon\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+
+class PendudukImport implements ToCollection, WithHeadingRow
+{
+    protected int $successCount = 0;
+
+    protected int $insertedCount = 0;
+
+    protected int $updatedCount = 0;
+
+    protected int $restoredCount = 0;
+
+    /**
+     * @var list<array{baris: int, nik: string, nama_lengkap: string, errors: list<string>, pesan: string}>
+     */
+    protected array $failedRows = [];
+
+    public function collection(Collection $rows): void
+    {
+        foreach ($rows as $index => $rawRow) {
+            $rowNumber = (int) $index + 2; // Baris 1 adalah heading
+            $rowArray = $rawRow instanceof Collection ? $rawRow->toArray() : (array) $rawRow;
+
+            if ($this->isRowEmpty($rowArray)) {
+                continue;
+            }
+
+            $cleaned = $this->cleanAndNormalizeRow($rowArray);
+
+            $validator = Validator::make(
+                $cleaned,
+                [
+                    'nomor_kk' => ['required', 'string', 'digits:16', 'regex:/^[0-9]{16}$/'],
+                    'dusun' => ['required', 'string', 'max:100'],
+                    'rt' => ['required', 'string', 'max:5'],
+                    'rw' => ['required', 'string', 'max:5'],
+                    'alamat' => ['nullable', 'string', 'max:500'],
+                    'nik' => ['required', 'string', 'digits:16', 'regex:/^[0-9]{16}$/'],
+                    'nama_lengkap' => ['required', 'string', 'max:150'],
+                    'tempat_lahir' => ['required', 'string', 'max:100'],
+                    'tanggal_lahir' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+                    'jenis_kelamin' => ['required', 'string', Rule::in(['L', 'P'])],
+                    'agama' => ['required', 'string', 'max:30'],
+                    'pendidikan' => ['nullable', 'string', 'max:50'],
+                    'pekerjaan' => ['nullable', 'string', 'max:100'],
+                    'status_perkawinan' => [
+                        'required',
+                        'string',
+                        Rule::in(['belum_kawin', 'kawin', 'cerai_hidup', 'cerai_mati']),
+                    ],
+                    'hubungan_keluarga' => [
+                        'required',
+                        'string',
+                        Rule::in(['kepala_keluarga', 'istri', 'anak', 'lainnya']),
+                    ],
+                    'status_kesejahteraan' => ['required', Rule::enum(StatusKesejahteraan::class)],
+                    'status_kependudukan' => ['required', Rule::enum(StatusKependudukan::class)],
+                ],
+                [
+                    'nomor_kk.required' => 'Nomor KK wajib diisi.',
+                    'nomor_kk.digits' => 'Nomor KK harus tepat 16 digit angka.',
+                    'nomor_kk.regex' => 'Nomor KK hanya boleh berisi 16 digit angka.',
+                    'dusun.required' => 'Kolom Dusun wajib diisi.',
+                    'rt.required' => 'Kolom RT wajib diisi.',
+                    'rw.required' => 'Kolom RW wajib diisi.',
+                    'nik.required' => 'NIK wajib diisi.',
+                    'nik.digits' => 'NIK harus tepat 16 digit angka.',
+                    'nik.regex' => 'NIK hanya boleh berisi 16 digit angka.',
+                    'nama_lengkap.required' => 'Nama lengkap wajib diisi.',
+                    'tempat_lahir.required' => 'Tempat lahir wajib diisi.',
+                    'tanggal_lahir.required' => 'Tanggal lahir wajib diisi.',
+                    'tanggal_lahir.date_format' => 'Format tanggal lahir tidak valid (gunakan YYYY-MM-DD atau tanggal Excel).',
+                    'tanggal_lahir.before_or_equal' => 'Tanggal lahir tidak boleh di masa depan.',
+                    'jenis_kelamin.required' => 'Jenis kelamin wajib diisi (L/P).',
+                    'jenis_kelamin.in' => 'Jenis kelamin harus L atau P.',
+                    'agama.required' => 'Agama wajib diisi.',
+                    'status_perkawinan.in' => 'Status perkawinan tidak valid.',
+                    'hubungan_keluarga.in' => 'Hubungan keluarga tidak valid.',
+                    'status_kesejahteraan.Illuminate\Validation\Rules\Enum' => 'Status kesejahteraan (DTSEN) tidak valid.',
+                    'status_kependudukan.Illuminate\Validation\Rules\Enum' => 'Status kependudukan tidak valid.',
+                ]
+            );
+
+            if ($validator->fails()) {
+                $errors = array_values($validator->errors()->all());
+                $this->failedRows[] = [
+                    'baris' => $rowNumber,
+                    'nik' => $cleaned['nik'] !== '' ? $cleaned['nik'] : '-',
+                    'nama_lengkap' => $cleaned['nama_lengkap'] !== '' ? $cleaned['nama_lengkap'] : '-',
+                    'errors' => $errors,
+                    'pesan' => implode(' ', $errors),
+                ];
+
+                continue;
+            }
+
+            try {
+                DB::transaction(function () use ($cleaned) {
+                    // 1. Upsert with trashed untuk Kartu Keluarga
+                    $kk = KartuKeluarga::withTrashed()
+                        ->where('nomor_kk', $cleaned['nomor_kk'])
+                        ->first();
+
+                    if ($kk !== null) {
+                        if ($kk->trashed()) {
+                            $kk->restore();
+                        }
+                        $kk->update([
+                            'dusun' => $cleaned['dusun'],
+                            'rt' => $cleaned['rt'],
+                            'rw' => $cleaned['rw'],
+                            'alamat' => $cleaned['alamat'] !== '' ? $cleaned['alamat'] : $kk->alamat,
+                        ]);
+                    } else {
+                        $kk = KartuKeluarga::create([
+                            'nomor_kk' => $cleaned['nomor_kk'],
+                            'dusun' => $cleaned['dusun'],
+                            'rt' => $cleaned['rt'],
+                            'rw' => $cleaned['rw'],
+                            'alamat' => $cleaned['alamat'] !== '' ? $cleaned['alamat'] : null,
+                        ]);
+                    }
+
+                    // 2. Upsert with trashed untuk Penduduk
+                    $penduduk = Penduduk::withTrashed()
+                        ->where('nik', $cleaned['nik'])
+                        ->first();
+
+                    $payload = [
+                        'kartu_keluarga_id' => $kk->id,
+                        'nik' => $cleaned['nik'],
+                        'nama_lengkap' => $cleaned['nama_lengkap'],
+                        'tempat_lahir' => $cleaned['tempat_lahir'],
+                        'tanggal_lahir' => $cleaned['tanggal_lahir'],
+                        'jenis_kelamin' => $cleaned['jenis_kelamin'],
+                        'agama' => $cleaned['agama'],
+                        'pendidikan' => $cleaned['pendidikan'] !== '' ? $cleaned['pendidikan'] : null,
+                        'pekerjaan' => $cleaned['pekerjaan'] !== '' ? $cleaned['pekerjaan'] : null,
+                        'status_perkawinan' => $cleaned['status_perkawinan'],
+                        'hubungan_keluarga' => $cleaned['hubungan_keluarga'],
+                        'status_kesejahteraan' => $cleaned['status_kesejahteraan'],
+                        'status_kependudukan' => $cleaned['status_kependudukan'],
+                        'tanggal_mutasi' => $cleaned['status_kependudukan'] === StatusKependudukan::Aktif->value
+                            ? null
+                            : ($penduduk?->tanggal_mutasi?->format('Y-m-d') ?? now()->toDateString()),
+                    ];
+
+                    if ($penduduk !== null) {
+                        $wasTrashed = $penduduk->trashed();
+                        if ($wasTrashed) {
+                            $penduduk->restore();
+                            $this->restoredCount++;
+                        } else {
+                            $this->updatedCount++;
+                        }
+
+                        $penduduk->update($payload);
+                    } else {
+                        $penduduk = Penduduk::create($payload);
+                        $this->insertedCount++;
+                    }
+
+                    // Sinkronkan Bansos aktif bila status_kependudukan di-import sebagai non-aktif
+                    if ($cleaned['status_kependudukan'] === StatusKependudukan::PindahKeluar->value) {
+                        $penduduk->penerimaBansos()
+                            ->where('status_kepesertaan', StatusPesertaBansos::Aktif)
+                            ->update(['status_kepesertaan' => StatusPesertaBansos::Pindah->value]);
+                    } elseif ($cleaned['status_kependudukan'] === StatusKependudukan::MeninggalDunia->value) {
+                        $penduduk->penerimaBansos()
+                            ->where('status_kepesertaan', StatusPesertaBansos::Aktif)
+                            ->update(['status_kepesertaan' => StatusPesertaBansos::MeninggalDunia->value]);
+                    }
+
+                    $this->successCount++;
+                });
+            } catch (\Throwable $e) {
+                $this->failedRows[] = [
+                    'baris' => $rowNumber,
+                    'nik' => $cleaned['nik'] !== '' ? $cleaned['nik'] : '-',
+                    'nama_lengkap' => $cleaned['nama_lengkap'] !== '' ? $cleaned['nama_lengkap'] : '-',
+                    'errors' => ['Gagal menyimpan baris ke database.'],
+                    'pesan' => 'Gagal menyimpan baris ke database.',
+                ];
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    protected function isRowEmpty(array $row): bool
+    {
+        foreach ($row as $value) {
+            if ($value !== null && trim((string) $value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Bersihkan spasi, kutip tunggal pembuka pada NIK/KK, serial date Excel, serta normalisasi enum SIAK/Prodeskel.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, string>
+     */
+    protected function cleanAndNormalizeRow(array $row): array
+    {
+        $nomorKk = $this->cleanNumericIdentifier($row['nomor_kk'] ?? $row['no_kk'] ?? '');
+        $nik = $this->cleanNumericIdentifier($row['nik'] ?? '');
+        $dusun = trim((string) ($row['dusun'] ?? $row['nama_dusun'] ?? ''));
+        $rt = $this->cleanRtRw($row['rt'] ?? '001');
+        $rw = $this->cleanRtRw($row['rw'] ?? '001');
+        $alamat = trim((string) ($row['alamat'] ?? ''));
+        $namaLengkap = trim((string) ($row['nama_lengkap'] ?? $row['nama'] ?? ''));
+        $tempatLahir = trim((string) ($row['tempat_lahir'] ?? ''));
+        $tanggalLahir = $this->parseExcelDate($row['tanggal_lahir'] ?? $row['tgl_lahir'] ?? null);
+        $jenisKelamin = $this->normalizeJenisKelamin($row['jenis_kelamin'] ?? $row['jk'] ?? '');
+        $agama = trim((string) ($row['agama'] ?? 'Islam'));
+        $pendidikan = trim((string) ($row['pendidikan'] ?? ''));
+        $pekerjaan = trim((string) ($row['pekerjaan'] ?? ''));
+        $statusPerkawinan = $this->normalizeStatusPerkawinan($row['status_perkawinan'] ?? $row['status_kawin'] ?? 'belum_kawin');
+        $hubunganKeluarga = $this->normalizeHubunganKeluarga($row['hubungan_keluarga'] ?? $row['shdk'] ?? 'lainnya');
+        $statusKesejahteraan = $this->normalizeStatusKesejahteraan($row['status_kesejahteraan'] ?? $row['desil'] ?? 'non_prioritas');
+        $statusKependudukan = $this->normalizeStatusKependudukan($row['status_kependudukan'] ?? $row['status'] ?? 'aktif');
+
+        return [
+            'nomor_kk' => $nomorKk,
+            'dusun' => $dusun,
+            'rt' => $rt,
+            'rw' => $rw,
+            'alamat' => $alamat,
+            'nik' => $nik,
+            'nama_lengkap' => $namaLengkap,
+            'tempat_lahir' => $tempatLahir,
+            'tanggal_lahir' => $tanggalLahir,
+            'jenis_kelamin' => $jenisKelamin,
+            'agama' => $agama,
+            'pendidikan' => $pendidikan,
+            'pekerjaan' => $pekerjaan,
+            'status_perkawinan' => $statusPerkawinan,
+            'hubungan_keluarga' => $hubunganKeluarga,
+            'status_kesejahteraan' => $statusKesejahteraan,
+            'status_kependudukan' => $statusKependudukan,
+        ];
+    }
+
+    protected function cleanNumericIdentifier(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $str = trim((string) $value);
+        // Hapus tanda kutip tunggal pembuka ('3201... atau `3201...) dan spasi di sekitarnya
+        $str = ltrim($str, "'` \t\n\r\0\x0B");
+
+        return trim($str);
+    }
+
+    protected function cleanRtRw(mixed $value): string
+    {
+        $str = trim(ltrim((string) ($value ?? ''), "'"));
+        if ($str === '') {
+            return '001';
+        }
+
+        if (ctype_digit($str) && strlen($str) < 3) {
+            return str_pad($str, 3, '0', STR_PAD_LEFT);
+        }
+
+        return substr($str, 0, 5);
+    }
+
+    protected function parseExcelDate(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->format('Y-m-d');
+        }
+
+        $raw = trim(ltrim((string) $value, "'"));
+        if ($raw === '') {
+            return '';
+        }
+
+        // Konversi serial number tanggal Excel (contoh: 31179 -> 1985-05-12)
+        if (is_numeric($raw) && (float) $raw > 100 && (float) $raw < 100000) {
+            try {
+                return ExcelDate::excelToDateTimeObject((float) $raw)->format('Y-m-d');
+            } catch (\Throwable) {
+                return $raw;
+            }
+        }
+
+        // Coba format YYYY-MM-DD, DD/MM/YYYY, atau DD-MM-YYYY
+        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'Y/m/d'] as $format) {
+            try {
+                $parsed = Carbon::createFromFormat($format, $raw);
+                if ($parsed !== false && $parsed->format($format) === $raw) {
+                    return $parsed->format('Y-m-d');
+                }
+            } catch (\Throwable) {
+                // Lanjut ke format berikutnya
+            }
+        }
+
+        try {
+            return Carbon::parse($raw)->format('Y-m-d');
+        } catch (\Throwable) {
+            return $raw;
+        }
+    }
+
+    protected function normalizeJenisKelamin(mixed $value): string
+    {
+        $clean = strtoupper(trim((string) ($value ?? '')));
+
+        return match ($clean) {
+            'L', 'LK', 'LAKI-LAKI', 'LAKI LAKI', 'PRIA' => 'L',
+            'P', 'PR', 'PEREMPUAN', 'WANITA' => 'P',
+            default => $clean,
+        };
+    }
+
+    protected function normalizeStatusPerkawinan(mixed $value): string
+    {
+        $clean = strtolower(trim((string) ($value ?? '')));
+        $snake = str_replace([' ', '-'], '_', $clean);
+
+        return match ($snake) {
+            'belum_kawin', 'belum_menikah', 'tidak_kawin' => 'belum_kawin',
+            'kawin', 'menikah', 'kawin_tercatat', 'kawin_belum_tercatat' => 'kawin',
+            'cerai_hidup' => 'cerai_hidup',
+            'cerai_mati' => 'cerai_mati',
+            default => $snake !== '' ? $snake : 'belum_kawin',
+        };
+    }
+
+    protected function normalizeHubunganKeluarga(mixed $value): string
+    {
+        $clean = strtolower(trim((string) ($value ?? '')));
+        $snake = str_replace([' ', '-'], '_', $clean);
+
+        return match ($snake) {
+            'kepala_keluarga', 'kk' => 'kepala_keluarga',
+            'istri', 'isteri', 'suami' => 'istri',
+            'anak', 'anak_kandung', 'anak_angkat', 'anak_tiri' => 'anak',
+            'lainnya', 'famili_lain', 'orang_tua', 'mertua', 'cucu' => 'lainnya',
+            default => $snake !== '' ? $snake : 'lainnya',
+        };
+    }
+
+    protected function normalizeStatusKesejahteraan(mixed $value): string
+    {
+        $clean = strtolower(trim((string) ($value ?? '')));
+        if ($clean === '') {
+            return StatusKesejahteraan::NonPrioritas->value;
+        }
+
+        return match ($clean) {
+            'dtsen_desil_1', 'desil_1', 'desil 1', '1', 'miskin ekstrem' => StatusKesejahteraan::DtsenDesil1->value,
+            'dtsen_desil_2', 'desil_2', 'desil 2', '2', 'miskin' => StatusKesejahteraan::DtsenDesil2->value,
+            'dtsen_desil_3_4', 'desil_3_4', 'desil 3-4', 'desil 3', 'desil 4', '3', '4', 'rentan miskin' => StatusKesejahteraan::DtsenDesil34->value,
+            'non_prioritas', 'non prioritas', 'mampu', 'desil 5-10' => StatusKesejahteraan::NonPrioritas->value,
+            default => $clean,
+        };
+    }
+
+    protected function normalizeStatusKependudukan(mixed $value): string
+    {
+        $clean = strtolower(trim((string) ($value ?? '')));
+        if ($clean === '') {
+            return StatusKependudukan::Aktif->value;
+        }
+
+        $snake = str_replace([' ', '-'], '_', $clean);
+
+        return match ($snake) {
+            'aktif' => StatusKependudukan::Aktif->value,
+            'meninggal_dunia', 'meninggal', 'wafat' => StatusKependudukan::MeninggalDunia->value,
+            'pindah_keluar', 'pindah' => StatusKependudukan::PindahKeluar->value,
+            default => $snake,
+        };
+    }
+
+    /**
+     * @return array{
+     *     berhasil: int,
+     *     ditambahkan: int,
+     *     diperbarui: int,
+     *     dipulihkan: int,
+     *     gagal: int,
+     *     failed_rows: list<array{baris: int, nik: string, nama_lengkap: string, errors: list<string>, pesan: string}>
+     * }
+     */
+    public function getSummary(): array
+    {
+        return [
+            'berhasil' => $this->successCount,
+            'ditambahkan' => $this->insertedCount,
+            'diperbarui' => $this->updatedCount,
+            'dipulihkan' => $this->restoredCount,
+            'gagal' => count($this->failedRows),
+            'failed_rows' => $this->failedRows,
+        ];
+    }
+}
