@@ -4,6 +4,7 @@ namespace App\Http\Requests\Kependudukan;
 
 use App\Enums\StatusKependudukan;
 use App\Enums\StatusKesejahteraan;
+use App\Models\KartuKeluarga;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,12 +23,26 @@ class StorePendudukRequest extends FormRequest
             $this->merge(['nik' => $cleaned]);
         }
 
-        if (! $this->has('status_kependudukan')) {
+        if (! $this->filled('status_kependudukan')) {
             $this->merge(['status_kependudukan' => StatusKependudukan::Aktif->value]);
         }
 
-        if (! $this->has('status_kesejahteraan')) {
-            $this->merge(['status_kesejahteraan' => StatusKesejahteraan::NonPrioritas->value]);
+        if (! $this->filled('status_kesejahteraan')) {
+            $kk = $this->filled('kartu_keluarga_id')
+                ? KartuKeluarga::query()->find($this->input('kartu_keluarga_id'))
+                : null;
+
+            if ($kk !== null) {
+                $kkStatus = $kk->status_kesejahteraan instanceof StatusKesejahteraan
+                    ? $kk->status_kesejahteraan->value
+                    : (string) $kk->status_kesejahteraan;
+
+                $this->merge([
+                    'status_kesejahteraan' => $kkStatus !== '' ? $kkStatus : StatusKesejahteraan::NonPrioritas->value,
+                ]);
+            } else {
+                $this->merge(['status_kesejahteraan' => StatusKesejahteraan::NonPrioritas->value]);
+            }
         }
     }
 
@@ -66,7 +81,7 @@ class StorePendudukRequest extends FormRequest
                 'string',
                 Rule::in(['kepala_keluarga', 'istri', 'anak', 'lainnya']),
             ],
-            'status_kesejahteraan' => ['required', Rule::enum(StatusKesejahteraan::class)],
+            'status_kesejahteraan' => ['nullable', Rule::enum(StatusKesejahteraan::class)],
             'status_kependudukan' => ['required', Rule::enum(StatusKependudukan::class)],
             'tanggal_mutasi' => ['nullable', 'date', 'before_or_equal:today'],
             'catatan_mutasi' => ['nullable', 'string', 'max:255'],

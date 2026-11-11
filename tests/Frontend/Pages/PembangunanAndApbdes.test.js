@@ -5,6 +5,8 @@ import LeafletMapPicker from '@/Components/LeafletMapPicker.vue';
 import ApbdesBannerCanvas from '@/Components/ApbdesBannerCanvas.vue';
 import ApbdesIndex from '@/Pages/Apbdes/Index.vue';
 import PembangunanIndex from '@/Pages/Pembangunan/Index.vue';
+import ProyekModal from '@/Components/ProyekModal.vue';
+import ProyekDetailModal from '@/Components/ProyekDetailModal.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 
 vi.mock('html-to-image', () => ({
@@ -195,13 +197,13 @@ describe('Sub-Fase 6.3: Komponen Peta, Baliho APBDes, Pembangunan & APBDes Pages
             },
         });
 
-        // Pada dokumen Perubahan (belum terkunci), baris bidang_1_pemerintahan bisa diedit, sedangkan bidang_2_fisik tetap read-only
+        // Pada dokumen Perubahan (belum terkunci), baris bidang_1_pemerintahan dan bidang_2_fisik dapat diedit secara mandiri
         const rowBidang1 = wrapper.find('[data-testid="row-pos-bidang_1_pemerintahan"]');
         const rowBidang2 = wrapper.find('[data-testid="row-pos-bidang_2_fisik"]');
 
         expect(rowBidang1.find('input').attributes('disabled')).toBeUndefined();
-        expect(rowBidang2.find('[data-testid="badge-otomatis-modul-1"]').exists()).toBe(true);
-        expect(rowBidang2.find('input').attributes('disabled')).toBeDefined();
+        expect(rowBidang2.find('[data-testid="badge-otomatis-modul-1"]').exists()).toBe(false);
+        expect(rowBidang2.find('input').attributes('disabled')).toBeUndefined();
         expect(wrapper.find('[data-testid="btn-save-apbdes"]').exists()).toBe(true);
 
         // Beralih ke dokumen Murni yang sudah terkunci (is_terkunci = true)
@@ -254,8 +256,17 @@ describe('Sub-Fase 6.3: Komponen Peta, Baliho APBDes, Pembangunan & APBDes Pages
         expect(wrapperOperator.find('[data-testid="btn-edit-proyek-501"]').exists()).toBe(true);
         expect(wrapperOperator.find('[data-testid="btn-delete-proyek-501"]').exists()).toBe(true);
 
-        // Klik Foto & Detail membuka SlideOverDrawer
+        // Klik Tambah Proyek membuka modal form pembangunan fisik
+        await wrapperOperator.find('[data-testid="btn-tambah-proyek"]').trigger('click');
+        expect(wrapperOperator.find('[data-testid="modal-proyek-pembangunan"]').exists()).toBe(true);
+
+        // Klik Edit membuka modal form pembangunan fisik dengan data proyek
+        await wrapperOperator.find('[data-testid="btn-edit-proyek-501"]').trigger('click');
+        expect(wrapperOperator.find('[data-testid="modal-proyek-pembangunan"]').exists()).toBe(true);
+
+        // Klik Detail membuka ProyekDetailModal
         await wrapperOperator.find('[data-testid="btn-detail-proyek-501"]').trigger('click');
+        expect(wrapperOperator.find('[data-testid="modal-detail-proyek"]').exists()).toBe(true);
         expect(wrapperOperator.text()).toContain('Dokumentasi Tahapan Fisik');
 
         // Klik Hapus memicu useConfirm()
@@ -287,5 +298,86 @@ describe('Sub-Fase 6.3: Komponen Peta, Baliho APBDes, Pembangunan & APBDes Pages
         expect(wrapperKades.find('[data-testid="btn-tambah-proyek"]').exists()).toBe(false);
         expect(wrapperKades.find('[data-testid="btn-edit-proyek-501"]').exists()).toBe(false);
         expect(wrapperKades.find('[data-testid="btn-delete-proyek-501"]').exists()).toBe(false);
+    });
+
+    it('ProyekModal merender form modal tambah proyek, mendukung input identitas, dan memicu penutupan saat dibatalkan', async () => {
+        usePage().props.auth = {
+            user: {
+                id: 1,
+                name: 'Operator Desa',
+                role: 'operator',
+            },
+        };
+
+        const wrapper = mount(ProyekModal, {
+            props: {
+                show: true,
+                isEdit: false,
+                proyek: null,
+                tahunAnggaran: 2026,
+                daftarDusun: ['Dusun I', 'Dusun II'],
+                opsiSumberDana: [{ value: 'dds', label: 'Dana Desa (DDS)' }],
+                koordinatDefault: { latitude: -0.5835, longitude: 119.7932 },
+            },
+        });
+
+        // 1. Memastikan judul dan field modal tampil
+        expect(wrapper.text()).toContain('Tambah Proyek Pembangunan Fisik');
+        expect(wrapper.find('[data-testid="input-nama-kegiatan-modal"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="input-tahun-anggaran-modal"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="select-sumber-dana-modal"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="btn-submit-proyek-modal"]').exists()).toBe(true);
+
+        // 2. Tombol batal memancarkan emit 'close'
+        await wrapper.find('[data-testid="btn-cancel-proyek-modal"]').trigger('click');
+        expect(wrapper.emitted('close')).toBeTruthy();
+    });
+
+    it('ProyekDetailModal merender galeri 3 titik foto, rincian pagu/realisasi, dan memicu emit edit bagi operator', async () => {
+        const sampleProyek = {
+            id: 501,
+            tahun_anggaran: 2026,
+            nama_kegiatan: 'Pembangunan Rabat Beton Dusun I',
+            lokasi_dusun: 'Dusun I',
+            pagu_anggaran: 180000000,
+            realisasi_anggaran: 90000000,
+            persentase_dana: 50,
+            sumber_dana: 'dds',
+            sumber_dana_label: 'Dana Desa (DDS)',
+            volume_fisik: '250 Meter',
+            pelaksana_kegiatan: 'TPK Desa Tamarenja',
+            waktu_pelaksanaan: '90 Hari',
+            progres_fisik: 50,
+            status_proyek: 'sedang_dikerjakan',
+            status_proyek_label: 'Sedang Dikerjakan',
+            foto_0_url: '/storage/proyek/2026/0.jpg',
+            foto_50_url: '/storage/proyek/2026/50.jpg',
+            foto_100_url: null,
+            latitude: -0.5835,
+            longitude: 119.7932,
+        };
+
+        const wrapper = mount(ProyekDetailModal, {
+            props: {
+                show: true,
+                proyek: sampleProyek,
+                isOperator: true,
+            },
+        });
+
+        // Memastikan rincian data tampil
+        expect(wrapper.text()).toContain('Pembangunan Rabat Beton Dusun I');
+        expect(wrapper.text()).toContain('Dana Desa (DDS)');
+        expect(wrapper.text()).toContain('Titik Awal (0%)');
+        expect(wrapper.text()).toContain('Titik Akhir (100%)');
+        expect(wrapper.find('[data-testid="btn-edit-from-detail"]').exists()).toBe(true);
+
+        // Klik Edit dari detail memicu emit 'edit' dengan objek proyek
+        await wrapper.find('[data-testid="btn-edit-from-detail"]').trigger('click');
+        expect(wrapper.emitted('edit')?.[0]?.[0]).toEqual(sampleProyek);
+
+        // Klik Tutup memicu emit 'close'
+        await wrapper.find('[data-testid="btn-close-detail-modal"]').trigger('click');
+        expect(wrapper.emitted('close')).toBeTruthy();
     });
 });

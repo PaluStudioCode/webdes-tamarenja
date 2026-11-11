@@ -55,10 +55,6 @@ class ApbdesService
 
             $this->ensureFourteenStandardRows($murni);
 
-            if (! $murni->is_terkunci) {
-                $this->applyProjectTotalsToDocument($murni);
-            }
-
             return $murni->load('rincian');
         });
     }
@@ -128,9 +124,6 @@ class ApbdesService
                 'is_aktif_publik' => false,
             ]);
 
-            // Pastikan pos bidang_2_fisik pada Perubahan tersinkron dengan Proyek Modul 1 tahun T
-            $this->applyProjectTotalsToDocument($perubahan);
-
             return $perubahan->fresh(['rincian']);
         });
     }
@@ -163,12 +156,6 @@ class ApbdesService
     {
         $apbdes = $rincian->apbdes;
         $this->assertNotLocked($apbdes);
-
-        if ($rincian->is_otomatis_modul_1 || $rincian->kode_pos === ApbdesPosCatalog::KODE_BIDANG_2_FISIK) {
-            throw ValidationException::withMessages([
-                'bidang_2_fisik' => 'Pos Pelaksanaan Pembangunan Desa - Komponen Fisik (Bidang 2) dihitung otomatis dari Modul 1 Proyek Fisik dan dikunci dari input manual.',
-            ]);
-        }
 
         return DB::transaction(function () use ($rincian, $values) {
             $validated = $this->validateAndComputeRowTotals($rincian, $values);
@@ -206,28 +193,6 @@ class ApbdesService
                     : ($rowId && $rowsById->has($rowId) ? $rowsById->get($rowId) : null);
 
                 if ($row === null) {
-                    continue;
-                }
-
-                // Cek apakah baris adalah bidang_2_fisik (is_otomatis_modul_1 = true)
-                if ($row->is_otomatis_modul_1 || $row->kode_pos === ApbdesPosCatalog::KODE_BIDANG_2_FISIK) {
-                    $incomingPagu = isset($itemData['pagu_anggaran']) ? (int) $itemData['pagu_anggaran'] : (int) $row->pagu_anggaran;
-                    $incomingT1 = isset($itemData['realisasi_tahap_1']) ? (int) $itemData['realisasi_tahap_1'] : (int) $row->realisasi_tahap_1;
-                    $incomingT2 = isset($itemData['realisasi_tahap_2']) ? (int) $itemData['realisasi_tahap_2'] : (int) $row->realisasi_tahap_2;
-                    $incomingT3 = isset($itemData['realisasi_tahap_3']) ? (int) $itemData['realisasi_tahap_3'] : (int) $row->realisasi_tahap_3;
-
-                    $isModified = $incomingPagu !== (int) $row->pagu_anggaran
-                        || $incomingT1 !== (int) $row->realisasi_tahap_1
-                        || $incomingT2 !== (int) $row->realisasi_tahap_2
-                        || $incomingT3 !== (int) $row->realisasi_tahap_3;
-
-                    // Jika dipanggil khusus hanya untuk 1 baris bidang_2_fisik atau nilainya diubah manual, tolak tegas!
-                    if ($isModified || count($items) === 1) {
-                        throw ValidationException::withMessages([
-                            'bidang_2_fisik' => 'Pos Pelaksanaan Pembangunan Desa - Komponen Fisik (Bidang 2) dihitung otomatis dari Modul 1 Proyek Fisik dan dikunci dari input manual.',
-                        ]);
-                    }
-
                     continue;
                 }
 

@@ -7,7 +7,25 @@ use Illuminate\Support\Facades\Storage;
 class DummyAssetGenerator
 {
     /**
-     * Buat berkas gambar PNG valid ringan menggunakan ekstensi GD bawaan PHP.
+     * Cek apakah berkas aset asli tersedia di direktori permanen `database/seeders/assets/{path}`.
+     */
+    protected static function resolveSeedAssetBytes(string $path): ?string
+    {
+        $seedAssetPath = base_path('database/seeders/assets/' . ltrim($path, '/\\'));
+
+        if (is_file($seedAssetPath) && is_readable($seedAssetPath)) {
+            $contents = @file_get_contents($seedAssetPath);
+            if ($contents !== false && $contents !== '') {
+                return $contents;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Buat berkas gambar PNG valid ringan menggunakan ekstensi GD bawaan PHP,
+     * atau salin dari `database/seeders/assets/{path}` bila tersedia.
      */
     public static function putPng(
         string $path,
@@ -16,6 +34,13 @@ class DummyAssetGenerator
         int $height = 240,
         array $rgb = [29, 78, 216]
     ): string {
+        $seedBytes = self::resolveSeedAssetBytes($path);
+        if ($seedBytes !== null) {
+            Storage::disk($disk)->put($path, $seedBytes);
+
+            return $path;
+        }
+
         if (! Storage::disk($disk)->exists($path)) {
             $img = imagecreatetruecolor($width, $height);
             $bg = imagecolorallocate($img, $rgb[0], $rgb[1], $rgb[2]);
@@ -35,7 +60,8 @@ class DummyAssetGenerator
     }
 
     /**
-     * Buat berkas gambar JPEG valid ringan menggunakan ekstensi GD bawaan PHP.
+     * Buat berkas gambar JPEG valid ringan menggunakan ekstensi GD bawaan PHP,
+     * atau salin dari `database/seeders/assets/{path}` bila tersedia.
      */
     public static function putJpg(
         string $path,
@@ -45,6 +71,13 @@ class DummyAssetGenerator
         int $height = 500,
         array $rgb = [30, 64, 175]
     ): string {
+        $seedBytes = self::resolveSeedAssetBytes($path);
+        if ($seedBytes !== null) {
+            Storage::disk($disk)->put($path, $seedBytes);
+
+            return $path;
+        }
+
         if (! Storage::disk($disk)->exists($path)) {
             $img = imagecreatetruecolor($width, $height);
             $bg = imagecolorallocate($img, $rgb[0], $rgb[1], $rgb[2]);
@@ -70,6 +103,17 @@ class DummyAssetGenerator
      */
     public static function putPdf(string $path, string $title = 'Dokumen Resmi Desa Tamarenja', string $disk = 'public'): array
     {
+        $seedBytes = self::resolveSeedAssetBytes($path);
+        if ($seedBytes !== null) {
+            Storage::disk($disk)->put($path, $seedBytes);
+            $bytes = Storage::disk($disk)->size($path);
+
+            return [
+                'path' => $path,
+                'size_kb' => max(1, (int) ceil($bytes / 1024)),
+            ];
+        }
+
         if (! Storage::disk($disk)->exists($path)) {
             $safeTitle = preg_replace('/[^A-Za-z0-9 \-_.\/]/', '', $title) ?: 'Dokumen Desa';
             $stream = "BT /F1 14 Tf 50 750 Td ({$safeTitle}) Tj ET";

@@ -1,11 +1,11 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import { Building2, Landmark, MapPin, UserSquare2 } from 'lucide-vue-next';
 import ContextualTabs from '@/Components/ContextualTabs.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 
-defineProps({
+const props = defineProps({
     profil: {
         type: Object,
         default: () => ({
@@ -41,6 +41,58 @@ const tabs = [
     { key: 'sejarah', label: 'Sejarah & Potensi Desa' },
     { key: 'sotk', label: 'Struktur Organisasi (SOTK & BPD)' },
 ];
+
+const sotkGroups = computed(() => {
+    const groups = [
+        {
+            key: 'pimpinan',
+            title: 'Pimpinan Pemerintah Desa',
+            subtitle: 'Kepala Desa',
+            items: [],
+        },
+        {
+            key: 'sekretariat',
+            title: 'Sekretariat Desa',
+            subtitle: 'Sekretaris Desa & Kepala Urusan (Kaur)',
+            items: [],
+        },
+        {
+            key: 'pelaksana_teknis',
+            title: 'Pelaksana Teknis',
+            subtitle: 'Kepala Seksi (Kasi)',
+            items: [],
+        },
+        {
+            key: 'kewilayahan_dusun',
+            title: 'Pelaksana Kewilayahan',
+            subtitle: 'Kepala Dusun (Kadus)',
+            items: [],
+        },
+    ];
+
+    const mapByKey = Object.fromEntries(groups.map((g) => [g.key, g]));
+    const lainnya = {
+        key: 'lainnya',
+        title: 'Perangkat Pemerintah Desa Lainnya',
+        subtitle: '',
+        items: [],
+    };
+
+    for (const item of props.sotk_pemerintah || []) {
+        const target = mapByKey[item.kelompok_sotk];
+        if (target) {
+            target.items.push(item);
+        } else {
+            lainnya.items.push(item);
+        }
+    }
+
+    if (lainnya.items.length > 0) {
+        groups.push(lainnya);
+    }
+
+    return groups.filter((g) => g.items.length > 0);
+});
 </script>
 
 <template>
@@ -237,43 +289,89 @@ const tabs = [
 
                     <div
                         v-else
-                        class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                        class="space-y-8"
                     >
                         <div
-                            v-for="pejabat in sotk_pemerintah"
-                            :key="pejabat.id"
-                            data-testid="sotk-member-card"
-                            class="flex flex-col items-center rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-center"
+                            v-for="group in sotkGroups"
+                            :key="group.key"
+                            :data-testid="`sotk-group-${group.key}`"
+                            class="space-y-3"
                         >
                             <div
-                                class="mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white"
+                                class="flex items-center justify-between border-b border-slate-100 pb-2"
                             >
-                                <img
-                                    v-if="pejabat.foto_url"
-                                    :src="pejabat.foto_url"
-                                    :alt="pejabat.nama_lengkap"
-                                    class="h-full w-full object-cover"
-                                />
-                                <UserSquare2
-                                    v-else
-                                    class="h-7 w-7 text-slate-400"
-                                />
+                                <div>
+                                    <h3
+                                        class="text-xs font-bold uppercase tracking-wider text-blue-700"
+                                    >
+                                        {{ group.title }}
+                                    </h3>
+                                    <p
+                                        v-if="group.subtitle"
+                                        class="text-xs text-slate-500"
+                                    >
+                                        {{ group.subtitle }}
+                                    </p>
+                                </div>
+                                <span
+                                    class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600"
+                                >
+                                    {{ group.items.length }} Pejabat
+                                </span>
                             </div>
 
-                            <p class="text-sm font-semibold text-slate-900">
-                                {{ pejabat.nama_lengkap }}
-                            </p>
-                            <p
-                                class="mt-0.5 text-xs font-medium text-blue-700"
+                            <div
+                                :class="[
+                                    'grid gap-4',
+                                    group.key === 'pimpinan'
+                                        ? 'mx-auto max-w-xs grid-cols-1'
+                                        : group.items.length === 3
+                                          ? 'grid-cols-1 sm:grid-cols-3'
+                                          : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+                                ]"
                             >
-                                {{ pejabat.jabatan }}
-                            </p>
-                            <p
-                                v-if="pejabat.nip_niap"
-                                class="mt-1 text-[11px] tabular-nums text-slate-500"
-                            >
-                                NIP/NIAP: {{ pejabat.nip_niap }}
-                            </p>
+                                <div
+                                    v-for="pejabat in group.items"
+                                    :key="pejabat.id"
+                                    data-testid="sotk-member-card"
+                                    :class="[
+                                        'flex flex-col items-center rounded-lg border p-4 text-center',
+                                        group.key === 'pimpinan'
+                                            ? 'border-blue-200 bg-blue-50/40'
+                                            : 'border-slate-200 bg-slate-50/60',
+                                    ]"
+                                >
+                                    <div
+                                        class="mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white"
+                                    >
+                                        <img
+                                            v-if="pejabat.foto_url"
+                                            :src="pejabat.foto_url"
+                                            :alt="pejabat.nama_lengkap"
+                                            class="h-full w-full object-cover"
+                                        />
+                                        <UserSquare2
+                                            v-else
+                                            class="h-7 w-7 text-slate-400"
+                                        />
+                                    </div>
+
+                                    <p class="text-sm font-semibold text-slate-900">
+                                        {{ pejabat.nama_lengkap }}
+                                    </p>
+                                    <p
+                                        class="mt-0.5 text-xs font-medium text-blue-700"
+                                    >
+                                        {{ pejabat.jabatan }}
+                                    </p>
+                                    <p
+                                        v-if="pejabat.nip_niap"
+                                        class="mt-1 text-[11px] tabular-nums text-slate-500"
+                                    >
+                                        NIP/NIAP: {{ pejabat.nip_niap }}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>

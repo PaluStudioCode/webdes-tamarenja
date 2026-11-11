@@ -212,7 +212,7 @@ function closePhotoDrawer() {
                     class="flex flex-wrap items-center gap-2"
                 >
                     <Link
-                        href="/panel/persuratan/surat-keluar/buat"
+                        href="/panel/persuratan/surat-keluar?buat=1"
                         data-testid="quick-action-buat-surat"
                         class="inline-flex h-10 items-center gap-1.5 rounded-md bg-blue-700 px-3.5 text-sm font-medium text-white transition-colors hover:bg-blue-800"
                     >

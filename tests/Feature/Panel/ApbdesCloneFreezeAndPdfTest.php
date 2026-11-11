@@ -125,7 +125,7 @@ class ApbdesCloneFreezeAndPdfTest extends TestCase
         $this->assertSame(95_000_000, $posBidang1->fresh()->total_realisasi);
     }
 
-    public function test_rejects_manual_edit_of_bidang_2_fisik(): void
+    public function test_allows_manual_edit_of_bidang_2_fisik(): void
     {
         $service = app(ApbdesService::class);
         $murni = $service->initializeMurni(2026, $this->operator->id);
@@ -134,7 +134,7 @@ class ApbdesCloneFreezeAndPdfTest extends TestCase
             ->where('kode_pos', ApbdesPosCatalog::KODE_BIDANG_2_FISIK)
             ->firstOrFail();
 
-        // 1. Tolak via endpoint single row
+        // 1. Berhasil via endpoint single row
         $this->actingAs($this->operator)
             ->put(route('panel.apbdes.rincian.update', $posBidang2Fisik), [
                 'pagu_anggaran' => 250_000_000,
@@ -142,24 +142,28 @@ class ApbdesCloneFreezeAndPdfTest extends TestCase
                 'realisasi_tahap_2' => 0,
                 'realisasi_tahap_3' => 0,
             ])
-            ->assertSessionHasErrors('bidang_2_fisik');
+            ->assertSessionHasNoErrors();
 
-        // 2. Tolak via endpoint batch update apabila nilai bidang_2_fisik dicoba diubah manual
+        $this->assertSame(250_000_000, $posBidang2Fisik->fresh()->pagu_anggaran);
+        $this->assertSame(100_000_000, $posBidang2Fisik->fresh()->total_realisasi);
+
+        // 2. Berhasil via endpoint batch update
         $this->actingAs($this->operator)
             ->put(route('panel.apbdes.update', $murni), [
                 'rincian' => [
                     'bidang_2_fisik' => [
                         'kode_pos' => 'bidang_2_fisik',
-                        'pagu_anggaran' => 250_000_000,
-                        'realisasi_tahap_1' => 50_000_000,
-                        'realisasi_tahap_2' => 0,
+                        'pagu_anggaran' => 300_000_000,
+                        'realisasi_tahap_1' => 100_000_000,
+                        'realisasi_tahap_2' => 50_000_000,
                         'realisasi_tahap_3' => 0,
                     ],
                 ],
             ])
-            ->assertSessionHasErrors('bidang_2_fisik');
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame(0, $posBidang2Fisik->fresh()->pagu_anggaran);
+        $this->assertSame(300_000_000, $posBidang2Fisik->fresh()->pagu_anggaran);
+        $this->assertSame(150_000_000, $posBidang2Fisik->fresh()->total_realisasi);
     }
 
     public function test_clone_and_freeze_copies_murni_to_perubahan_and_locks_murni_permanently(): void

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\StatusKesejahteraan;
 use App\Models\KartuKeluarga;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,6 +21,35 @@ class KartuKeluargaFactory extends Factory
             'rt' => str_pad((string) fake()->numberBetween(1, 5), 3, '0', STR_PAD_LEFT),
             'rw' => str_pad((string) fake()->numberBetween(1, 3), 3, '0', STR_PAD_LEFT),
             'alamat' => 'Jl. Poros Desa Tamarenja No. ' . fake()->numberBetween(1, 120),
+            'status_kesejahteraan' => StatusKesejahteraan::NonPrioritas,
         ];
+    }
+
+    public function desil1(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil1,
+        ]);
+    }
+
+    public function desil2(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil2,
+        ]);
+    }
+
+    public function desil34(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil34,
+        ]);
+    }
+
+    public function nonPrioritas(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status_kesejahteraan' => StatusKesejahteraan::NonPrioritas,
+        ]);
     }
 }

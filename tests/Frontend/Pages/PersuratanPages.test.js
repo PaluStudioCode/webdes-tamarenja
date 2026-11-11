@@ -5,7 +5,7 @@ import axios from 'axios';
 import PersuratanAntrean from '@/Pages/Persuratan/Antrean.vue';
 import PersuratanSuratKeluar from '@/Pages/Persuratan/SuratKeluar.vue';
 import PersuratanSuratMasuk from '@/Pages/Persuratan/SuratMasuk.vue';
-import PersuratanBuat from '@/Pages/Persuratan/Buat.vue';
+import BuatSuratLoketModal from '@/Components/BuatSuratLoketModal.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 
 vi.mock('axios', () => ({
@@ -29,7 +29,7 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
         page.props.filter_tahun = 2026;
     });
 
-    it('Persuratan/Buat merender pergantian field dinamis untuk ke-10 jenis surat, pintasan kelahiran KK, dan panel otomatis Bansos 1 KK pada SKTM', async () => {
+    it('BuatSuratLoketModal merender pergantian field dinamis untuk ke-10 jenis surat, pintasan kelahiran KK, dan panel otomatis Bansos 1 KK pada SKTM', async () => {
         axios.get.mockResolvedValue({
             data: {
                 penduduk_id: 77,
@@ -62,8 +62,9 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
             },
         ];
 
-        const wrapper = mount(PersuratanBuat, {
+        const wrapper = mount(BuatSuratLoketModal, {
             props: {
+                show: true,
                 residents: sampleResidents,
                 tanggal_hari_ini: '2026-03-15',
             },
@@ -80,10 +81,11 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
         expect(wrapper.find('[data-testid="fields-template-domisili"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="input-domisili-sejak-tahun"]').exists()).toBe(true);
 
-        // 3. SKTM + Pilihan Kode Klasifikasi 400/460 + Panel Otomatis Cek Bansos 1 KK
+        // 3. SKTM + Kode Klasifikasi Otomatis Terkunci (Read-Only) + Panel Otomatis Cek Bansos 1 KK
         await selectJenis.setValue('sktm');
         expect(wrapper.find('[data-testid="fields-template-sktm"]').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="select-kode-klasifikasi"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="input-kode-klasifikasi-readonly"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="input-kode-klasifikasi-readonly"]').element.value).toBe('400');
         expect(wrapper.find('[data-testid="panel-bansos-kk-sktm"]').exists()).toBe(true);
 
         // Simulasikan memilih warga pada NikSearchAutocomplete untuk memicu cek Bansos 1 KK
@@ -165,6 +167,22 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
                         wa_pickup_url:
                             'https://wa.me/6281234567890?text=Halo%20Bpk%2FIbu%20Budi%20Santoso',
                     },
+                    {
+                        id: 89,
+                        nomor_surat: '500/002/PEMDES-TMR/III/2026',
+                        tanggal_surat: '2026-03-15',
+                        sumber_pengajuan: 'loket',
+                        jenis_surat: 'domisili',
+                        jenis_surat_label: 'Surat Keterangan Domisili',
+                        keperluan: 'Pendaftaran kuliah',
+                        nama_pemohon: 'Joko',
+                        nik_pemohon: '7203081205900002',
+                        nama_penandatangan: 'Moh. Rizal',
+                        jabatan_penandatangan: 'Kepala Desa',
+                        status: 'dibatalkan',
+                        status_label: 'Dibatalkan',
+                        alasan_pembatalan: 'Salah ketik',
+                    },
                 ],
             },
         });
@@ -175,7 +193,12 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
             '_blank',
         );
 
-        // 2. Uji Batalkan Surat via useConfirm()
+        // 2. Tombol Buat Surat di Loket membuka BuatSuratLoketModal
+        expect(wrapper.findComponent(BuatSuratLoketModal).props('show')).toBe(false);
+        await wrapper.find('[data-testid="btn-buat-surat-loket"]').trigger('click');
+        expect(wrapper.findComponent(BuatSuratLoketModal).props('show')).toBe(true);
+
+        // 3. Uji Batalkan Surat via useConfirm()
         await wrapper.find('[data-testid="btn-batalkan-surat-88"]').trigger('click');
         await wrapper
             .find('[data-testid="input-alasan-pembatalan"]')
@@ -193,6 +216,18 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
             { alasan_pembatalan: 'Salah ketik alamat usaha' },
             expect.any(Object),
         );
+
+        // 4. Pastikan tidak ada tombol aksi WA pada tabel Buku Agenda Surat Keluar
+        expect(wrapper.find('[data-testid="btn-wa-agenda-88"]').exists()).toBe(false);
+
+        // 5. Pastikan surat berstatus dibatalkan tidak memunculkan tombol Cetak F4 maupun Batalkan
+        expect(wrapper.find('[data-testid="btn-cetak-ulang-89"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="btn-batalkan-surat-89"]').exists()).toBe(false);
+
+        // 6. Pastikan tabel Buku Agenda rapi (5 kolom, thead tanpa kolom Pejabat Penandatangan terpisah & tanpa teks sumber LOKET/ONLINE)
+        expect(wrapper.find('thead').text()).not.toContain('Pejabat Penandatangan');
+        expect(wrapper.find('tbody').text()).not.toContain('LOKET');
+        expect(wrapper.find('tbody').text()).toContain('TTD: Moh. Rizal');
     });
 
     it('Persuratan/Antrean membentuk tautan https://wa.me/628... beserta teks pesan pengambilan surat yang akurat dan konfirmasi tolak via useConfirm()', async () => {
@@ -225,6 +260,11 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
                         jenis_surat_label: 'Surat Keterangan Tidak Mampu (SKTM)',
                         keperluan: 'Beasiswa sekolah',
                         no_wa_pemohon: '081344556677',
+                        data_khusus: {
+                            penghasilan_rata_rata: 500000,
+                            jumlah_tanggungan: 3,
+                            nama_tanggungan: 'Ahmad & Siti',
+                        },
                         status: 'menunggu_verifikasi',
                         status_label: 'Menunggu Verifikasi',
                     },
@@ -238,6 +278,7 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
         // 1. Cek pembentukan tautan WA pickup otomatis dari 085299887766 -> https://wa.me/6285299887766
         const waBtn = wrapper.find('[data-testid="btn-wa-pickup-101"]');
         expect(waBtn.exists()).toBe(true);
+        expect(waBtn.text()).toContain('Whatsapp');
         const href = waBtn.attributes('href');
         expect(href).toContain('https://wa.me/6285299887766?text=');
         const decodedText = decodeURIComponent(href.split('?text=')[1]);
@@ -245,8 +286,27 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
             'Halo Bpk/Ibu Andi Saputra, Surat Surat Keterangan Domisili Anda sudah selesai dicetak dan ditandatangani. Silakan diambil di Kantor Desa dengan membawa KTP/KK asli.',
         );
 
-        // 2. Uji Tolak Permohonan dengan useConfirm()
-        await wrapper.find('[data-testid="btn-tolak-antrean-102"]').trigger('click');
+        // 1b. Pastikan tombol Cetak, teks nomor surat resmi, dan teks nomor WA sel tidak ada di tabel antrean
+        expect(wrapper.find('[data-testid="btn-cetak-antrean-101"]').exists()).toBe(false);
+        expect(wrapper.text()).not.toContain('470/002/PEMDES-TMR/III/2026');
+        expect(wrapper.text()).not.toContain('WA: 085299887766');
+        expect(wrapper.text()).not.toContain('Aksi Layanan');
+        expect(wrapper.text()).toContain('Waktu Pengajuan');
+        expect(wrapper.text()).toContain('Aksi');
+
+        // 1c. Uji Modal Verifikasi: merender rincian data khusus yang diinput warga
+        await wrapper.find('[data-testid="btn-verifikasi-antrean-102"]').trigger('click');
+        expect(wrapper.find('[data-testid="section-review-data-khusus"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="section-review-data-khusus"]').text()).toContain('500.000');
+        expect(wrapper.find('[data-testid="section-review-data-khusus"]').text()).toContain('3 Orang');
+        expect(wrapper.find('[data-testid="section-review-data-khusus"]').text()).toContain('Ahmad & Siti');
+
+        // Uji tombol pintas tolak dari dalam modal verifikasi
+        const shortcutTolakBtn = wrapper.find('[data-testid="btn-verifikasi-tolak-shortcut"]');
+        expect(shortcutTolakBtn.exists()).toBe(true);
+        await shortcutTolakBtn.trigger('click');
+
+        // 2. Uji Tolak Permohonan dengan useConfirm() (modal tolak sudah terbuka via shortcut)
         await wrapper
             .find('[data-testid="input-alasan-penolakan"]')
             .setValue('Mohon lampirkan pengantar RT setempat');
@@ -263,7 +323,7 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
         );
     });
 
-    it('Persuratan/SuratMasuk membuka drawer pratinjau scan dan menyembunyikan seluruh aksi tulis bagi kepala_desa (Read-Only)', async () => {
+    it('Persuratan/SuratMasuk membuka berkas scan di tab baru langsung dan menyembunyikan seluruh aksi tulis bagi kepala_desa (Read-Only)', async () => {
         const sampleSuratMasuk = [
             {
                 id: 301,
@@ -295,11 +355,27 @@ describe('Sub-Fase 7.3: Antarmuka Grup Persuratan (/panel/persuratan/*), Cek Ban
         expect(wrapperOperator.find('[data-testid="btn-tambah-surat-masuk"]').exists()).toBe(true);
         expect(wrapperOperator.find('[data-testid="btn-edit-surat-masuk-301"]').exists()).toBe(true);
 
-        await wrapperOperator.find('[data-testid="btn-preview-scan-301"]').trigger('click');
-        expect(wrapperOperator.find('[data-testid="scan-preview-iframe"]').exists()).toBe(true);
-        expect(wrapperOperator.find('[data-testid="scan-preview-iframe"]').attributes('src')).toBe(
-            '/panel/persuratan/surat-masuk/301/berkas',
-        );
+        // Uji tombol Lihat berkas scan (buka langsung tab baru, tanpa drawer duplikat info)
+        const previewBtn = wrapperOperator.find('[data-testid="btn-preview-scan-301"]');
+        expect(previewBtn.text()).toContain('Lihat');
+        expect(previewBtn.text()).not.toContain('Lihat Scan');
+        expect(previewBtn.attributes('href')).toBe('/panel/persuratan/surat-masuk/301/berkas');
+        expect(previewBtn.attributes('target')).toBe('_blank');
+        expect(previewBtn.attributes('rel')).toBe('noopener noreferrer');
+        expect(wrapperOperator.find('[data-testid="scan-preview-iframe"]').exists()).toBe(false);
+
+        // Uji tabel 5 kolom (Berkas Scan digabung ke Aksi) dan kebersihan teks tanggal
+        expect(wrapperOperator.find('thead').text()).not.toContain('Berkas Scan');
+        expect(wrapperOperator.find('tbody').text()).not.toContain('Terima:');
+        expect(wrapperOperator.find('tbody').text()).not.toContain('Tgl Surat:');
+        expect(wrapperOperator.find('tbody').text()).toContain('Tgl: 2026-03-10');
+
+        // Uji label submit modal: "Simpan" saat tambah baru, "Perbarui" saat edit
+        await wrapperOperator.find('[data-testid="btn-tambah-surat-masuk"]').trigger('click');
+        expect(wrapperOperator.find('[data-testid="btn-submit-surat-masuk"]').text()).toBe('Simpan');
+
+        await wrapperOperator.find('[data-testid="btn-edit-surat-masuk-301"]').trigger('click');
+        expect(wrapperOperator.find('[data-testid="btn-submit-surat-masuk"]').text()).toBe('Perbarui');
 
         // 2. Uji sebagai Kepala Desa (Read-Only): tombol tambah/edit/hapus/verifikasi disembunyikan, namun Cetak Agenda F4 & Lihat Scan tetap aktif
         usePage().props.auth = {

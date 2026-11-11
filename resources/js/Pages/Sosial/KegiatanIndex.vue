@@ -11,10 +11,11 @@ import {
 } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/PageHeader.vue';
-import ContextualTabs from '@/Components/ContextualTabs.vue';
 import UnifiedFilterBar from '@/Components/UnifiedFilterBar.vue';
 import DataTable from '@/Components/DataTable.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
+import BaseButton from '@/Components/BaseButton.vue';
+import KegiatanModal from '@/Components/KegiatanModal.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 
 const props = defineProps({
@@ -55,21 +56,6 @@ const confirm = useConfirm();
 const isOperator = computed(
     () => page.props?.auth?.user?.role === 'operator',
 );
-
-const sosialSubNav = [
-    {
-        key: 'bansos',
-        label: 'Data Penerima Bansos & Pemerataan',
-        href: '/panel/sosial/bansos',
-        active: false,
-    },
-    {
-        key: 'kegiatan',
-        label: 'Dokumentasi Kegiatan Desa',
-        href: '/panel/sosial/kegiatan',
-        active: true,
-    },
-];
 
 const searchQuery = ref(props.filters?.search || '');
 const selectedKategori = ref(props.filters?.kategori || '');
@@ -154,6 +140,27 @@ async function handleDeleteKegiatan(item) {
         preserveScroll: true,
     });
 }
+
+const showModal = ref(false);
+const isEditing = ref(false);
+const selectedKegiatan = ref(null);
+
+function openCreateModal() {
+    isEditing.value = false;
+    selectedKegiatan.value = null;
+    showModal.value = true;
+}
+
+function openEditModal(item) {
+    isEditing.value = true;
+    selectedKegiatan.value = item;
+    showModal.value = true;
+}
+
+function closeModal() {
+    showModal.value = false;
+    selectedKegiatan.value = null;
+}
 </script>
 
 <template>
@@ -166,20 +173,17 @@ async function handleDeleteKegiatan(item) {
                 subtitle="Kelola berita dan galeri 1–5 foto bukti pelaksanaan kegiatan kemasyarakatan Desa Tamarenja."
             >
                 <template #actions>
-                    <Link
+                    <BaseButton
                         v-if="isOperator"
-                        href="/panel/sosial/kegiatan/buat"
+                        variant="primary"
                         data-testid="btn-buat-kegiatan"
-                        class="inline-flex h-10 items-center justify-center rounded-md bg-blue-700 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-800"
+                        @click="openCreateModal"
                     >
                         <Plus class="mr-1.5 h-4 w-4" />
                         <span>Buat Dokumentasi Kegiatan</span>
-                    </Link>
+                    </BaseButton>
                 </template>
             </PageHeader>
-
-            <!-- Sub-Navigasi Modul 4 Sosial -->
-            <ContextualTabs :tabs="sosialSubNav" />
 
             <!-- Filter Bar -->
             <UnifiedFilterBar
@@ -314,14 +318,15 @@ async function handleDeleteKegiatan(item) {
                             </span>
                         </button>
 
-                        <Link
-                            :href="`/panel/sosial/kegiatan/${row.id}/edit`"
+                        <button
+                            type="button"
                             :data-testid="`btn-edit-kegiatan-${row.id}`"
                             class="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            @click="openEditModal(row)"
                         >
                             <Pencil class="mr-1 h-3.5 w-3.5" />
                             <span>Edit</span>
-                        </Link>
+                        </button>
 
                         <button
                             type="button"
@@ -335,6 +340,17 @@ async function handleDeleteKegiatan(item) {
                     <span v-else class="text-xs text-slate-400">Read-Only</span>
                 </template>
             </DataTable>
+
+            <!-- Modal Buat & Edit Dokumentasi Kegiatan Desa -->
+            <KegiatanModal
+                :show="showModal"
+                :is-edit="isEditing"
+                :kegiatan="selectedKegiatan"
+                :daftar-dusun="daftar_dusun"
+                :opsi-kategori="opsi_kategori"
+                :opsi-status-publikasi="opsi_status_publikasi"
+                @close="closeModal"
+            />
         </div>
     </AppLayout>
 </template>

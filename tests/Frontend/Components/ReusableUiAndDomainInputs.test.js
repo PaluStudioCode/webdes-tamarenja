@@ -223,6 +223,56 @@ describe('Sub-Fase 3.3: Komponen UI Dasar, Tabel Anti-Penumpukan & Input Khusus 
             expect(wrapper.find('[data-testid="row-action-delete-0"]').exists()).toBe(false);
         });
 
+        it('merender aksi responsif pada DataTable ketika responsiveActions=true (inline di desktop, titik tiga di mobile)', async () => {
+            const page = usePage();
+            page.props.auth.user = { id: 1, name: 'Operator', role: 'operator' };
+
+            const columns = [
+                { key: 'nomor_kk', label: 'Nomor KK' },
+                { key: 'dusun', label: 'Dusun' },
+            ];
+
+            const rows = {
+                data: [
+                    { id: 1, nomor_kk: '7203080101260001', dusun: 'Dusun I' },
+                ],
+                current_page: 1,
+                last_page: 1,
+                from: 1,
+                to: 1,
+                total: 1,
+            };
+
+            const rowActions = [
+                { key: 'tambah_anggota', label: '+ Anggota', operatorOnly: true },
+                { key: 'edit', label: 'Ubah KK', operatorOnly: true },
+                { key: 'hapus', label: 'Hapus KK', variant: 'danger', operatorOnly: true },
+            ];
+
+            const wrapper = mount(DataTable, {
+                props: {
+                    columns,
+                    rows,
+                    rowActions,
+                    responsiveActions: true,
+                },
+            });
+
+            // Desktop: tombol aksi inline langsung dirender
+            expect(wrapper.find('[data-testid="row-action-tambah_anggota-0"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="row-action-edit-0"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="row-action-hapus-0"]').exists()).toBe(true);
+
+            // Mobile: tombol titik tiga (MoreHorizontal) dirender
+            expect(wrapper.find('[data-testid="row-more-btn-0"]').exists()).toBe(true);
+
+            // Buka dropdown mobile
+            await wrapper.find('[data-testid="row-more-btn-0"]').trigger('click');
+            expect(wrapper.find('[data-testid="row-action-menu-tambah_anggota-0"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="row-action-menu-edit-0"]').exists()).toBe(true);
+            expect(wrapper.find('[data-testid="row-action-menu-hapus-0"]').exists()).toBe(true);
+        });
+
         it('menjalankan pencarian debounced pada UnifiedFilterBar dan menampilkan tombol Reset secara kondisional', async () => {
             const wrapper = mount(UnifiedFilterBar, {
                 props: {

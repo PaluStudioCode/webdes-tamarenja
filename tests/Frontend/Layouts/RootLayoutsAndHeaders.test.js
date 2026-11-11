@@ -100,15 +100,21 @@ describe('Sub-Fase 3.2: Tiga Root Layout (PublicLayout, AuthLayout, AppLayout) &
             });
 
             expect(operatorWrap.find('[data-testid="sidebar-link-pengaturan"]').exists()).toBe(true);
-            expect(operatorWrap.get('[data-testid="topbar-role-badge"]').text()).toBe('Operator Desa');
+            expect(operatorWrap.find('[data-testid="topbar-role-badge"]').exists()).toBe(false);
             expect(operatorWrap.get('[data-testid="persuratan-antrean-badge"]').text()).toBe('4');
             expect(operatorWrap.text()).not.toContain('Selamat Datang Kembali');
 
-            // Uji collapsible sidebar desktop
+            // Uji collapsible & posisi fixed sidebar desktop
             const desktopSidebar = operatorWrap.get('[data-testid="desktop-sidebar"]');
+            const mainWrapper = operatorWrap.get('[data-testid="app-main-wrapper"]');
+            expect(desktopSidebar.classes()).toContain('fixed');
+            expect(desktopSidebar.classes()).toContain('inset-y-0');
+            expect(desktopSidebar.classes()).toContain('left-0');
             expect(desktopSidebar.classes()).toContain('w-64');
+            expect(mainWrapper.classes()).toContain('lg:pl-64');
             await operatorWrap.get('[data-testid="desktop-sidebar-toggle"]').trigger('click');
             expect(desktopSidebar.classes()).toContain('w-20');
+            expect(mainWrapper.classes()).toContain('lg:pl-20');
 
             // Ganti peran ke kepala_desa -> Pengaturan Sistem wajib disembunyikan sepenuhnya
             page.props.auth.user = {
@@ -119,7 +125,33 @@ describe('Sub-Fase 3.2: Tiga Root Layout (PublicLayout, AuthLayout, AppLayout) &
             await nextTick();
 
             expect(operatorWrap.find('[data-testid="sidebar-link-pengaturan"]').exists()).toBe(false);
-            expect(operatorWrap.get('[data-testid="topbar-role-badge"]').text()).toBe('Kepala Desa');
+            expect(operatorWrap.find('[data-testid="topbar-role-badge"]').exists()).toBe(false);
+        });
+
+        it('memisahkan menu Bantuan Sosial dan Kegiatan Desa menjadi menu tingkat utama independen di sidebar', () => {
+            const page = usePage();
+            page.url = '/panel/dashboard';
+            page.props.auth.user = { id: 1, name: 'Operator', role: 'operator' };
+
+            const wrapper = mount(AppLayout, {
+                slots: { default: '<div>Konten</div>' },
+            });
+
+            // Menu Bantuan Sosial dan Kegiatan Desa berdiri sendiri sebagai menu tingkat utama
+            const bansosLink = wrapper.find('[data-testid="sidebar-link-bansos"]');
+            const kegiatanLink = wrapper.find('[data-testid="sidebar-link-kegiatan"]');
+            expect(bansosLink.exists()).toBe(true);
+            expect(bansosLink.text()).toContain('Bantuan Sosial');
+            expect(bansosLink.attributes('href')).toBe('/panel/sosial/bansos');
+
+            expect(kegiatanLink.exists()).toBe(true);
+            expect(kegiatanLink.text()).toContain('Kegiatan Desa');
+            expect(kegiatanLink.attributes('href')).toBe('/panel/sosial/kegiatan');
+
+            // Tidak ada lagi menu gabungan sosial dengan sublink
+            expect(wrapper.find('[data-testid="sidebar-link-sosial"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="sidebar-sublink-bansos"]').exists()).toBe(false);
+            expect(wrapper.find('[data-testid="sidebar-sublink-kegiatan"]').exists()).toBe(false);
         });
 
         it('menampilkan dropdown Tahun Anggaran Sesi di rute tahunan dan menyembunyikannya di rute lintas-waktu (kependudukan, pengaturan, akun)', async () => {

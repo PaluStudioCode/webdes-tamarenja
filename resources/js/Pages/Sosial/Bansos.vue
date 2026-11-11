@@ -15,7 +15,6 @@ import {
 } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/PageHeader.vue';
-import ContextualTabs from '@/Components/ContextualTabs.vue';
 import UnifiedFilterBar from '@/Components/UnifiedFilterBar.vue';
 import DataTable from '@/Components/DataTable.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
@@ -101,21 +100,6 @@ const confirm = useConfirm();
 const isOperator = computed(
     () => page.props?.auth?.user?.role === 'operator',
 );
-
-const sosialSubNav = [
-    {
-        key: 'bansos',
-        label: 'Data Penerima Bansos & Pemerataan',
-        href: '/panel/sosial/bansos',
-        active: true,
-    },
-    {
-        key: 'kegiatan',
-        label: 'Dokumentasi Kegiatan Desa',
-        href: '/panel/sosial/kegiatan',
-        active: false,
-    },
-];
 
 // 2 Tab Internal Halaman Bansos
 const activeTab = ref('penerima');
@@ -509,9 +493,6 @@ function submitImportExcel() {
                     </template>
                 </template>
             </PageHeader>
-
-            <!-- Sub-Navigasi Modul 4 Sosial -->
-            <ContextualTabs :tabs="sosialSubNav" />
 
             <!-- 2 Tab Kontekstual: Daftar Penerima Bansos vs Pemerataan Bantuan -->
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-3">

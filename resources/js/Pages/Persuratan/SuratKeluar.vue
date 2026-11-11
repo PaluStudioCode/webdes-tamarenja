@@ -1,9 +1,8 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import {
     Ban,
-    MessageCircle,
     Plus,
     Printer,
 } from 'lucide-vue-next';
@@ -15,6 +14,7 @@ import DataTable from '@/Components/DataTable.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
 import BaseButton from '@/Components/BaseButton.vue';
 import BaseModal from '@/Components/BaseModal.vue';
+import BuatSuratLoketModal from '@/Components/BuatSuratLoketModal.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 
 const props = defineProps({
@@ -49,6 +49,18 @@ const props = defineProps({
     pejabat_penandatangan: {
         type: Array,
         default: () => [],
+    },
+    tanggal_hari_ini: {
+        type: String,
+        default: () => new Date().toISOString().slice(0, 10),
+    },
+    buka_modal_buat: {
+        type: Boolean,
+        default: false,
+    },
+    residents: {
+        type: Array,
+        default: null,
     },
 });
 
@@ -129,21 +141,43 @@ const columns = [
     { key: 'nomor_surat', label: 'Nomor & Tanggal Surat' },
     { key: 'jenis_surat', label: 'Jenis Surat & Keperluan' },
     { key: 'pemohon', label: 'Pemohon / Subjek Warga' },
-    { key: 'penandatangan', label: 'Pejabat Penandatangan' },
     { key: 'status', label: 'Status' },
-    { key: 'actions', label: 'Aksi', align: 'right' },
+    {
+        key: 'actions',
+        label: 'Aksi',
+        align: 'right',
+        class: 'whitespace-nowrap',
+        cellClass: 'whitespace-nowrap',
+    },
 ];
 
+// Modal Buat Surat di Loket
+const showBuatModal = ref(Boolean(props.buka_modal_buat));
+
+watch(
+    () => props.buka_modal_buat,
+    (val) => {
+        if (val) {
+            showBuatModal.value = true;
+        }
+    },
+    { immediate: true },
+);
+
 // Pemicu otomatis pembukaan tab/unduhan PDF pasca-terbit dari loket
-onMounted(() => {
-    if (
-        props.cetak_pdf_url &&
-        typeof window !== 'undefined' &&
-        typeof window.open === 'function'
-    ) {
-        window.open(props.cetak_pdf_url, '_blank');
-    }
-});
+watch(
+    () => props.cetak_pdf_url,
+    (url) => {
+        if (
+            url &&
+            typeof window !== 'undefined' &&
+            typeof window.open === 'function'
+        ) {
+            window.open(url, '_blank');
+        }
+    },
+    { immediate: true },
+);
 
 // Modal & Konfirmasi Pembatalan Surat Terbit
 const showBatalkanModal = ref(false);
@@ -207,15 +241,15 @@ async function submitBatalkan() {
                         <span>Cetak Agenda F4</span>
                     </a>
 
-                    <Link
+                    <BaseButton
                         v-if="isOperator"
-                        href="/panel/persuratan/surat-keluar/buat"
+                        variant="primary"
                         data-testid="btn-buat-surat-loket"
-                        class="inline-flex h-10 items-center justify-center rounded-md bg-blue-700 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-800"
+                        @click="showBuatModal = true"
                     >
                         <Plus class="mr-1.5 h-4 w-4" />
-                        <span>Buat Surat di Loket</span>
-                    </Link>
+                        <span>Buat Surat</span>
+                    </BaseButton>
                 </template>
             </PageHeader>
 
@@ -272,8 +306,7 @@ async function submitBatalkan() {
                             {{ row.nomor_surat }}
                         </p>
                         <p class="text-xs tabular-nums text-slate-500">
-                            Tgl: {{ row.tanggal_surat || '—' }} &bull;
-                            <span class="uppercase">{{ row.sumber_pengajuan }}</span>
+                            Tgl: {{ row.tanggal_surat || '—' }}
                         </p>
                     </div>
                 </template>
@@ -300,23 +333,18 @@ async function submitBatalkan() {
                     </div>
                 </template>
 
-                <template #cell-penandatangan="{ row }">
-                    <div>
-                        <p class="font-medium text-slate-800">
-                            {{ row.nama_penandatangan }}
-                        </p>
-                        <p class="text-xs text-slate-500">
-                            {{ row.jabatan_penandatangan }}
-                        </p>
-                    </div>
-                </template>
-
                 <template #cell-status="{ row }">
                     <div class="space-y-1">
                         <StatusBadge
                             :status="row.status"
                             :label="row.status_label"
                         />
+                        <p
+                            v-if="row.nama_penandatangan && row.status === 'terbit'"
+                            class="text-xs text-slate-500"
+                        >
+                            TTD: {{ row.nama_penandatangan }}
+                        </p>
                         <p
                             v-if="row.alasan_pembatalan"
                             class="text-xs text-red-600"
@@ -327,38 +355,34 @@ async function submitBatalkan() {
                 </template>
 
                 <template #cell-actions="{ row }">
-                    <div class="flex flex-wrap items-center justify-end gap-2">
+                    <div class="flex items-center justify-end gap-2 whitespace-nowrap">
                         <a
+                            v-if="row.status === 'terbit'"
                             :href="`/panel/persuratan/surat-keluar/${row.id}/pdf`"
                             :data-testid="`btn-cetak-ulang-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            class="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                         >
                             <Printer class="mr-1 h-3.5 w-3.5" />
-                            <span>Cetak F4</span>
-                        </a>
-
-                        <a
-                            v-if="row.no_wa_pemohon && row.status === 'terbit' && row.wa_pickup_url"
-                            :href="row.wa_pickup_url"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            :data-testid="`btn-wa-agenda-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md bg-emerald-600 px-2.5 text-xs font-medium text-white hover:bg-emerald-700"
-                        >
-                            <MessageCircle class="mr-1 h-3.5 w-3.5" />
-                            <span>WA</span>
+                            <span>Cetak</span>
                         </a>
 
                         <button
                             v-if="row.status === 'terbit' && isOperator"
                             type="button"
                             :data-testid="`btn-batalkan-surat-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md px-2.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                            class="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                             @click="openBatalkanModal(row)"
                         >
-                            <Ban class="mr-1 h-3.5 w-3.5" />
+                            <Ban class="mr-1 h-3.5 w-3.5 text-red-600" />
                             <span>Batalkan</span>
                         </button>
+
+                        <span
+                            v-if="row.status === 'dibatalkan'"
+                            class="text-xs italic text-slate-400"
+                        >
+                            &mdash;
+                        </span>
                     </div>
                 </template>
             </DataTable>
@@ -401,5 +425,15 @@ async function submitBatalkan() {
                 </div>
             </div>
         </BaseModal>
+
+        <!-- Modal Buat Surat di Loket (10 Template Baku) -->
+        <BuatSuratLoketModal
+            :show="showBuatModal"
+            :opsi_jenis_surat="opsi_jenis_surat"
+            :pejabat_penandatangan="pejabat_penandatangan"
+            :tanggal_hari_ini="tanggal_hari_ini"
+            :residents="residents"
+            @close="showBuatModal = false"
+        />
     </AppLayout>
 </template>

@@ -21,9 +21,35 @@ class SaveProyekPembangunanRequest extends FormRequest
             $this->merge(['realisasi_anggaran' => 0]);
         }
 
-        if (! $this->has('progres_fisik') || $this->input('progres_fisik') === '') {
-            $this->merge(['progres_fisik' => 0]);
+        $routeProyek = $this->route('proyek');
+        $existing = $routeProyek instanceof ProyekPembangunan ? $routeProyek : null;
+
+        $hasFoto100 = $this->hasFile('foto_100')
+            || filled($existing?->foto_100_path)
+            || filled($this->input('foto_100_path'));
+
+        $hasFoto50 = $this->hasFile('foto_50')
+            || filled($existing?->foto_50_path)
+            || filled($this->input('foto_50_path'));
+
+        $hasFoto0 = $this->hasFile('foto_0')
+            || filled($existing?->foto_0_path)
+            || filled($this->input('foto_0_path'));
+
+        $computedProgres = 0;
+        if ($hasFoto100) {
+            $computedProgres = 100;
+        } elseif ($hasFoto50) {
+            $computedProgres = 50;
+        } elseif ($hasFoto0) {
+            $computedProgres = 0;
         }
+
+        $this->merge([
+            'progres_fisik' => $this->filled('progres_fisik')
+                ? (int) $this->input('progres_fisik')
+                : $computedProgres,
+        ]);
     }
 
     /**
@@ -43,7 +69,7 @@ class SaveProyekPembangunanRequest extends FormRequest
             'pelaksana_kegiatan' => ['nullable', 'string', 'max:150'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'progres_fisik' => ['required', 'integer', 'between:0,100'],
+            'progres_fisik' => ['nullable', 'integer', 'between:0,100'],
             'catatan_kendala' => ['nullable', 'string', 'max:2000'],
             'foto_0' => [
                 'nullable',
@@ -70,58 +96,11 @@ class SaveProyekPembangunanRequest extends FormRequest
     }
 
     /**
-     * Validasi bertahap 3 titik foto berdasarkan progres_fisik:
-     * - 0%       : foto opsional
-     * - 1% - 49% : wajib memiliki foto_0
-     * - 50% - 99%: wajib memiliki foto_0 & foto_50
-     * - 100%     : wajib memiliki foto_0, foto_50, & foto_100
+     * @return array<int, callable>
      */
     public function after(): array
     {
-        return [
-            function (Validator $validator) {
-                $progres = (int) $this->input('progres_fisik', 0);
-                if ($progres <= 0) {
-                    return;
-                }
-
-                $routeProyek = $this->route('proyek');
-                $existing = $routeProyek instanceof ProyekPembangunan ? $routeProyek : null;
-
-                $hasFoto0 = $this->hasFile('foto_0')
-                    || filled($existing?->foto_0_path)
-                    || filled($this->input('foto_0_path'));
-
-                $hasFoto50 = $this->hasFile('foto_50')
-                    || filled($existing?->foto_50_path)
-                    || filled($this->input('foto_50_path'));
-
-                $hasFoto100 = $this->hasFile('foto_100')
-                    || filled($existing?->foto_100_path)
-                    || filled($this->input('foto_100_path'));
-
-                if ($progres >= 1 && ! $hasFoto0) {
-                    $validator->errors()->add(
-                        'foto_0',
-                        'Foto kondisi awal (0%) wajib diunggah untuk proyek dengan progres fisik 1% ke atas.'
-                    );
-                }
-
-                if ($progres >= 50 && ! $hasFoto50) {
-                    $validator->errors()->add(
-                        'foto_50',
-                        'Foto pengerjaan berjalan (50%) wajib diunggah untuk proyek dengan progres fisik 50% ke atas.'
-                    );
-                }
-
-                if ($progres >= 100 && ! $hasFoto100) {
-                    $validator->errors()->add(
-                        'foto_100',
-                        'Foto hasil akhir (100%) wajib diunggah untuk menyelesaikan proyek (100%).'
-                    );
-                }
-            },
-        ];
+        return [];
     }
 
     /**

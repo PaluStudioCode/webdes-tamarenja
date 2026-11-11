@@ -15,38 +15,53 @@
         }
         .kop-table {
             width: 100%;
-            border-bottom: 3px double #000;
+            border-collapse: collapse;
+            border-bottom: 4px double #000000;
+            margin-bottom: 12px;
+        }
+        .kop-table td {
             padding-bottom: 6px;
-            margin-bottom: 10px;
         }
         .kop-logo {
-            width: 65px;
-            text-align: center;
+            width: 105px;
+            text-align: left;
             vertical-align: middle;
         }
         .kop-logo img {
-            width: 52px;
+            width: 92px;
             height: auto;
         }
         .kop-text {
             text-align: center;
             vertical-align: middle;
+            padding-right: 40px;
         }
         .kop-kab {
-            font-size: 11.5pt;
+            font-size: 13.5pt;
+            font-weight: normal;
+            text-transform: uppercase;
+            line-height: 1.15;
+            margin: 0;
+        }
+        .kop-kec {
+            font-size: 13.5pt;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 0;
+            line-height: 1.15;
+            margin: 1px 0;
         }
         .kop-desa {
             font-size: 13.5pt;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 2px 0;
+            line-height: 1.15;
+            margin: 1px 0;
         }
         .kop-alamat {
-            font-size: 8.5pt;
-            margin: 0;
+            font-size: 9.5pt;
+            font-weight: bold;
+            line-height: 1.25;
+            margin: 2px 0 0 0;
         }
         .judul-blok {
             text-align: center;
@@ -105,20 +120,23 @@
         $namaDesa = $profilDesa->nama_desa ?? 'Tamarenja';
         $kecamatan = $profilDesa->kecamatan ?? 'Sindue Tobata';
         $kabupaten = $profilDesa->kabupaten ?? 'Donggala';
-        $alamatKantor = $profilDesa->alamat_kantor ?? 'Jl. Trans Sulawesi Desa Tamarenja';
+        $rawAlamat = trim((string) ($profilDesa->alamat_kantor ?? ''));
+        $alamatKantor = ($rawAlamat !== '' && ! str_contains($rawAlamat, 'Jl. Trans Sulawesi'))
+            ? $rawAlamat
+            : 'Jl. Hi. Paggaru No. 80 Tamarenja Kode Pos 94353';
     @endphp
 
     <table class="kop-table">
         <tr>
             @if(!empty($logoBase64))
                 <td class="kop-logo">
-                    <img src="{{ $logoBase64 }}" alt="Logo Desa">
+                    <img src="{{ $logoBase64 }}" alt="Logo Garuda">
                 </td>
             @endif
             <td class="kop-text">
                 <p class="kop-kab">PEMERINTAH KABUPATEN {{ strtoupper($kabupaten) }}</p>
-                <p class="kop-kab">KECAMATAN {{ strtoupper($kecamatan) }}</p>
-                <p class="kop-desa">PEMERINTAH DESA {{ strtoupper($namaDesa) }}</p>
+                <p class="kop-kec">KECAMATAN {{ strtoupper($kecamatan) }}</p>
+                <p class="kop-desa">DESA {{ strtoupper($namaDesa) }}</p>
                 <p class="kop-alamat">{{ $alamatKantor }}</p>
             </td>
         </tr>

@@ -15,38 +15,53 @@
         }
         .kop-table {
             width: 100%;
-            border-bottom: 3px double #000;
-            padding-bottom: 8px;
-            margin-bottom: 16px;
+            border-collapse: collapse;
+            border-bottom: 4px double #000000;
+            margin-bottom: 18px;
+        }
+        .kop-table td {
+            padding-bottom: 6px;
         }
         .kop-logo {
-            width: 72px;
-            text-align: center;
+            width: 108px;
+            text-align: left;
             vertical-align: middle;
         }
         .kop-logo img {
-            width: 60px;
+            width: 98px;
             height: auto;
         }
         .kop-text {
             text-align: center;
             vertical-align: middle;
+            padding-right: 24px;
         }
         .kop-kab {
-            font-size: 12pt;
+            font-size: 14pt;
+            font-weight: normal;
+            text-transform: uppercase;
+            line-height: 1.15;
+            margin: 0;
+        }
+        .kop-kec {
+            font-size: 14pt;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 0;
+            line-height: 1.15;
+            margin: 1px 0;
         }
         .kop-desa {
-            font-size: 15pt;
+            font-size: 14pt;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 2px 0;
+            line-height: 1.15;
+            margin: 1px 0;
         }
         .kop-alamat {
-            font-size: 9pt;
-            margin: 0;
+            font-size: 10pt;
+            font-weight: bold;
+            line-height: 1.25;
+            margin: 3px 0 0 0;
         }
         .judul-surat {
             text-align: center;
@@ -131,7 +146,10 @@
         $namaDesa = $profilDesa->nama_desa ?? 'Tamarenja';
         $kecamatan = $profilDesa->kecamatan ?? 'Sindue Tobata';
         $kabupaten = $profilDesa->kabupaten ?? 'Donggala';
-        $alamatKantor = $profilDesa->alamat_kantor ?? 'Jl. Trans Sulawesi Desa Tamarenja';
+        $rawAlamat = trim((string) ($profilDesa->alamat_kantor ?? ''));
+        $alamatKantor = ($rawAlamat !== '' && ! str_contains($rawAlamat, 'Jl. Trans Sulawesi'))
+            ? $rawAlamat
+            : 'Jl. Hi. Paggaru No. 80 Tamarenja Kode Pos 94353';
         $warga = $surat->penduduk;
         $kk = $warga?->kartuKeluarga;
         $dk = $surat->data_khusus ?? [];
@@ -144,13 +162,13 @@
         <tr>
             @if(!empty($logoBase64))
                 <td class="kop-logo">
-                    <img src="{{ $logoBase64 }}" alt="Logo Desa">
+                    <img src="{{ $logoBase64 }}" alt="Logo Garuda">
                 </td>
             @endif
             <td class="kop-text">
                 <p class="kop-kab">PEMERINTAH KABUPATEN {{ strtoupper($kabupaten) }}</p>
-                <p class="kop-kab">KECAMATAN {{ strtoupper($kecamatan) }}</p>
-                <p class="kop-desa">PEMERINTAH DESA {{ strtoupper($namaDesa) }}</p>
+                <p class="kop-kec">KECAMATAN {{ strtoupper($kecamatan) }}</p>
+                <p class="kop-desa">DESA {{ strtoupper($namaDesa) }}</p>
                 <p class="kop-alamat">{{ $alamatKantor }}</p>
             </td>
         </tr>

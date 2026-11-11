@@ -258,4 +258,62 @@ describe('Sub-Fase 8.3: Antarmuka Modul 4 Bansos & Dokumentasi Kegiatan (/panel/
         expect(wrapperKadesKegiatanIndex.find('[data-testid="btn-edit-kegiatan-10"]').exists()).toBe(false);
         expect(wrapperKadesKegiatanIndex.find('[data-testid="btn-delete-kegiatan-10"]').exists()).toBe(false);
     });
+
+    it('KegiatanIndex membuka modal terpadu untuk Buat dan Edit Dokumentasi Kegiatan tanpa berpindah halaman', async () => {
+        const postSpy = vi.spyOn(router, 'post').mockImplementation(() => {});
+        const sampleKegiatan = [
+            {
+                id: 15,
+                judul: 'Penyaluran BLT-DD Tahap I 2026',
+                slug: 'penyaluran-blt-dd-tahap-i-2026',
+                kategori: 'penyaluran_bansos',
+                kategori_label: 'Penyaluran Bantuan Sosial',
+                tanggal_kegiatan: '2026-03-20',
+                lokasi_dusun: 'Dusun I',
+                uraian: 'Penyaluran langsung kepada 30 KPM di kantor desa.',
+                status_publikasi: 'published',
+                status_publikasi_label: 'Published',
+                sampul_url: '/storage/kegiatan/2026/sampul.webp',
+                jumlah_foto: 1,
+                foto: [
+                    { id: 101, foto_path: 'kegiatan/2026/sampul.webp', foto_url: '/storage/kegiatan/2026/sampul.webp', urutan: 1 },
+                ],
+            },
+        ];
+
+        const wrapper = mount(SosialKegiatanIndex, {
+            props: {
+                kegiatan: sampleKegiatan,
+                daftar_dusun: ['Dusun I', 'Dusun II', 'Dusun III'],
+            },
+        });
+
+        // 1. Awalnya modal tertutup
+        expect(wrapper.find('[data-testid="form-kegiatan-desa"]').exists()).toBe(false);
+
+        // 2. Klik tombol Buat Dokumentasi Kegiatan -> modal terbuka dalam mode Tambah
+        await wrapper.find('[data-testid="btn-buat-kegiatan"]').trigger('click');
+        expect(wrapper.find('[data-testid="form-kegiatan-desa"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="input-judul-kegiatan"]').element.value).toBe('');
+
+        // Isi form dan simpan draft
+        await wrapper.find('[data-testid="input-judul-kegiatan"]').setValue('Posyandu Melati Dusun II');
+        await wrapper.find('[data-testid="textarea-uraian-kegiatan"]').setValue('Pemeriksaan balita dan lansia.');
+        await wrapper.find('[data-testid="btn-simpan-draft"]').trigger('click');
+
+        expect(postSpy).toHaveBeenCalledTimes(1);
+        expect(postSpy.mock.calls[0][0]).toBe('/panel/sosial/kegiatan');
+        expect(postSpy.mock.calls[0][1]).toMatchObject({
+            judul: 'Posyandu Melati Dusun II',
+            status_publikasi: 'draft',
+        });
+
+        // 3. Klik tombol Edit pada baris kegiatan -> modal terbuka dalam mode Edit terisi data
+        await wrapper.find('[data-testid="btn-edit-kegiatan-15"]').trigger('click');
+        expect(wrapper.find('[data-testid="form-kegiatan-desa"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="input-judul-kegiatan"]').element.value).toBe('Penyaluran BLT-DD Tahap I 2026');
+        expect(wrapper.find('[data-testid="input-lokasi-dusun"]').element.value).toBe('Dusun I');
+        expect(wrapper.find('[data-testid="photo-counter"]').text()).toBe('1 / 5');
+        expect(wrapper.find('[data-testid="badge-sampul-utama"]').exists()).toBe(true);
+    });
 });

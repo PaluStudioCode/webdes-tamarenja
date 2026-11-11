@@ -82,7 +82,11 @@ class PendudukController extends Controller
         // 2. Query Daftar Kartu Keluarga
         $kkQuery = KartuKeluarga::query()
             ->with([
-                'penduduk' => fn ($q) => $q->orderByRaw("
+                'penduduk' => fn ($q) => $q->with([
+                    'suratKeluar' => fn ($sq) => $sq
+                        ->where('jenis_surat', JenisSurat::Kematian)
+                        ->where('status', StatusSuratKeluar::Terbit),
+                ])->orderByRaw("
                     CASE hubungan_keluarga
                         WHEN 'kepala_keluarga' THEN 1
                         WHEN 'istri' THEN 2
@@ -105,7 +109,10 @@ class PendudukController extends Controller
                 $q->whereHas('penduduk', fn (Builder $pQ) => $pQ->where('status_kependudukan', $statusKependudukan));
             })
             ->when($statusKesejahteraan !== '', function (Builder $q) use ($statusKesejahteraan) {
-                $q->whereHas('penduduk', fn (Builder $pQ) => $pQ->where('status_kesejahteraan', $statusKesejahteraan));
+                $q->where(function (Builder $sub) use ($statusKesejahteraan) {
+                    $sub->where('status_kesejahteraan', $statusKesejahteraan)
+                        ->orWhereHas('penduduk', fn (Builder $pQ) => $pQ->where('status_kesejahteraan', $statusKesejahteraan));
+                });
             })
             ->orderBy('nomor_kk');
 
@@ -119,18 +126,25 @@ class PendudukController extends Controller
             ->with('kepalaKeluarga')
             ->orderBy('nomor_kk')
             ->get()
-            ->map(fn (KartuKeluarga $kk) => [
-                'id' => $kk->id,
-                'nomor_kk' => $kk->nomor_kk,
-                'dusun' => $kk->dusun,
-                'rt' => $kk->rt,
-                'rw' => $kk->rw,
-                'alamat' => $kk->alamat,
-                'kepala_keluarga_nama' => $kk->kepalaKeluarga?->nama_lengkap,
-                'label' => $kk->kepalaKeluarga
-                    ? "{$kk->nomor_kk} — {$kk->kepalaKeluarga->nama_lengkap} ({$kk->dusun})"
-                    : "{$kk->nomor_kk} ({$kk->dusun})",
-            ])
+            ->map(function (KartuKeluarga $kk) {
+                $kkKesejahteraan = $kk->status_kesejahteraan instanceof StatusKesejahteraan
+                    ? $kk->status_kesejahteraan->value
+                    : (string) ($kk->status_kesejahteraan ?: StatusKesejahteraan::NonPrioritas->value);
+
+                return [
+                    'id' => $kk->id,
+                    'nomor_kk' => $kk->nomor_kk,
+                    'dusun' => $kk->dusun,
+                    'rt' => $kk->rt,
+                    'rw' => $kk->rw,
+                    'alamat' => $kk->alamat,
+                    'status_kesejahteraan' => $kkKesejahteraan,
+                    'kepala_keluarga_nama' => $kk->kepalaKeluarga?->nama_lengkap,
+                    'label' => $kk->kepalaKeluarga
+                        ? "{$kk->nomor_kk} — {$kk->kepalaKeluarga->nama_lengkap} ({$kk->dusun})"
+                        : "{$kk->nomor_kk} ({$kk->dusun})",
+                ];
+            })
             ->values();
 
         // 4. Daftar Dusun terstandarisasi
@@ -444,6 +458,7 @@ class PendudukController extends Controller
         $validated = $request->validate(
             [
                 'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+                'mode' => ['nullable', 'string', 'in:preview,commit'],
             ],
             [
                 'file.required' => 'Berkas Excel wajib dipilih.',
@@ -451,6 +466,8 @@ class PendudukController extends Controller
                 'file.max' => 'Ukuran berkas maksimal 5 MB.',
             ]
         );
+
+        $isPreview = ($validated['mode'] ?? 'commit') === 'preview';
 
         /** @var \Illuminate\Http\UploadedFile $uploadedFile */
         $uploadedFile = $validated['file'];
@@ -464,7 +481,7 @@ class PendudukController extends Controller
         );
 
         $tempFullPath = Storage::disk('private')->path($tempRelativePath);
-        $import = new PendudukImport;
+        $import = new PendudukImport(dryRun: $isPreview);
 
         try {
             Excel::import($import, $tempFullPath);
@@ -477,9 +494,14 @@ class PendudukController extends Controller
         }
 
         $summary = $import->getSummary();
+        $summary['is_preview'] = $isPreview;
 
         session()->flash('import_summary', $summary);
         session()->flash('import_errors', $summary['failed_rows']);
+
+        if ($isPreview) {
+            return back();
+        }
 
         if ($summary['gagal'] > 0) {
             $type = $summary['berhasil'] > 0 ? 'warning' : 'error';
@@ -578,6 +600,9 @@ class PendudukController extends Controller
         $members = $kk->relationLoaded('penduduk') ? $kk->penduduk : $kk->penduduk()->get();
         $kepala = $members->firstWhere('hubungan_keluarga', 'kepala_keluarga');
         $warning = $this->kependudukanService->getKepalaKeluargaWarning($kk);
+        $kkKesejahteraan = $kk->status_kesejahteraan instanceof StatusKesejahteraan
+            ? $kk->status_kesejahteraan->value
+            : (string) ($kk->status_kesejahteraan ?: StatusKesejahteraan::NonPrioritas->value);
 
         return [
             'id' => $kk->id,
@@ -586,6 +611,7 @@ class PendudukController extends Controller
             'rt' => $kk->rt,
             'rw' => $kk->rw,
             'alamat' => $kk->alamat,
+            'status_kesejahteraan' => $kkKesejahteraan,
             'kepala_keluarga' => $kepala ? [
                 'id' => $kepala->id,
                 'nik' => $kepala->nik,
@@ -625,6 +651,19 @@ class PendudukController extends Controller
                     : (string) $m->status_kependudukan,
                 'tanggal_mutasi' => $m->tanggal_mutasi?->format('Y-m-d'),
                 'catatan_mutasi' => $m->catatan_mutasi,
+                'has_terbit_surat_kematian' => $m->relationLoaded('suratKeluar')
+                    ? $m->suratKeluar->isNotEmpty()
+                    : $m->suratKeluar()
+                        ->where('jenis_surat', JenisSurat::Kematian)
+                        ->where('status', StatusSuratKeluar::Terbit)
+                        ->exists(),
+                'nomor_kk' => $kk->nomor_kk,
+                'dusun' => $kk->dusun,
+                'rt' => $kk->rt,
+                'rw' => $kk->rw,
+                'alamat' => $kk->alamat,
+                'perlu_update_kepala_keluarga' => $warning !== null,
+                'peringatan_kepala_keluarga' => $warning,
             ])->values(),
         ];
     }

@@ -280,19 +280,6 @@ class SuratMasukController extends Controller
 
     protected function resolveLogoBase64(?ProfilDesa $profilDesa): ?string
     {
-        if (! $profilDesa || empty($profilDesa->logo_desa_path)) {
-            return null;
-        }
-
-        if (! Storage::disk('public')->exists($profilDesa->logo_desa_path)) {
-            return null;
-        }
-
-        $bytes = Storage::disk('public')->get($profilDesa->logo_desa_path);
-        if (! $bytes) {
-            return null;
-        }
-
-        return 'data:image/png;base64,' . base64_encode($bytes);
+        return PdfService::resolveLogoBase64($profilDesa);
     }
 }

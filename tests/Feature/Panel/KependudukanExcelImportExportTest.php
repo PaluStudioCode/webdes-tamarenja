@@ -2,11 +2,15 @@
 
 namespace Tests\Feature\Panel;
 
+use App\Enums\JenisSurat;
 use App\Enums\StatusKependudukan;
 use App\Enums\StatusKesejahteraan;
+use App\Enums\StatusSuratKeluar;
 use App\Enums\UserRole;
+use App\Exports\PendudukExport;
 use App\Models\KartuKeluarga;
 use App\Models\Penduduk;
+use App\Models\SuratKeluar;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -302,6 +306,245 @@ class KependudukanExcelImportExportTest extends TestCase
         $this->assertSame(0, $secondSummary['ditambahkan']);
         $this->assertSame(3, $secondSummary['diperbarui']);
         $this->assertSame(0, $secondSummary['gagal']);
+    }
+
+    public function test_export_excel_formats_clean_indonesian_headings_labels_orders_by_family_hierarchy_and_supports_reimport(): void
+    {
+        Storage::fake('private');
+
+        $kk = KartuKeluarga::factory()->create([
+            'nomor_kk' => '7203080101260999',
+            'dusun' => 'Dusun I',
+            'rt' => '002',
+            'rw' => '001',
+            'alamat' => 'Jl. Trans Sulawesi No. 99',
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil1,
+        ]);
+
+        // Buat Anak terlebih dahulu dengan nama berawalan huruf 'A'
+        Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk->id,
+            'nik' => '7203081001100993',
+            'nama_lengkap' => 'Ahmad Putra',
+            'hubungan_keluarga' => 'anak',
+            'status_perkawinan' => 'belum_kawin',
+            'tanggal_lahir' => '2010-01-10',
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil1,
+            'status_kependudukan' => StatusKependudukan::Aktif,
+        ]);
+
+        // Buat Kepala Keluarga dengan nama berawalan huruf 'Z'
+        Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk->id,
+            'nik' => '7203081001800991',
+            'nama_lengkap' => 'Zulkifli Kepala',
+            'hubungan_keluarga' => 'kepala_keluarga',
+            'status_perkawinan' => 'kawin',
+            'tanggal_lahir' => '1980-01-10',
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil1,
+            'status_kependudukan' => StatusKependudukan::Aktif,
+        ]);
+
+        $export = new PendudukExport;
+        $headings = $export->headings();
+
+        $this->assertContains('Nomor KK', $headings);
+        $this->assertContains('Nama Lengkap', $headings);
+        $this->assertContains('Hubungan Keluarga', $headings);
+        $this->assertContains('Kategori DTSEN', $headings);
+        $this->assertContains('Status Warga', $headings);
+
+        $collection = $export->collection()->values();
+        $this->assertCount(2, $collection);
+
+        // Pastikan Kepala Keluarga berada di urutan pertama meskipun namanya huruf 'Z'
+        $firstMapped = $export->map($collection[0]);
+        $secondMapped = $export->map($collection[1]);
+
+        $this->assertSame('Zulkifli Kepala', $firstMapped[6]);
+        $this->assertSame('Kawin', $firstMapped[13]);
+        $this->assertSame('Kepala Keluarga', $firstMapped[14]);
+        $this->assertSame('Desil 1', $firstMapped[15]);
+        $this->assertSame('Aktif', $firstMapped[16]);
+
+        $this->assertSame('Ahmad Putra', $secondMapped[6]);
+        $this->assertSame('Belum Kawin', $secondMapped[13]);
+        $this->assertSame('Anak', $secondMapped[14]);
+        $this->assertSame('Desil 1', $secondMapped[15]);
+        $this->assertSame('Aktif', $secondMapped[16]);
+
+        // Uji Round-Trip: Hasil Export di-import kembali ke sistem
+        $roundTripFile = $this->createUploadedXlsx(
+            [$headings, $firstMapped, $secondMapped],
+            'roundtrip_export.xlsx'
+        );
+
+        $this->actingAs($this->operator)
+            ->post(route('panel.kependudukan.import-excel'), [
+                'file' => $roundTripFile,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('notification.type', 'success');
+
+        $summary = session('import_summary');
+        $this->assertSame(2, $summary['berhasil']);
+        $this->assertSame(0, $summary['gagal']);
+    }
+
+    public function test_import_excel_supports_preview_mode_preserves_kk_welfare_when_child_row_is_blank_and_blocks_reactivating_deceased_with_terbit_surat_kematian(): void
+    {
+        Storage::fake('private');
+
+        $kkDeceased = KartuKeluarga::factory()->create([
+            'nomor_kk' => '7203080101260777',
+            'dusun' => 'Dusun I',
+        ]);
+        $deceasedResident = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kkDeceased->id,
+            'nik' => '7203081001600777',
+            'nama_lengkap' => 'Almarhum Warga',
+            'status_kependudukan' => StatusKependudukan::MeninggalDunia,
+        ]);
+
+        SuratKeluar::factory()->create([
+            'penduduk_id' => $deceasedResident->id,
+            'jenis_surat' => JenisSurat::Kematian,
+            'status' => StatusSuratKeluar::Terbit,
+        ]);
+
+        $rows = [
+            [
+                'Nomor KK',
+                'Dusun',
+                'RT',
+                'RW',
+                'Alamat',
+                'NIK',
+                'Nama Lengkap',
+                'Tempat Lahir',
+                'Tanggal Lahir',
+                'Jenis Kelamin',
+                'Agama',
+                'Pendidikan',
+                'Pekerjaan',
+                'Status Perkawinan',
+                'Hubungan Keluarga',
+                'Kategori DTSEN',
+                'Status Warga',
+            ],
+            // Baris 2: Kepala Keluarga dengan Kategori DTSEN = Desil 1
+            [
+                '7203080101260888',
+                'Dusun II',
+                '001',
+                '001',
+                'Jl. Desa No. 8',
+                '7203081001800881',
+                'Kepala Keluarga Desil Satu',
+                'Donggala',
+                '1980-01-10',
+                'L',
+                'Islam',
+                'SLTA',
+                'Petani',
+                'Kawin',
+                'Kepala Keluarga',
+                'Desil 1',
+                'Aktif',
+            ],
+            // Baris 3: Anak di KK yang sama dengan kolom Kategori DTSEN dikosongkan -> tidak boleh menimpa Desil 1 KK menjadi Non-Prioritas
+            [
+                '7203080101260888',
+                'Dusun II',
+                '001',
+                '001',
+                'Jl. Desa No. 8',
+                '7203081001100882',
+                'Anak Mewarisi Desil Satu',
+                'Donggala',
+                '2010-01-10',
+                'L',
+                'Islam',
+                'SD',
+                'Pelajar',
+                'Belum Kawin',
+                'Anak',
+                '',
+                'Aktif',
+            ],
+            // Baris 4: Warga Meninggal Dunia yang sudah terbit Surat Kematian dicoba diubah menjadi Aktif -> wajib ditolak
+            [
+                '7203080101260777',
+                'Dusun I',
+                '001',
+                '001',
+                'Jl. Desa No. 7',
+                '7203081001600777',
+                'Almarhum Warga',
+                'Donggala',
+                '1960-01-10',
+                'L',
+                'Islam',
+                'SLTA',
+                'Petani',
+                'Kawin',
+                'Kepala Keluarga',
+                'Non-Prioritas',
+                'Aktif',
+            ],
+        ];
+
+        // 1. Uji Tahap 1: Mode Preview (Dry-Run) -> Belum masuk ke database
+        $previewFile = $this->createUploadedXlsx($rows, 'preview_test.xlsx');
+        $this->actingAs($this->operator)
+            ->post(route('panel.kependudukan.import-excel'), [
+                'file' => $previewFile,
+                'mode' => 'preview',
+            ])
+            ->assertRedirect();
+
+        $previewSummary = session('import_summary');
+        $this->assertTrue($previewSummary['is_preview']);
+        $this->assertSame(2, $previewSummary['berhasil']);
+        $this->assertSame(2, $previewSummary['ditambahkan']);
+        $this->assertSame(1, $previewSummary['gagal']);
+        $this->assertCount(3, $previewSummary['preview_rows']);
+
+        // Pastikan di mode preview belum ada KK 7203080101260888 di DB
+        $this->assertDatabaseMissing('kartu_keluarga', [
+            'nomor_kk' => '7203080101260888',
+        ]);
+
+        // 2. Uji Tahap 2: Mode Commit -> Simpan baris valid ke database
+        $commitFile = $this->createUploadedXlsx($rows, 'commit_test.xlsx');
+        $this->actingAs($this->operator)
+            ->post(route('panel.kependudukan.import-excel'), [
+                'file' => $commitFile,
+                'mode' => 'commit',
+            ])
+            ->assertRedirect();
+
+        $commitSummary = session('import_summary');
+        $this->assertFalse($commitSummary['is_preview']);
+        $this->assertSame(2, $commitSummary['berhasil']);
+        $this->assertSame(1, $commitSummary['gagal']);
+        $this->assertStringContainsString(
+            'Surat Kematian Terbit',
+            $commitSummary['failed_rows'][0]['pesan']
+        );
+
+        // Pastikan KK dan kedua anggota tetap berstatus Desil 1 (tidak tertimpa kosong oleh baris Anak)
+        $savedKk = KartuKeluarga::where('nomor_kk', '7203080101260888')->firstOrFail();
+        $this->assertSame(StatusKesejahteraan::DtsenDesil1, $savedKk->status_kesejahteraan);
+
+        $savedChild = Penduduk::where('nik', '7203081001100882')->firstOrFail();
+        $this->assertSame(StatusKesejahteraan::DtsenDesil1, $savedChild->status_kesejahteraan);
+
+        // Pastikan warga almarhum tetap berstatus Meninggal Dunia
+        $this->assertSame(
+            StatusKependudukan::MeninggalDunia,
+            $deceasedResident->fresh()->status_kependudukan
+        );
     }
 
     /**

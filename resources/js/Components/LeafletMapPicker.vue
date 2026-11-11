@@ -197,10 +197,41 @@ onMounted(() => {
             zoom: props.zoom,
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors',
-        }).addTo(mapInstance);
+        // Lapisan Citra Satelit Hybrid (Foto Satelit + Label Nama Tempat/Jalan)
+        const satelliteLayer = L.tileLayer(
+            'https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+            {
+                subdomains: ['0', '1', '2', '3'],
+                maxZoom: 20,
+                attribution: '&copy; Google Maps',
+            },
+        );
+
+        // Lapisan Peta Jalan Standar (OpenStreetMap)
+        const streetLayer = L.tileLayer(
+            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors',
+            },
+        );
+
+        // Pasang citra satelit sebagai basemap utama
+        satelliteLayer.addTo(mapInstance);
+
+        // Kontrol Pengalih Lapisan Peta di sudut kanan atas
+        if (typeof L.control?.layers === 'function') {
+            L.control
+                .layers(
+                    {
+                        'Citra Satelit': satelliteLayer,
+                        'Peta Jalan': streetLayer,
+                    },
+                    null,
+                    { position: 'topright' },
+                )
+                .addTo(mapInstance);
+        }
 
         mapInstance.on('click', (event) => {
             if (!props.disabled && event?.latlng) {
@@ -213,6 +244,12 @@ onMounted(() => {
         }
 
         isMapReady.value = true;
+
+        setTimeout(() => {
+            if (mapInstance && typeof mapInstance.invalidateSize === 'function') {
+                mapInstance.invalidateSize();
+            }
+        }, 200);
     } catch {
         // Fallback aman untuk lingkungan non-canvas / JSDOM
         isMapReady.value = true;
@@ -239,6 +276,11 @@ onBeforeUnmount(() => {
 defineExpose({
     setCoordinates,
     resetToDefaultCenter,
+    invalidateSize: () => {
+        if (mapInstance && typeof mapInstance.invalidateSize === 'function') {
+            mapInstance.invalidateSize();
+        }
+    },
 });
 </script>
 
@@ -275,7 +317,7 @@ defineExpose({
             />
         </div>
 
-        <p class="text-xs text-slate-500">
+        <p v-if="!disabled" class="text-xs text-slate-500">
             Klik langsung pada peta untuk menandai titik lokasi proyek fisik atau ketik koordinat lintang dan bujur di bawah ini.
         </p>
 

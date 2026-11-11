@@ -16,38 +16,53 @@
         }
         .kop-table {
             width: 100%;
-            border-bottom: 3px double #000000;
-            padding-bottom: 6px;
+            border-collapse: collapse;
+            border-bottom: 4px double #000000;
             margin-bottom: 12px;
         }
+        .kop-table td {
+            padding-bottom: 6px;
+        }
         .kop-logo {
-            width: 70px;
-            text-align: center;
+            width: 105px;
+            text-align: left;
             vertical-align: middle;
         }
         .kop-logo img {
-            width: 58px;
+            width: 92px;
             height: auto;
         }
         .kop-text {
             text-align: center;
             vertical-align: middle;
+            padding-right: 40px;
         }
-        .kop-text h1 {
+        .kop-kab {
             margin: 0;
-            font-size: 13pt;
+            font-size: 13.5pt;
+            font-weight: normal;
+            text-transform: uppercase;
+            line-height: 1.15;
+        }
+        .kop-kec {
+            margin: 1px 0;
+            font-size: 13.5pt;
             font-weight: bold;
             text-transform: uppercase;
+            line-height: 1.15;
         }
-        .kop-text h2 {
-            margin: 2px 0;
-            font-size: 15pt;
+        .kop-desa {
+            margin: 1px 0;
+            font-size: 13.5pt;
             font-weight: bold;
             text-transform: uppercase;
+            line-height: 1.15;
         }
-        .kop-text p {
+        .kop-alamat {
             margin: 2px 0 0 0;
             font-size: 9.5pt;
+            font-weight: bold;
+            line-height: 1.25;
         }
         .judul-dokumen {
             text-align: center;
@@ -112,20 +127,25 @@
     </style>
 </head>
 <body>
+    @php
+        $rawAlamat = trim((string) ($profilDesa?->alamat_kantor ?? ''));
+        $alamatKantor = ($rawAlamat !== '' && ! str_contains($rawAlamat, 'Jl. Trans Sulawesi'))
+            ? $rawAlamat
+            : 'Jl. Hi. Paggaru No. 80 Tamarenja Kode Pos 94353';
+    @endphp
     <table class="kop-table">
         <tr>
-            <td class="kop-logo">
-                @if(!empty($logoBase64))
-                    <img src="{{ $logoBase64 }}" alt="Logo Desa">
-                @endif
-            </td>
+            @if(!empty($logoBase64))
+                <td class="kop-logo">
+                    <img src="{{ $logoBase64 }}" alt="Logo Garuda">
+                </td>
+            @endif
             <td class="kop-text">
-                <h1>PEMERINTAH KABUPATEN {{ strtoupper($profilDesa?->kabupaten ?? 'DONGGALA') }}</h1>
-                <h1>KECAMATAN {{ strtoupper($profilDesa?->kecamatan ?? 'SINDUE TOBATA') }}</h1>
-                <h2>DESA {{ strtoupper($profilDesa?->nama_desa ?? 'TAMARENJA') }}</h2>
-                <p>{{ $profilDesa?->alamat_kantor ?? 'Jl. Trans Palu - Sabang, Desa Tamarenja' }}</p>
+                <p class="kop-kab">PEMERINTAH KABUPATEN {{ strtoupper($profilDesa?->kabupaten ?? 'DONGGALA') }}</p>
+                <p class="kop-kec">KECAMATAN {{ strtoupper($profilDesa?->kecamatan ?? 'SINDUE TOBATA') }}</p>
+                <p class="kop-desa">DESA {{ strtoupper($profilDesa?->nama_desa ?? 'TAMARENJA') }}</p>
+                <p class="kop-alamat">{{ $alamatKantor }}</p>
             </td>
-            <td class="kop-logo"></td>
         </tr>
     </table>
 

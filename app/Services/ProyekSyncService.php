@@ -98,8 +98,6 @@ class ProyekSyncService
                 'created_by' => $userId,
             ]);
 
-            $this->syncTahun($tahun, $userId);
-
             return $proyek->fresh();
         });
     }
@@ -195,11 +193,6 @@ class ProyekSyncService
                 'catatan_kendala' => array_key_exists('catatan_kendala', $data) ? $data['catatan_kendala'] : $proyek->catatan_kendala,
             ]);
 
-            $this->syncTahun($newTahun, $userId);
-            if ($oldTahun !== $newTahun) {
-                $this->syncTahun($oldTahun, $userId);
-            }
-
             return $proyek->fresh();
         });
 
@@ -212,16 +205,12 @@ class ProyekSyncService
     }
 
     /**
-     * Soft-delete proyek pembangunan fisik dalam DB::transaction() dan hitung ulang APBDes Bidang 2 Fisik.
+     * Soft-delete proyek pembangunan fisik dalam DB::transaction().
      */
     public function deleteProject(ProyekPembangunan $proyek, ?int $actorId = null): void
     {
-        $userId = $actorId ?? auth()->id() ?? User::query()->value('id');
-        $tahun = (int) $proyek->tahun_anggaran;
-
-        DB::transaction(function () use ($proyek, $tahun, $userId) {
+        DB::transaction(function () use ($proyek) {
             $proyek->delete();
-            $this->syncTahun($tahun, $userId);
         });
     }
 }

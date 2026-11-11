@@ -64,14 +64,21 @@ class EssentialDesaSeeder extends Seeder
                         'Dusun III',
                         'Dusun IV',
                     ],
-                    'alamat_kantor' => $existingProfil?->alamat_kantor ?? 'Jl. Trans Sulawesi Pantai Barat, Desa Tamarenja, Kec. Sindue Tobata, Kab. Donggala',
+                    'alamat_kantor' => ($existingProfil && $existingProfil->alamat_kantor && ! str_contains($existingProfil->alamat_kantor, 'Jl. Trans Sulawesi'))
+                        ? $existingProfil->alamat_kantor
+                        : 'Jl. Hi. Paggaru No. 80 Tamarenja Kode Pos 94353',
+                    'logo_desa_path' => $existingProfil?->logo_desa_path ?? 'logo/logo-desa-tamarenja.png',
                     'jam_pelayanan' => $existingProfil?->jam_pelayanan ?? 'Senin - Jumat, 08.00 - 15.30 WITA',
                     'email_desa' => $existingProfil?->email_desa ?? 'pemdes@tamarenja.desa.id',
                     'no_wa_pelayanan' => $existingProfil?->no_wa_pelayanan ?? '6281245001122',
-                    'nama_kepala_desa' => $existingProfil?->nama_kepala_desa ?? 'H. Moh. Ridwan, S.Sos.',
+                    'nama_kepala_desa' => ($existingProfil && $existingProfil->nama_kepala_desa !== 'H. Moh. Ridwan, S.Sos.')
+                        ? $existingProfil->nama_kepala_desa
+                        : 'Baswan Laramang',
                     'nip_kepala_desa' => $existingProfil?->nip_kepala_desa,
                     'sambutan_kepala_desa' => $existingProfil?->sambutan_kepala_desa ?? 'Selamat datang di Portal Resmi Pemerintah Desa Tamarenja sebagai wujud pelayanan cepat dan keterbukaan informasi publik bagi seluruh masyarakat.',
-                    'nama_sekdes' => $existingProfil?->nama_sekdes ?? 'Andi Saputra, S.AP.',
+                    'nama_sekdes' => ($existingProfil && $existingProfil->nama_sekdes !== 'Andi Saputra, S.AP.')
+                        ? $existingProfil->nama_sekdes
+                        : 'Arif Sandi',
                     'nip_sekdes' => $existingProfil?->nip_sekdes ?? '198604122010011008',
                     'visi' => $existingProfil?->visi ?? 'Terwujudnya Desa Tamarenja yang Mandiri, Transparan, Maju, dan Sejahtera Berlandaskan Gotong Royong.',
                     'misi' => $existingProfil?->misi ?? [

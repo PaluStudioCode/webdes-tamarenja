@@ -37,6 +37,9 @@ class KartuKeluargaController extends Controller
 
         $warning = $this->kependudukanService->getKepalaKeluargaWarning($kartuKeluarga);
         $kepala = $kartuKeluarga->penduduk->firstWhere('hubungan_keluarga', 'kepala_keluarga');
+        $kkKesejahteraan = $kartuKeluarga->status_kesejahteraan instanceof StatusKesejahteraan
+            ? $kartuKeluarga->status_kesejahteraan->value
+            : (string) ($kartuKeluarga->status_kesejahteraan ?: StatusKesejahteraan::NonPrioritas->value);
 
         return response()->json([
             'data' => [
@@ -46,6 +49,7 @@ class KartuKeluargaController extends Controller
                 'rt' => $kartuKeluarga->rt,
                 'rw' => $kartuKeluarga->rw,
                 'alamat' => $kartuKeluarga->alamat,
+                'status_kesejahteraan' => $kkKesejahteraan,
                 'kepala_keluarga' => $kepala ? [
                     'id' => $kepala->id,
                     'nik' => $kepala->nik,
@@ -95,11 +99,15 @@ class KartuKeluargaController extends Controller
      */
     public function store(StoreKartuKeluargaRequest $request): RedirectResponse
     {
-        $result = $this->kependudukanService->storeOrRestoreKartuKeluarga($request->validated());
+        $validated = $request->validated();
+        $result = $this->kependudukanService->storeOrRestoreKartuKeluarga($validated);
+        $hasMembers = ! empty($validated['anggota']) && is_array($validated['anggota']);
 
         $message = $result['restored']
             ? 'Data Kartu Keluarga lama berhasil dipulihkan dan diperbarui.'
-            : 'Kartu Keluarga baru berhasil ditambahkan.';
+            : ($hasMembers
+                ? 'Kartu Keluarga baru beserta anggota keluarga berhasil ditambahkan.'
+                : 'Kartu Keluarga baru berhasil ditambahkan.');
 
         return back()->with('notification', [
             'type' => 'success',
@@ -108,15 +116,15 @@ class KartuKeluargaController extends Controller
     }
 
     /**
-     * Perbarui data Kartu Keluarga.
+     * Perbarui data Kartu Keluarga (serta sinkronkan status kesejahteraan ke seluruh anggota KK).
      */
     public function update(UpdateKartuKeluargaRequest $request, KartuKeluarga $kartuKeluarga): RedirectResponse
     {
-        $kartuKeluarga->update($request->validated());
+        $this->kependudukanService->updateKartuKeluarga($kartuKeluarga, $request->validated());
 
         return back()->with('notification', [
             'type' => 'success',
-            'message' => 'Data Kartu Keluarga berhasil diperbarui.',
+            'message' => 'Data Kartu Keluarga dan status kesejahteraan anggota keluarga berhasil diperbarui.',
         ]);
     }
 

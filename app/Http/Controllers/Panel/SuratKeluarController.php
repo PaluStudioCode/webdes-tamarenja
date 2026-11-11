@@ -74,6 +74,7 @@ class SuratKeluarController extends Controller
             ],
             'opsi_jenis_surat' => $this->getJenisSuratOptions(),
             'pejabat_penandatangan' => $this->getPejabatOptions($profilDesa),
+            'tanggal_hari_ini' => now()->toDateString(),
         ]);
     }
 
@@ -141,21 +142,18 @@ class SuratKeluarController extends Controller
             ],
             'opsi_jenis_surat' => $this->getJenisSuratOptions(),
             'pejabat_penandatangan' => $this->getPejabatOptions($profilDesa),
+            'tanggal_hari_ini' => now()->toDateString(),
+            'buka_modal_buat' => $request->boolean('buat'),
         ]);
     }
 
     /**
      * Halaman Layanan Kilat Loket 10 Template Surat (/panel/persuratan/surat-keluar/buat).
+     * Dialihkan ke modal pada Buku Agenda Surat Keluar.
      */
-    public function create(): Response
+    public function create(): RedirectResponse
     {
-        $profilDesa = ProfilDesa::singleton();
-
-        return Inertia::render('Persuratan/Buat', [
-            'opsi_jenis_surat' => $this->getJenisSuratOptions(),
-            'pejabat_penandatangan' => $this->getPejabatOptions($profilDesa),
-            'tanggal_hari_ini' => now()->toDateString(),
-        ]);
+        return redirect()->route('panel.persuratan.surat-keluar.index', ['buat' => 1]);
     }
 
     /**
@@ -440,19 +438,6 @@ class SuratKeluarController extends Controller
 
     protected function resolveLogoBase64(?ProfilDesa $profilDesa): ?string
     {
-        if (! $profilDesa || empty($profilDesa->logo_desa_path)) {
-            return null;
-        }
-
-        if (! Storage::disk('public')->exists($profilDesa->logo_desa_path)) {
-            return null;
-        }
-
-        $bytes = Storage::disk('public')->get($profilDesa->logo_desa_path);
-        if (! $bytes) {
-            return null;
-        }
-
-        return 'data:image/png;base64,' . base64_encode($bytes);
+        return PdfService::resolveLogoBase64($profilDesa);
     }
 }

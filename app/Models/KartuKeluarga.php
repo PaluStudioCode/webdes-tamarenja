@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\StatusKesejahteraan;
 use Database\Factories\KartuKeluargaFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,7 +24,15 @@ class KartuKeluarga extends Model
         'rt',
         'rw',
         'alamat',
+        'status_kesejahteraan',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'status_kesejahteraan' => StatusKesejahteraan::class,
+        ];
+    }
 
     public function penduduk(): HasMany
     {
@@ -42,5 +51,17 @@ class KartuKeluarga extends Model
     public function scopeAktif(Builder $query): Builder
     {
         return $query->whereHas('penduduk', fn (Builder $q) => $q->aktif());
+    }
+
+    /**
+     * KK dengan status kesejahteraan sasaran prioritas DTSEN (Desil 1–4).
+     */
+    public function scopePrioritasDtsen(Builder $query): Builder
+    {
+        return $query->whereIn('status_kesejahteraan', [
+            StatusKesejahteraan::DtsenDesil1,
+            StatusKesejahteraan::DtsenDesil2,
+            StatusKesejahteraan::DtsenDesil34,
+        ]);
     }
 }

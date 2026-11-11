@@ -1,11 +1,13 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     AlertTriangle,
+    ChevronDown,
+    ChevronRight,
     Download,
-    Eye,
     FileSpreadsheet,
+    MoreHorizontal,
     Pencil,
     Plus,
     RefreshCw,
@@ -17,14 +19,12 @@ import {
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/PageHeader.vue';
 import StatCard from '@/Components/StatCard.vue';
-import ContextualTabs from '@/Components/ContextualTabs.vue';
 import UnifiedFilterBar from '@/Components/UnifiedFilterBar.vue';
 import DataTable from '@/Components/DataTable.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
 import BaseButton from '@/Components/BaseButton.vue';
 import BaseModal from '@/Components/BaseModal.vue';
 import BaseCallout from '@/Components/BaseCallout.vue';
-import SlideOverDrawer from '@/Components/SlideOverDrawer.vue';
 import DusunCombobox from '@/Components/DusunCombobox.vue';
 import FileDropzone from '@/Components/FileDropzone.vue';
 import { useConfirm } from '@/Composables/useConfirm';
@@ -66,8 +66,7 @@ const confirm = useConfirm();
 
 const isOperator = computed(() => page.props?.auth?.user?.role === 'operator');
 
-// --- State Tab & Filter ---
-const activeTab = ref(props.tab || props.filters?.tab || 'penduduk');
+// --- State Filter & Expandable Baris KK ---
 const searchQuery = ref(props.filters?.search || '');
 const selectedDusun = ref(props.filters?.dusun || '');
 const selectedStatusKependudukan = ref(props.filters?.status_kependudukan || '');
@@ -75,27 +74,59 @@ const selectedStatusKesejahteraan = ref(
     props.filters?.status_kesejahteraan || '',
 );
 
-watch(
-    () => props.tab,
-    (nextTab) => {
-        if (nextTab && nextTab !== activeTab.value) {
-            activeTab.value = nextTab;
-        }
-    },
+const expandedKkIds = ref(new Set());
+const collapsedByUserIds = ref(new Set());
+
+const hasActiveMemberFilter = computed(
+    () =>
+        Boolean(searchQuery.value && searchQuery.value.trim() !== '') ||
+        Boolean(selectedStatusKependudukan.value),
 );
 
-const tabsConfig = computed(() => [
-    {
-        key: 'penduduk',
-        label: 'Data Penduduk',
-        badge: props.ringkasan?.total_penduduk_aktif ?? 0,
-    },
-    {
-        key: 'kk',
-        label: 'Kartu Keluarga',
-        badge: props.ringkasan?.total_kk_aktif ?? 0,
-    },
-]);
+function isKkExpanded(row) {
+    if (!row?.id) return false;
+    if (expandedKkIds.value.has(row.id)) {
+        return true;
+    }
+    if (
+        hasActiveMemberFilter.value &&
+        !collapsedByUserIds.value.has(row.id)
+    ) {
+        return true;
+    }
+    return false;
+}
+
+function toggleExpandKk(row) {
+    if (!row?.id) return;
+    const nextExpanded = new Set(expandedKkIds.value);
+    const nextCollapsed = new Set(collapsedByUserIds.value);
+
+    if (isKkExpanded(row)) {
+        nextExpanded.delete(row.id);
+        nextCollapsed.add(row.id);
+    } else {
+        nextExpanded.add(row.id);
+        nextCollapsed.delete(row.id);
+    }
+
+    expandedKkIds.value = nextExpanded;
+    collapsedByUserIds.value = nextCollapsed;
+}
+
+function isMemberMatchingFilter(member) {
+    const q = (searchQuery.value || '').trim().toLowerCase();
+    const statusFilter = selectedStatusKependudukan.value || '';
+
+    const matchSearch =
+        q !== '' &&
+        ((member.nama_lengkap || '').toLowerCase().includes(q) ||
+            (member.nik || '').toLowerCase().includes(q));
+    const matchStatus =
+        statusFilter !== '' && member.status_kependudukan === statusFilter;
+
+    return matchSearch || matchStatus;
+}
 
 const filterBarConfig = computed(() => [
     {
@@ -125,13 +156,10 @@ const filterBarConfig = computed(() => [
         allLabel: 'Semua Desil DTSEN',
         value: selectedStatusKesejahteraan.value,
         options: [
-            { value: 'dtsen_desil_1', label: 'DTSEN Desil 1 (Miskin Ekstrem)' },
-            { value: 'dtsen_desil_2', label: 'DTSEN Desil 2 (Miskin)' },
-            {
-                value: 'dtsen_desil_3_4',
-                label: 'DTSEN Desil 3–4 (Rentan Miskin)',
-            },
-            { value: 'non_prioritas', label: 'Non-Prioritas (Desil 5–10)' },
+            { value: 'dtsen_desil_1', label: 'Desil 1' },
+            { value: 'dtsen_desil_2', label: 'Desil 2' },
+            { value: 'dtsen_desil_3_4', label: 'Desil 3–4' },
+            { value: 'non_prioritas', label: 'Non-Prioritas' },
         ],
     },
 ]);
@@ -169,7 +197,6 @@ const templateExcelUrl = computed(() =>
 
 function applyFilters(overrides = {}) {
     const payload = {
-        tab: activeTab.value,
         search: searchQuery.value || undefined,
         dusun: selectedDusun.value || undefined,
         status_kependudukan: selectedStatusKependudukan.value || undefined,
@@ -194,13 +221,9 @@ function applyFilters(overrides = {}) {
     );
 }
 
-function handleTabChange(nextTab) {
-    activeTab.value = nextTab;
-    applyFilters({ tab: nextTab });
-}
-
 function handleSearch(val) {
     searchQuery.value = val;
+    collapsedByUserIds.value = new Set();
     applyFilters({ search: val || undefined });
 }
 
@@ -209,6 +232,7 @@ function handleFilterUpdate({ key, value }) {
     if (key === 'status_kependudukan') selectedStatusKependudukan.value = value;
     if (key === 'status_kesejahteraan')
         selectedStatusKesejahteraan.value = value;
+    collapsedByUserIds.value = new Set();
     applyFilters();
 }
 
@@ -217,6 +241,7 @@ function handleResetFilters() {
     selectedDusun.value = '';
     selectedStatusKependudukan.value = '';
     selectedStatusKesejahteraan.value = '';
+    collapsedByUserIds.value = new Set();
     applyFilters({
         search: undefined,
         dusun: undefined,
@@ -224,16 +249,6 @@ function handleResetFilters() {
         status_kesejahteraan: undefined,
     });
 }
-
-// --- Kolom & Aksi Tabel Data Penduduk (6 Kolom Ramping) ---
-const pendudukColumns = [
-    { key: 'nama_lengkap', label: 'Warga & NIK' },
-    { key: 'nomor_kk', label: 'No. KK & Hubungan' },
-    { key: 'dusun', label: 'Wilayah Domisili' },
-    { key: 'tanggal_lahir', label: 'TTL & Pekerjaan' },
-    { key: 'status_kesejahteraan', label: 'Kategori DTSEN' },
-    { key: 'status_kependudukan', label: 'Status' },
-];
 
 const HUBUNGAN_LABELS = {
     kepala_keluarga: 'Kepala Keluarga',
@@ -249,6 +264,18 @@ const PERKAWINAN_LABELS = {
     cerai_mati: 'Cerai Mati',
 };
 
+const DTSEN_TABLE_LABELS = {
+    dtsen_desil_1: 'Desil 1',
+    dtsen_desil_2: 'Desil 2',
+    dtsen_desil_3_4: 'Desil 3-4',
+    non_prioritas: 'Non-Prioritas',
+};
+
+function formatDtsenTableLabel(val) {
+    const key = val || 'non_prioritas';
+    return DTSEN_TABLE_LABELS[key] || '';
+}
+
 function formatHubungan(val) {
     return HUBUNGAN_LABELS[val] || val || '-';
 }
@@ -257,66 +284,28 @@ function formatPerkawinan(val) {
     return PERKAWINAN_LABELS[val] || val || '-';
 }
 
-function getPendudukRowActions(row) {
-    return [
-        {
-            key: 'detail',
-            label: 'Detail & KK',
-            icon: Eye,
-            primary: true,
-            operatorOnly: false,
-            onClick: () => openPendudukDrawer(row),
-        },
-        {
-            key: 'edit',
-            label: 'Ubah Biodata',
-            icon: Pencil,
-            primary: true,
-            operatorOnly: true,
-            onClick: () => openEditPendudukModal(row),
-        },
-        {
-            key: 'mutasi',
-            label: 'Mutasi / Reaktivasi',
-            icon: RefreshCw,
-            operatorOnly: true,
-            onClick: () => openMutasiModal(row),
-        },
-        {
-            key: 'hapus',
-            label: 'Hapus Penduduk',
-            icon: Trash2,
-            variant: 'danger',
-            operatorOnly: true,
-            onClick: () => handleDeletePenduduk(row),
-        },
-    ];
-}
-
-// --- Kolom & Aksi Tabel Kartu Keluarga (5 Kolom Ramping) ---
+// --- Kolom & Aksi Tabel Terpadu Kartu Keluarga (5 Kolom Ramping + Expandable Anggota) ---
 const kkColumns = [
     { key: 'nomor_kk', label: 'Nomor KK' },
     { key: 'kepala_keluarga', label: 'Kepala Keluarga' },
-    { key: 'dusun', label: 'Dusun & RT/RW' },
-    { key: 'alamat', label: 'Alamat Rumah' },
+    { key: 'dusun', label: 'Wilayah & Alamat' },
+    { key: 'status_kesejahteraan', label: 'Kategori DTSEN' },
     { key: 'jumlah_anggota', label: 'Anggota Keluarga' },
 ];
 
 function getKkRowActions(row) {
     return [
         {
-            key: 'detail',
-            label: 'Lihat Anggota KK',
-            icon: Users,
-            primary: true,
-            operatorOnly: false,
-            onClick: () => openKkDrawer(row),
+            key: 'tambah_anggota',
+            label: '+ Anggota',
+            icon: UserPlus,
+            operatorOnly: true,
+            onClick: () => openCreatePendudukModal(row),
         },
         {
             key: 'edit',
             label: 'Ubah KK',
             icon: Pencil,
-            primary: true,
             operatorOnly: true,
             onClick: () => openEditKkModal(row),
         },
@@ -331,43 +320,24 @@ function getKkRowActions(row) {
     ];
 }
 
-// --- SlideOverDrawer Detail Warga & Anggota 1 KK ---
-const isDrawerOpen = ref(false);
-const drawerMode = ref('penduduk'); // 'penduduk' | 'kk'
-const selectedPendudukDetail = ref(null);
-const selectedKkDetail = ref(null);
-
-function openPendudukDrawer(row) {
-    drawerMode.value = 'penduduk';
-    selectedPendudukDetail.value = row;
-    selectedKkDetail.value = row.kartu_keluarga || {
-        id: row.kartu_keluarga_id,
-        nomor_kk: row.nomor_kk,
-        dusun: row.dusun,
-        rt: row.rt,
-        rw: row.rw,
-        alamat: row.alamat,
-        perlu_update_kepala_keluarga: row.perlu_update_kepala_keluarga,
-        peringatan_kepala_keluarga: row.peringatan_kepala_keluarga,
-        anggota: row.kartu_keluarga?.anggota || [row],
-    };
-    isDrawerOpen.value = true;
-}
-
-function openKkDrawer(kkRow) {
-    drawerMode.value = 'kk';
-    selectedPendudukDetail.value = null;
-    selectedKkDetail.value = kkRow;
-    isDrawerOpen.value = true;
-}
-
-function closeDrawer() {
-    isDrawerOpen.value = false;
-}
-
-// --- Modal Form Kartu Keluarga (Tambah / Edit) ---
+// --- Modal Form Kartu Keluarga (Tambah KK Sekaligus Anggota / Edit KK) ---
 const isKkModalOpen = ref(false);
 const editingKk = ref(null);
+
+function createEmptyKkMember(hubungan = 'kepala_keluarga') {
+    return {
+        nik: '',
+        nama_lengkap: '',
+        hubungan_keluarga: hubungan,
+        jenis_kelamin: hubungan === 'istri' ? 'P' : 'L',
+        tempat_lahir: '',
+        tanggal_lahir: '',
+        agama: 'Islam',
+        status_perkawinan: hubungan === 'anak' ? 'belum_kawin' : 'kawin',
+        pendidikan: '',
+        pekerjaan: '',
+    };
+}
 
 const kkForm = useForm({
     nomor_kk: '',
@@ -375,16 +345,35 @@ const kkForm = useForm({
     rt: '001',
     rw: '001',
     alamat: '',
+    status_kesejahteraan: 'non_prioritas',
+    anggota: [createEmptyKkMember('kepala_keluarga')],
 });
 
 function openCreateKkModal() {
     editingKk.value = null;
     kkForm.reset();
     kkForm.clearErrors();
+    kkForm.nomor_kk = '';
     kkForm.dusun = props.daftar_dusun?.[0] || '';
     kkForm.rt = '001';
     kkForm.rw = '001';
+    kkForm.alamat = '';
+    kkForm.status_kesejahteraan = 'non_prioritas';
+    kkForm.anggota = [createEmptyKkMember('kepala_keluarga')];
     isKkModalOpen.value = true;
+}
+
+function addKkMemberRow() {
+    const count = kkForm.anggota.length;
+    const nextHubungan =
+        count === 0 ? 'kepala_keluarga' : count === 1 ? 'istri' : 'anak';
+    kkForm.anggota.push(createEmptyKkMember(nextHubungan));
+}
+
+function removeKkMemberRow(index) {
+    if (kkForm.anggota.length > 1) {
+        kkForm.anggota.splice(index, 1);
+    }
 }
 
 function openEditKkModal(kkRow) {
@@ -395,6 +384,8 @@ function openEditKkModal(kkRow) {
     kkForm.rt = kkRow.rt || '001';
     kkForm.rw = kkRow.rw || '001';
     kkForm.alamat = kkRow.alamat || '';
+    kkForm.status_kesejahteraan = kkRow.status_kesejahteraan || 'non_prioritas';
+    kkForm.anggota = [];
     isKkModalOpen.value = true;
 }
 
@@ -453,9 +444,10 @@ async function handleDeleteKk(kkRow) {
     );
 }
 
-// --- Modal Form Penduduk (Tambah / Edit) ---
+// --- Modal Form Penduduk (Tambah Anggota ke KK / Edit Biodata) ---
 const isPendudukModalOpen = ref(false);
 const editingPenduduk = ref(null);
+const targetKkForNewMember = ref(null);
 
 const pendudukForm = useForm({
     kartu_keluarga_id: '',
@@ -468,30 +460,48 @@ const pendudukForm = useForm({
     pendidikan: '',
     pekerjaan: '',
     status_perkawinan: 'kawin',
-    hubungan_keluarga: 'kepala_keluarga',
-    status_kesejahteraan: 'non_prioritas',
+    hubungan_keluarga: 'anak',
     status_kependudukan: 'aktif',
 });
 
-function openCreatePendudukModal(preselectedKkId = null) {
+function openCreatePendudukModal(kkRowOrId = null) {
     editingPenduduk.value = null;
     pendudukForm.reset();
     pendudukForm.clearErrors();
-    pendudukForm.kartu_keluarga_id =
-        preselectedKkId || props.kartu_keluarga_options?.[0]?.id || '';
+
+    const kkObj =
+        kkRowOrId && typeof kkRowOrId === 'object'
+            ? kkRowOrId
+            : (props.kartu_keluarga?.data || []).find(
+                  (k) => k.id === kkRowOrId,
+              ) ||
+              (props.kartu_keluarga_options || []).find(
+                  (k) => k.id === kkRowOrId,
+              ) ||
+              null;
+
+    targetKkForNewMember.value = kkObj;
+
+    const initialKkId =
+        kkObj?.id ||
+        (typeof kkRowOrId === 'number' ? kkRowOrId : '') ||
+        props.kartu_keluarga_options?.[0]?.id ||
+        '';
+
+    pendudukForm.kartu_keluarga_id = initialKkId;
     pendudukForm.jenis_kelamin = 'L';
     pendudukForm.agama = 'Islam';
-    pendudukForm.status_perkawinan = 'kawin';
-    pendudukForm.hubungan_keluarga = preselectedKkId
+    pendudukForm.status_perkawinan = 'belum_kawin';
+    pendudukForm.hubungan_keluarga = kkObj?.kepala_keluarga
         ? 'anak'
         : 'kepala_keluarga';
-    pendudukForm.status_kesejahteraan = 'non_prioritas';
     pendudukForm.status_kependudukan = 'aktif';
     isPendudukModalOpen.value = true;
 }
 
 function openEditPendudukModal(row) {
     editingPenduduk.value = row;
+    targetKkForNewMember.value = null;
     pendudukForm.clearErrors();
     pendudukForm.kartu_keluarga_id = row.kartu_keluarga_id || '';
     pendudukForm.nik = row.nik || '';
@@ -504,8 +514,6 @@ function openEditPendudukModal(row) {
     pendudukForm.pekerjaan = row.pekerjaan || '';
     pendudukForm.status_perkawinan = row.status_perkawinan || 'kawin';
     pendudukForm.hubungan_keluarga = row.hubungan_keluarga || 'lainnya';
-    pendudukForm.status_kesejahteraan =
-        row.status_kesejahteraan || 'non_prioritas';
     pendudukForm.status_kependudukan = row.status_kependudukan || 'aktif';
     isPendudukModalOpen.value = true;
 }
@@ -658,17 +666,47 @@ async function submitMutasiForm() {
     );
 }
 
-// --- Modal Import Excel SIAK/Prodeskel & Tabel Ringkasan Baris Gagal ---
+// --- Modal Import Excel Kependudukan (2 Langkah: Pratinjau & Konfirmasi Simpan) ---
 const isImportModalOpen = ref(false);
+const isImportPreviewDismissed = ref(false);
+const importPreviewTab = ref('all');
+
 const importForm = useForm({
     file: null,
+    mode: 'preview',
 });
 
-const importSummary = computed(
-    () => page.props?.flash?.import_summary || null,
+const importSummary = computed(() =>
+    isImportPreviewDismissed.value
+        ? null
+        : page.props?.flash?.import_summary || null,
 );
 
+const importPreviewRows = computed(() => {
+    const rows = importSummary.value?.preview_rows;
+    return Array.isArray(rows) ? rows : [];
+});
+
+const isPreviewReady = computed(
+    () =>
+        Boolean(importSummary.value?.is_preview) &&
+        importPreviewRows.value.length > 0,
+);
+
+const filteredImportPreviewRows = computed(() => {
+    if (importPreviewTab.value === 'valid') {
+        return importPreviewRows.value.filter((r) => r.aksi !== 'gagal');
+    }
+    if (importPreviewTab.value === 'error') {
+        return importPreviewRows.value.filter((r) => r.aksi === 'gagal');
+    }
+    return importPreviewRows.value;
+});
+
 const importErrors = computed(() => {
+    if (isImportPreviewDismissed.value) {
+        return [];
+    }
     const fromFlashErrors = page.props?.flash?.import_errors;
     if (Array.isArray(fromFlashErrors) && fromFlashErrors.length > 0) {
         return fromFlashErrors;
@@ -681,9 +719,13 @@ const importErrors = computed(() => {
 });
 
 watch(
-    () => importErrors.value,
-    (rows) => {
-        if (Array.isArray(rows) && rows.length > 0) {
+    () => [importErrors.value, importSummary.value],
+    ([rows, summary]) => {
+        if (
+            (Array.isArray(rows) && rows.length > 0) ||
+            Boolean(summary?.is_preview)
+        ) {
+            isImportPreviewDismissed.value = false;
             isImportModalOpen.value = true;
         }
     },
@@ -691,16 +733,28 @@ watch(
 );
 
 function openImportModal() {
+    isImportPreviewDismissed.value = true;
+    importPreviewTab.value = 'all';
     importForm.reset();
     importForm.clearErrors();
     isImportModalOpen.value = true;
+}
+
+function resetImportPreview() {
+    isImportPreviewDismissed.value = true;
+    importPreviewTab.value = 'all';
+    importForm.reset();
+    importForm.clearErrors();
 }
 
 function closeImportModal() {
     isImportModalOpen.value = false;
 }
 
-function submitImportExcel() {
+function submitPreviewImportExcel() {
+    isImportPreviewDismissed.value = false;
+    importPreviewTab.value = 'all';
+    importForm.mode = 'preview';
     importForm.post(
         resolveRoute(
             'panel.kependudukan.import-excel',
@@ -709,6 +763,24 @@ function submitImportExcel() {
         ),
         {
             forceFormData: true,
+            preserveState: true,
+            preserveScroll: true,
+        },
+    );
+}
+
+function submitCommitImportExcel() {
+    isImportPreviewDismissed.value = false;
+    importForm.mode = 'commit';
+    importForm.post(
+        resolveRoute(
+            'panel.kependudukan.import-excel',
+            undefined,
+            '/panel/kependudukan/import-excel',
+        ),
+        {
+            forceFormData: true,
+            preserveState: true,
             preserveScroll: true,
             onSuccess: () => {
                 importForm.reset();
@@ -719,6 +791,38 @@ function submitImportExcel() {
         },
     );
 }
+
+function submitImportExcel() {
+    if (isPreviewReady.value) {
+        submitCommitImportExcel();
+    } else {
+        submitPreviewImportExcel();
+    }
+}
+
+// --- Responsive Action Dropdown untuk Sub-Tabel Anggota ---
+const openMemberMenuId = ref(null);
+
+function toggleMemberMenu(id) {
+    openMemberMenuId.value = openMemberMenuId.value === id ? null : id;
+}
+
+function handleMemberMenuOutsideClick(event) {
+    if (
+        openMemberMenuId.value !== null &&
+        !event.target.closest('[data-testid^="member-more-container-"]')
+    ) {
+        openMemberMenuId.value = null;
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', handleMemberMenuOutsideClick);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleMemberMenuOutsideClick);
+});
 </script>
 
 <template>
@@ -729,7 +833,6 @@ function submitImportExcel() {
             <!-- Header Halaman & Aksi Utama (Khusus Operator Desa) -->
             <PageHeader
                 title="Master Data Kependudukan"
-                subtitle="Kelola data induk Kartu Keluarga, biodata warga, mutasi kependudukan, serta kategori kesejahteraan DTSEN."
             >
                 <template v-if="isOperator" #actions>
                     <a
@@ -751,21 +854,12 @@ function submitImportExcel() {
                     </BaseButton>
 
                     <BaseButton
-                        variant="secondary"
+                        variant="primary"
                         :icon="Plus"
                         data-testid="btn-open-create-kk"
                         @click="openCreateKkModal"
                     >
                         Tambah KK
-                    </BaseButton>
-
-                    <BaseButton
-                        variant="primary"
-                        :icon="UserPlus"
-                        data-testid="btn-open-create-penduduk"
-                        @click="openCreatePendudukModal()"
-                    >
-                        Tambah Penduduk
                     </BaseButton>
                 </template>
             </PageHeader>
@@ -812,14 +906,6 @@ function submitImportExcel() {
                 </p>
             </BaseCallout>
 
-            <!-- 2 Tab Kontekstual: Data Penduduk & Kartu Keluarga -->
-            <ContextualTabs
-                :model-value="activeTab"
-                :tabs="tabsConfig"
-                aria-label="Tab Master Data Kependudukan"
-                @change="handleTabChange"
-            />
-
             <!-- Filter Satu Baris (UnifiedFilterBar) -->
             <UnifiedFilterBar
                 :model-value="searchQuery"
@@ -830,119 +916,53 @@ function submitImportExcel() {
                 @reset="handleResetFilters"
             />
 
-            <!-- TAB 1: Data Penduduk (Maksimal 6 Kolom Ramping) -->
-            <div v-if="activeTab === 'penduduk'" data-testid="tab-panel-penduduk">
-                <DataTable
-                    :columns="pendudukColumns"
-                    :rows="penduduk"
-                    :row-actions="getPendudukRowActions"
-                    empty-text="Belum ada data penduduk yang sesuai dengan pencarian/filter."
-                    :empty-action-label="isOperator ? '+ Tambah Penduduk' : ''"
-                    @empty-action="openCreatePendudukModal()"
-                >
-                    <template #cell-nama_lengkap="{ row }">
-                        <div class="space-y-0.5">
-                            <button
-                                type="button"
-                                :data-testid="`open-penduduk-drawer-${row.id}`"
-                                class="text-left font-semibold text-slate-900 hover:text-blue-700 hover:underline"
-                                @click="openPendudukDrawer(row)"
-                            >
-                                {{ row.nama_lengkap }}
-                            </button>
-                            <p class="text-xs tabular-nums text-slate-500">
-                                NIK: {{ row.nik }} &bull;
-                                {{
-                                    row.jenis_kelamin === 'P'
-                                        ? 'Perempuan'
-                                        : 'Laki-laki'
-                                }}
-                            </p>
-                        </div>
-                    </template>
-
-                    <template #cell-nomor_kk="{ row }">
-                        <div class="space-y-0.5">
-                            <div class="flex items-center gap-1.5">
-                                <span
-                                    class="font-medium tabular-nums text-slate-800"
-                                >
-                                    {{ row.nomor_kk || '-' }}
-                                </span>
-                                <AlertTriangle
-                                    v-if="row.perlu_update_kepala_keluarga"
-                                    class="h-3.5 w-3.5 shrink-0 text-amber-600"
-                                    title="Kepala Keluarga pada KK ini berstatus non-aktif"
-                                />
-                            </div>
-                            <p class="text-xs text-slate-500">
-                                {{ formatHubungan(row.hubungan_keluarga) }}
-                            </p>
-                        </div>
-                    </template>
-
-                    <template #cell-dusun="{ row }">
-                        <div class="space-y-0.5">
-                            <p class="font-medium text-slate-800">
-                                {{ row.dusun || '-' }}
-                            </p>
-                            <p class="text-xs tabular-nums text-slate-500">
-                                RT {{ row.rt || '001' }} / RW
-                                {{ row.rw || '001' }}
-                            </p>
-                        </div>
-                    </template>
-
-                    <template #cell-tanggal_lahir="{ row }">
-                        <div class="space-y-0.5">
-                            <p class="text-xs font-medium text-slate-800">
-                                {{ row.tempat_lahir }},
-                                {{ formatDateId(row.tanggal_lahir) }}
-                            </p>
-                            <p class="text-xs text-slate-500">
-                                {{ row.pekerjaan || 'Belum bekerja' }}
-                            </p>
-                        </div>
-                    </template>
-
-                    <template #cell-status_kesejahteraan="{ row }">
-                        <StatusBadge :status="row.status_kesejahteraan" />
-                    </template>
-
-                    <template #cell-status_kependudukan="{ row }">
-                        <StatusBadge :status="row.status_kependudukan" />
-                    </template>
-                </DataTable>
-            </div>
-
-            <!-- TAB 2: Kartu Keluarga (Maksimal 5 Kolom Ramping) -->
-            <div v-else data-testid="tab-panel-kk">
+            <!-- TABEL TERPADU KARTU KELUARGA & RINCIAN ANGGOTA KELUARGA (Master-Detail Expandable) -->
+            <div data-testid="table-kk-terpadu">
                 <DataTable
                     :columns="kkColumns"
                     :rows="kartu_keluarga"
                     :row-actions="getKkRowActions"
-                    empty-text="Belum ada data Kartu Keluarga yang sesuai dengan pencarian/filter."
+                    :responsive-actions="true"
+                    :is-row-expanded="isKkExpanded"
+                    empty-text="Belum ada data Kartu Keluarga atau Penduduk yang sesuai dengan pencarian/filter."
                     :empty-action-label="isOperator ? '+ Tambah KK' : ''"
                     @empty-action="openCreateKkModal"
                 >
                     <template #cell-nomor_kk="{ row }">
-                        <div class="space-y-1">
+                        <div class="flex items-start gap-2">
                             <button
                                 type="button"
-                                :data-testid="`open-kk-drawer-${row.id}`"
-                                class="text-left font-semibold tabular-nums text-slate-900 hover:text-blue-700 hover:underline"
-                                @click="openKkDrawer(row)"
+                                :data-testid="`toggle-expand-kk-${row.id}`"
+                                :aria-expanded="isKkExpanded(row)"
+                                aria-label="Buka atau tutup rincian anggota keluarga"
+                                class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                @click="toggleExpandKk(row)"
                             >
-                                {{ row.nomor_kk }}
+                                <ChevronDown
+                                    v-if="isKkExpanded(row)"
+                                    class="h-3.5 w-3.5 text-blue-700"
+                                />
+                                <ChevronRight
+                                    v-else
+                                    class="h-3.5 w-3.5"
+                                />
                             </button>
-                            <div v-if="row.perlu_update_kepala_keluarga">
+
+                            <div class="space-y-1">
                                 <span
-                                    data-testid="badge-kk-warning"
-                                    class="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800"
+                                    class="font-semibold tabular-nums text-slate-900"
                                 >
-                                    <AlertTriangle class="h-3 w-3" />
-                                    <span>Perlu Update Kepala KK</span>
+                                    {{ row.nomor_kk }}
                                 </span>
+                                <div v-if="row.perlu_update_kepala_keluarga">
+                                    <span
+                                        data-testid="badge-kk-warning"
+                                        class="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800"
+                                    >
+                                        <AlertTriangle class="h-3 w-3" />
+                                        <span>Perlu Update Kepala KK</span>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </template>
@@ -976,17 +996,27 @@ function submitImportExcel() {
                         <div class="space-y-0.5">
                             <p class="font-medium text-slate-800">
                                 {{ row.dusun }}
+                                <span
+                                    class="text-xs font-normal tabular-nums text-slate-500"
+                                >
+                                    (RT {{ row.rt }} / RW {{ row.rw }})
+                                </span>
                             </p>
-                            <p class="text-xs tabular-nums text-slate-500">
-                                RT {{ row.rt }} / RW {{ row.rw }}
+                            <p class="text-xs text-slate-500">
+                                {{ row.alamat || '-' }}
                             </p>
                         </div>
                     </template>
 
-                    <template #cell-alamat="{ row }">
-                        <span class="text-xs text-slate-600">
-                            {{ row.alamat || '-' }}
-                        </span>
+                    <template #cell-status_kesejahteraan="{ row }">
+                        <StatusBadge
+                            :status="
+                                row.status_kesejahteraan || 'non_prioritas'
+                            "
+                            :label="
+                                formatDtsenTableLabel(row.status_kesejahteraan)
+                            "
+                        />
                     </template>
 
                     <template #cell-jumlah_anggota="{ row }">
@@ -999,259 +1029,332 @@ function submitImportExcel() {
                             </span>
                         </div>
                     </template>
+
+                    <!-- SUB-TABEL EXPANDABLE ANGGOTA KELUARGA DI DALAM 1 KK -->
+                    <template #expanded-row="{ row }">
+                        <div
+                            :data-testid="`subtable-anggota-kk-${row.id}`"
+                            class="rounded-lg border border-slate-200 bg-white shadow-xs"
+                        >
+                            <div
+                                class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3.5 py-2"
+                            >
+                                <div class="flex items-center gap-2 text-xs">
+                                    <Users class="h-3.5 w-3.5 text-slate-500" />
+                                    <span class="font-semibold text-slate-800">
+                                        Daftar Anggota Keluarga
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="(row.anggota || []).length > 0"
+                                class="overflow-x-auto"
+                            >
+                                <table
+                                    class="min-w-full divide-y divide-slate-200 text-xs"
+                                >
+                                    <thead class="bg-slate-50/50">
+                                        <tr>
+                                            <th
+                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
+                                            >
+                                                Warga &amp; NIK
+                                            </th>
+                                            <th
+                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
+                                            >
+                                                Hubungan &amp; Status Kawin
+                                            </th>
+                                            <th
+                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
+                                            >
+                                                Tempat, Tanggal Lahir
+                                            </th>
+                                            <th
+                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
+                                            >
+                                                Pendidikan &amp; Pekerjaan
+                                            </th>
+                                            <th
+                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
+                                            >
+                                                Status Warga
+                                            </th>
+                                            <th
+                                                v-if="isOperator"
+                                                class="px-3.5 py-2 text-right font-medium uppercase tracking-wider text-slate-500"
+                                            >
+                                                Aksi Anggota
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        <tr
+                                            v-for="member in row.anggota"
+                                            :key="member.id || member.nik"
+                                            :data-testid="`member-row-${member.id}`"
+                                            :class="[
+                                                'transition-colors',
+                                                isMemberMatchingFilter(member)
+                                                    ? 'bg-amber-50/90 hover:bg-amber-100/80'
+                                                    : 'hover:bg-slate-50/80',
+                                            ]"
+                                        >
+                                            <td
+                                                :class="[
+                                                    'px-3.5 py-2.5',
+                                                    isMemberMatchingFilter(
+                                                        member,
+                                                    )
+                                                        ? 'border-l-4 border-l-amber-500'
+                                                        : '',
+                                                ]"
+                                            >
+                                                <div
+                                                    class="flex flex-wrap items-center gap-1.5"
+                                                >
+                                                    <p
+                                                        class="font-semibold text-slate-900"
+                                                    >
+                                                        {{
+                                                            member.nama_lengkap
+                                                        }}
+                                                    </p>
+                                                    <span
+                                                        v-if="
+                                                            isMemberMatchingFilter(
+                                                                member,
+                                                            )
+                                                        "
+                                                        class="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                                                    >
+                                                        Cocok
+                                                    </span>
+                                                </div>
+                                                <p
+                                                    class="tabular-nums text-slate-500"
+                                                >
+                                                    NIK: {{ member.nik }} &bull;
+                                                    {{
+                                                        member.jenis_kelamin ===
+                                                        'P'
+                                                            ? 'Perempuan'
+                                                            : 'Laki-laki'
+                                                    }}
+                                                </p>
+                                            </td>
+
+                                            <td class="px-3.5 py-2.5">
+                                                <p
+                                                    class="font-medium text-slate-800"
+                                                >
+                                                    {{
+                                                        formatHubungan(
+                                                            member.hubungan_keluarga,
+                                                        )
+                                                    }}
+                                                </p>
+                                                <p class="text-slate-500">
+                                                    {{
+                                                        formatPerkawinan(
+                                                            member.status_perkawinan,
+                                                        )
+                                                    }}
+                                                    <span v-if="member.agama">
+                                                        &bull;
+                                                        {{ member.agama }}
+                                                    </span>
+                                                </p>
+                                            </td>
+
+                                            <td
+                                                class="px-3.5 py-2.5 tabular-nums text-slate-700"
+                                            >
+                                                <p class="font-medium">
+                                                    {{
+                                                        member.tempat_lahir ||
+                                                        '-'
+                                                    }},
+                                                    {{
+                                                        formatDateId(
+                                                            member.tanggal_lahir,
+                                                        )
+                                                    }}
+                                                </p>
+                                            </td>
+
+                                            <td class="px-3.5 py-2.5">
+                                                <p
+                                                    class="font-medium text-slate-800"
+                                                >
+                                                    {{
+                                                        member.pekerjaan ||
+                                                        'Belum bekerja'
+                                                    }}
+                                                </p>
+                                                <p class="text-slate-500">
+                                                    {{
+                                                        member.pendidikan || '-'
+                                                    }}
+                                                </p>
+                                            </td>
+
+                                            <td class="px-3.5 py-2.5">
+                                                <div class="space-y-0.5">
+                                                    <StatusBadge
+                                                        :status="
+                                                            member.status_kependudukan
+                                                        "
+                                                    />
+                                                    <p
+                                                        v-if="
+                                                            member.catatan_mutasi
+                                                        "
+                                                        class="text-[11px] text-slate-500"
+                                                    >
+                                                        {{
+                                                            member.catatan_mutasi
+                                                        }}
+                                                    </p>
+                                                </div>
+                                            </td>
+
+                                            <td
+                                                v-if="isOperator"
+                                                class="px-3.5 py-2.5 text-right whitespace-nowrap"
+                                            >
+                                                <!-- Desktop (>= md): Inline action buttons -->
+                                                <div
+                                                    class="hidden items-center justify-end gap-1 md:inline-flex"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        :data-testid="`member-action-edit-${member.id}`"
+                                                        class="inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                                        @click="
+                                                            openEditPendudukModal(
+                                                                member,
+                                                            )
+                                                        "
+                                                    >
+                                                        <Pencil
+                                                            class="h-3.5 w-3.5"
+                                                        />
+                                                        <span>Ubah</span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        :data-testid="`member-action-mutasi-${member.id}`"
+                                                        class="inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                                        @click="
+                                                            openMutasiModal(
+                                                                member,
+                                                            )
+                                                        "
+                                                    >
+                                                        <RefreshCw
+                                                            class="h-3.5 w-3.5"
+                                                        />
+                                                        <span>Mutasi</span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        :data-testid="`member-action-hapus-${member.id}`"
+                                                        class="inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+                                                        @click="
+                                                            handleDeletePenduduk(
+                                                                member,
+                                                            )
+                                                        "
+                                                    >
+                                                        <Trash2
+                                                            class="h-3.5 w-3.5"
+                                                        />
+                                                        <span>Hapus</span>
+                                                    </button>
+                                                </div>
+
+                                                <!-- Mobile (< md): Titik Tiga (MoreHorizontal) Dropdown -->
+                                                <div
+                                                    :data-testid="`member-more-container-${member.id}`"
+                                                    class="relative inline-block text-left md:hidden"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        :data-testid="`member-more-btn-${member.id}`"
+                                                        aria-label="Aksi anggota lainnya"
+                                                        class="inline-flex h-7 w-7 items-center justify-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                                                        @click.stop="toggleMemberMenu(member.id)"
+                                                    >
+                                                        <MoreHorizontal class="h-4 w-4" />
+                                                    </button>
+
+                                                    <div
+                                                        v-if="openMemberMenuId === member.id"
+                                                        :data-testid="`member-more-menu-${member.id}`"
+                                                        class="absolute right-0 z-20 mt-1 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-md"
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            :data-testid="`member-action-menu-edit-${member.id}`"
+                                                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                                            @click="
+                                                                openMemberMenuId = null;
+                                                                openEditPendudukModal(member);
+                                                            "
+                                                        >
+                                                            <Pencil class="h-3.5 w-3.5 text-slate-500" />
+                                                            <span>Ubah</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            :data-testid="`member-action-menu-mutasi-${member.id}`"
+                                                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                                            @click="
+                                                                openMemberMenuId = null;
+                                                                openMutasiModal(member);
+                                                            "
+                                                        >
+                                                            <RefreshCw class="h-3.5 w-3.5 text-slate-500" />
+                                                            <span>Mutasi</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            :data-testid="`member-action-menu-hapus-${member.id}`"
+                                                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-red-600 hover:bg-red-50"
+                                                            @click="
+                                                                openMemberMenuId = null;
+                                                                handleDeletePenduduk(member);
+                                                            "
+                                                        >
+                                                            <Trash2 class="h-3.5 w-3.5 text-red-500" />
+                                                            <span>Hapus</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div
+                                v-else
+                                class="px-4 py-4 text-center text-xs text-slate-500"
+                            >
+                                Belum ada anggota keluarga terdaftar pada KK
+                                ini.
+                            </div>
+                        </div>
+                    </template>
                 </DataTable>
             </div>
         </div>
 
-        <!-- SLIDE-OVER DRAWER: Detail Lengkap Warga & Daftar Anggota 1 KK -->
-        <SlideOverDrawer
-            :show="isDrawerOpen"
-            :title="
-                drawerMode === 'penduduk' && selectedPendudukDetail
-                    ? `Detail Warga: ${selectedPendudukDetail.nama_lengkap}`
-                    : `Kartu Keluarga No. ${selectedKkDetail?.nomor_kk || ''}`
-            "
-            :subtitle="
-                selectedKkDetail
-                    ? `${selectedKkDetail.dusun || ''} • RT ${selectedKkDetail.rt || '001'} / RW ${selectedKkDetail.rw || '001'}`
-                    : ''
-            "
-            max-width="2xl"
-            @close="closeDrawer"
-        >
-            <div class="space-y-6">
-                <!-- Peringatan Kepala Keluarga Non-Aktif di Dalam Drawer -->
-                <BaseCallout
-                    v-if="selectedKkDetail?.perlu_update_kepala_keluarga"
-                    variant="warning"
-                    data-testid="drawer-kk-warning"
-                    title="Struktur Kepala Keluarga Perlu Diperbarui"
-                >
-                    <p>
-                        {{ selectedKkDetail.peringatan_kepala_keluarga }}
-                    </p>
-                </BaseCallout>
-
-                <!-- Seksi Biodata Lengkap Individu (Jika dibuka dari Baris Penduduk) -->
-                <div
-                    v-if="selectedPendudukDetail"
-                    data-testid="drawer-resident-biodata"
-                    class="rounded-lg border border-slate-200 bg-slate-50/60 p-4 space-y-3"
-                >
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <h3 class="text-sm font-semibold text-slate-900">
-                                {{ selectedPendudukDetail.nama_lengkap }}
-                            </h3>
-                            <p class="text-xs tabular-nums text-slate-600">
-                                NIK: {{ selectedPendudukDetail.nik }}
-                            </p>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <StatusBadge
-                                :status="
-                                    selectedPendudukDetail.status_kesejahteraan
-                                "
-                            />
-                            <StatusBadge
-                                :status="
-                                    selectedPendudukDetail.status_kependudukan
-                                "
-                            />
-                        </div>
-                    </div>
-
-                    <dl
-                        class="grid grid-cols-1 gap-x-4 gap-y-2.5 border-t border-slate-200 pt-3 text-xs sm:grid-cols-2"
-                    >
-                        <div>
-                            <dt class="text-slate-500">Tempat, Tanggal Lahir</dt>
-                            <dd class="font-medium text-slate-800">
-                                {{ selectedPendudukDetail.tempat_lahir }},
-                                {{
-                                    formatDateId(
-                                        selectedPendudukDetail.tanggal_lahir,
-                                    )
-                                }}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-slate-500">
-                                Jenis Kelamin & Agama
-                            </dt>
-                            <dd class="font-medium text-slate-800">
-                                {{
-                                    selectedPendudukDetail.jenis_kelamin === 'P'
-                                        ? 'Perempuan'
-                                        : 'Laki-laki'
-                                }}
-                                &bull; {{ selectedPendudukDetail.agama }}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-slate-500">
-                                Hubungan & Status Kawin
-                            </dt>
-                            <dd class="font-medium text-slate-800">
-                                {{
-                                    formatHubungan(
-                                        selectedPendudukDetail.hubungan_keluarga,
-                                    )
-                                }}
-                                &bull;
-                                {{
-                                    formatPerkawinan(
-                                        selectedPendudukDetail.status_perkawinan,
-                                    )
-                                }}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt class="text-slate-500">
-                                Pendidikan & Pekerjaan
-                            </dt>
-                            <dd class="font-medium text-slate-800">
-                                {{
-                                    selectedPendudukDetail.pendidikan || '-'
-                                }}
-                                &bull;
-                                {{ selectedPendudukDetail.pekerjaan || '-' }}
-                            </dd>
-                        </div>
-                        <div
-                            v-if="selectedPendudukDetail.catatan_mutasi"
-                            class="sm:col-span-2"
-                        >
-                            <dt class="text-slate-500">Catatan Mutasi</dt>
-                            <dd class="font-medium text-slate-800">
-                                {{ selectedPendudukDetail.catatan_mutasi }}
-                                <span
-                                    v-if="selectedPendudukDetail.tanggal_mutasi"
-                                    class="text-slate-500"
-                                >
-                                    ({{
-                                        formatDateId(
-                                            selectedPendudukDetail.tanggal_mutasi,
-                                        )
-                                    }})
-                                </span>
-                            </dd>
-                        </div>
-                    </dl>
-                </div>
-
-                <!-- Seksi Daftar Anggota Keluarga dalam 1 Kartu Keluarga -->
-                <div
-                    v-if="selectedKkDetail"
-                    data-testid="drawer-kk-members"
-                    class="space-y-3"
-                >
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h3 class="text-sm font-semibold text-slate-900">
-                                Daftar Anggota Kartu Keluarga ({{
-                                    selectedKkDetail.nomor_kk
-                                }})
-                            </h3>
-                            <p class="text-xs text-slate-500">
-                                {{
-                                    selectedKkDetail.alamat ||
-                                    `${selectedKkDetail.dusun}, RT ${selectedKkDetail.rt}/RW ${selectedKkDetail.rw}`
-                                }}
-                            </p>
-                        </div>
-
-                        <BaseButton
-                            v-if="isOperator"
-                            size="sm"
-                            variant="secondary"
-                            :icon="UserPlus"
-                            data-testid="drawer-add-member-btn"
-                            @click="
-                                closeDrawer();
-                                openCreatePendudukModal(selectedKkDetail.id);
-                            "
-                        >
-                            Tambah Anggota
-                        </BaseButton>
-                    </div>
-
-                    <div
-                        class="overflow-x-auto rounded-lg border border-slate-200"
-                    >
-                        <table
-                            class="min-w-full divide-y divide-slate-200 text-xs"
-                        >
-                            <thead class="bg-slate-50">
-                                <tr>
-                                    <th
-                                        class="px-3 py-2.5 text-left font-medium uppercase text-slate-500"
-                                    >
-                                        Nama & NIK
-                                    </th>
-                                    <th
-                                        class="px-3 py-2.5 text-left font-medium uppercase text-slate-500"
-                                    >
-                                        Hubungan
-                                    </th>
-                                    <th
-                                        class="px-3 py-2.5 text-left font-medium uppercase text-slate-500"
-                                    >
-                                        Tgl Lahir
-                                    </th>
-                                    <th
-                                        class="px-3 py-2.5 text-left font-medium uppercase text-slate-500"
-                                    >
-                                        Status
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-200 bg-white">
-                                <tr
-                                    v-for="member in selectedKkDetail.anggota ||
-                                    []"
-                                    :key="member.id || member.nik"
-                                >
-                                    <td class="px-3 py-2.5">
-                                        <p class="font-semibold text-slate-900">
-                                            {{ member.nama_lengkap }}
-                                        </p>
-                                        <p class="tabular-nums text-slate-500">
-                                            {{ member.nik }}
-                                        </p>
-                                    </td>
-                                    <td class="px-3 py-2.5 text-slate-700">
-                                        {{
-                                            formatHubungan(
-                                                member.hubungan_keluarga,
-                                            )
-                                        }}
-                                    </td>
-                                    <td
-                                        class="px-3 py-2.5 tabular-nums text-slate-600"
-                                    >
-                                        {{ formatDateId(member.tanggal_lahir) }}
-                                    </td>
-                                    <td class="px-3 py-2.5">
-                                        <StatusBadge
-                                            :status="member.status_kependudukan"
-                                        />
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <template #footer>
-                <BaseButton variant="secondary" @click="closeDrawer">
-                    Tutup
-                </BaseButton>
-            </template>
-        </SlideOverDrawer>
-
-        <!-- MODAL FORM KARTU KELUARGA (Tambah / Ubah KK dengan DusunCombobox) -->
+        <!-- MODAL FORM KARTU KELUARGA (Tambah KK Sekaligus Anggota / Ubah KK) -->
         <BaseModal
             :show="isKkModalOpen"
             :title="
@@ -1259,116 +1362,460 @@ function submitImportExcel() {
                     ? 'Ubah Data Kartu Keluarga'
                     : 'Tambah Kartu Keluarga Baru'
             "
-            subtitle="Pastikan 16 digit Nomor KK dan nama Dusun sesuai dokumen resmi kependudukan."
-            max-width="lg"
+            :max-width="editingKk ? 'lg' : '4xl'"
             @close="closeKkModal"
         >
             <form
                 id="form-kk"
                 data-testid="form-kk"
-                class="space-y-4"
+                class="space-y-6"
                 @submit.prevent="submitKkForm"
             >
-                <div class="space-y-1.5">
-                    <label
-                        for="input-nomor-kk"
-                        class="block text-sm font-medium text-slate-700"
-                    >
-                        Nomor Kartu Keluarga (16 Digit)
-                        <span class="text-red-600">*</span>
-                    </label>
-                    <input
-                        id="input-nomor-kk"
-                        v-model="kkForm.nomor_kk"
-                        type="text"
-                        maxlength="16"
-                        inputmode="numeric"
-                        data-testid="input-nomor-kk"
-                        placeholder="Contoh: 7203080101260001"
-                        class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-700 focus:ring-blue-700"
-                    />
-                    <p
-                        v-if="kkForm.errors.nomor_kk"
-                        class="text-xs font-medium text-red-600"
-                    >
-                        {{ kkForm.errors.nomor_kk }}
-                    </p>
-                </div>
-
-                <DusunCombobox
-                    v-model="kkForm.dusun"
-                    label="Dusun / Lingkungan"
-                    :options="daftar_dusun"
-                    :error="kkForm.errors.dusun"
-                    required
-                />
-
-                <div class="grid grid-cols-2 gap-4">
+                <!-- Bagian 1: Data Kartu Keluarga & Domisili -->
+                <div
+                    :class="
+                        editingKk
+                            ? 'space-y-4'
+                            : 'grid grid-cols-1 gap-4 sm:grid-cols-2'
+                    "
+                >
                     <div class="space-y-1.5">
                         <label
-                            for="input-rt"
+                            for="input-nomor-kk"
                             class="block text-sm font-medium text-slate-700"
                         >
-                            RT <span class="text-red-600">*</span>
+                            Nomor Kartu Keluarga (16 Digit)
+                            <span class="text-red-600">*</span>
                         </label>
                         <input
-                            id="input-rt"
-                            v-model="kkForm.rt"
+                            id="input-nomor-kk"
+                            v-model="kkForm.nomor_kk"
                             type="text"
-                            maxlength="5"
+                            maxlength="16"
+                            inputmode="numeric"
+                            data-testid="input-nomor-kk"
+                            placeholder="Contoh: 7203080101260001"
                             class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-700 focus:ring-blue-700"
                         />
                         <p
-                            v-if="kkForm.errors.rt"
+                            v-if="kkForm.errors.nomor_kk"
                             class="text-xs font-medium text-red-600"
                         >
-                            {{ kkForm.errors.rt }}
+                            {{ kkForm.errors.nomor_kk }}
                         </p>
+                    </div>
+
+                    <DusunCombobox
+                        v-model="kkForm.dusun"
+                        label="Dusun / Lingkungan"
+                        :options="daftar_dusun"
+                        :error="kkForm.errors.dusun"
+                        required
+                    />
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label
+                                for="input-rt"
+                                class="block text-sm font-medium text-slate-700"
+                            >
+                                RT <span class="text-red-600">*</span>
+                            </label>
+                            <input
+                                id="input-rt"
+                                v-model="kkForm.rt"
+                                type="text"
+                                maxlength="5"
+                                class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            />
+                            <p
+                                v-if="kkForm.errors.rt"
+                                class="text-xs font-medium text-red-600"
+                            >
+                                {{ kkForm.errors.rt }}
+                            </p>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label
+                                for="input-rw"
+                                class="block text-sm font-medium text-slate-700"
+                            >
+                                RW <span class="text-red-600">*</span>
+                            </label>
+                            <input
+                                id="input-rw"
+                                v-model="kkForm.rw"
+                                type="text"
+                                maxlength="5"
+                                class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            />
+                            <p
+                                v-if="kkForm.errors.rw"
+                                class="text-xs font-medium text-red-600"
+                            >
+                                {{ kkForm.errors.rw }}
+                            </p>
+                        </div>
                     </div>
 
                     <div class="space-y-1.5">
                         <label
-                            for="input-rw"
+                            for="select-kk-dtsen"
                             class="block text-sm font-medium text-slate-700"
                         >
-                            RW <span class="text-red-600">*</span>
+                            Status Kesejahteraan Keluarga (DTSEN)
+                            <span class="text-red-600">*</span>
                         </label>
-                        <input
-                            id="input-rw"
-                            v-model="kkForm.rw"
-                            type="text"
-                            maxlength="5"
-                            class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-700 focus:ring-blue-700"
-                        />
+                        <select
+                            id="select-kk-dtsen"
+                            v-model="kkForm.status_kesejahteraan"
+                            data-testid="select-kk-dtsen"
+                            class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                        >
+                            <option value="dtsen_desil_1">
+                                Desil 1
+                            </option>
+                            <option value="dtsen_desil_2">
+                                Desil 2
+                            </option>
+                            <option value="dtsen_desil_3_4">
+                                Desil 3–4
+                            </option>
+                            <option value="non_prioritas">
+                                Non-Prioritas
+                            </option>
+                        </select>
                         <p
-                            v-if="kkForm.errors.rw"
+                            v-if="kkForm.errors.status_kesejahteraan"
                             class="text-xs font-medium text-red-600"
                         >
-                            {{ kkForm.errors.rw }}
+                            {{ kkForm.errors.status_kesejahteraan }}
+                        </p>
+                    </div>
+
+                    <div
+                        :class="
+                            editingKk
+                                ? 'space-y-1.5'
+                                : 'space-y-1.5 sm:col-span-2'
+                        "
+                    >
+                        <label
+                            for="input-alamat-kk"
+                            class="block text-sm font-medium text-slate-700"
+                        >
+                            Detail Alamat Jalan / Rumah
+                        </label>
+                        <textarea
+                            id="input-alamat-kk"
+                            v-model="kkForm.alamat"
+                            rows="2"
+                            placeholder="Contoh: Jl. Trans Palu-Donggala No. 12"
+                            class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                        />
+                        <p
+                            v-if="kkForm.errors.alamat"
+                            class="text-xs font-medium text-red-600"
+                        >
+                            {{ kkForm.errors.alamat }}
                         </p>
                     </div>
                 </div>
 
-                <div class="space-y-1.5">
-                    <label
-                        for="input-alamat-kk"
-                        class="block text-sm font-medium text-slate-700"
+                <!-- Bagian 2: Input Daftar Anggota Keluarga Dinamis (Khusus Saat Tambah KK Baru) -->
+                <div
+                    v-if="!editingKk"
+                    data-testid="kk-members-repeater"
+                    class="space-y-3 border-t border-slate-200 pt-4"
+                >
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-2"
                     >
-                        Detail Alamat Jalan / Rumah
-                    </label>
-                    <textarea
-                        id="input-alamat-kk"
-                        v-model="kkForm.alamat"
-                        rows="2"
-                        placeholder="Contoh: Jl. Trans Palu-Donggala No. 12"
-                        class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
-                    />
-                    <p
-                        v-if="kkForm.errors.alamat"
-                        class="text-xs font-medium text-red-600"
-                    >
-                        {{ kkForm.errors.alamat }}
-                    </p>
+                        <div class="flex items-center gap-2">
+                            <Users class="h-4 w-4 text-slate-600" />
+                            <h3 class="text-sm font-semibold text-slate-900">
+                                Daftar Anggota Keluarga ({{
+                                    kkForm.anggota.length
+                                }}
+                                Orang)
+                            </h3>
+                        </div>
+
+                        <button
+                            type="button"
+                            data-testid="btn-add-kk-member-row"
+                            class="inline-flex h-8 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                            @click="addKkMemberRow"
+                        >
+                            <UserPlus class="h-3.5 w-3.5" />
+                            <span>+ Tambah Baris Anggota</span>
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div
+                            v-for="(member, idx) in kkForm.anggota"
+                            :key="`kk-member-${idx}`"
+                            :data-testid="`kk-member-card-${idx}`"
+                            class="rounded-lg border border-slate-200 bg-slate-50/60 p-3.5 space-y-3"
+                        >
+                            <div
+                                class="flex items-center justify-between border-b border-slate-200/80 pb-2"
+                            >
+                                <span
+                                    class="text-xs font-semibold text-slate-800"
+                                >
+                                    Anggota #{{ idx + 1 }} —
+                                    {{
+                                        formatHubungan(
+                                            member.hubungan_keluarga,
+                                        )
+                                    }}
+                                </span>
+
+                                <button
+                                    v-if="kkForm.anggota.length > 1"
+                                    type="button"
+                                    :data-testid="`btn-remove-kk-member-${idx}`"
+                                    class="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+                                    @click="removeKkMemberRow(idx)"
+                                >
+                                    <Trash2 class="h-3.5 w-3.5" />
+                                    <span>Hapus Baris</span>
+                                </button>
+                            </div>
+
+                            <div
+                                class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+                            >
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        NIK (16 Digit)
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <input
+                                        v-model="member.nik"
+                                        type="text"
+                                        maxlength="16"
+                                        inputmode="numeric"
+                                        :data-testid="`input-kk-member-nik-${idx}`"
+                                        placeholder="16 digit NIK"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs tabular-nums text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                    <p
+                                        v-if="
+                                            kkForm.errors[
+                                                `anggota.${idx}.nik`
+                                            ]
+                                        "
+                                        class="text-[11px] font-medium text-red-600"
+                                    >
+                                        {{
+                                            kkForm.errors[
+                                                `anggota.${idx}.nik`
+                                            ]
+                                        }}
+                                    </p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Nama Lengkap
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <input
+                                        v-model="member.nama_lengkap"
+                                        type="text"
+                                        :data-testid="`input-kk-member-nama-${idx}`"
+                                        placeholder="Sesuai KTP/KK"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                    <p
+                                        v-if="
+                                            kkForm.errors[
+                                                `anggota.${idx}.nama_lengkap`
+                                            ]
+                                        "
+                                        class="text-[11px] font-medium text-red-600"
+                                    >
+                                        {{
+                                            kkForm.errors[
+                                                `anggota.${idx}.nama_lengkap`
+                                            ]
+                                        }}
+                                    </p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Hubungan Keluarga
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <select
+                                        v-model="member.hubungan_keluarga"
+                                        :data-testid="`select-kk-member-hubungan-${idx}`"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    >
+                                        <option value="kepala_keluarga">
+                                            Kepala Keluarga
+                                        </option>
+                                        <option value="istri">Istri</option>
+                                        <option value="anak">Anak</option>
+                                        <option value="lainnya">
+                                            Lainnya
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Jenis Kelamin
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <select
+                                        v-model="member.jenis_kelamin"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    >
+                                        <option value="L">Laki-laki (L)</option>
+                                        <option value="P">Perempuan (P)</option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Tempat Lahir
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <input
+                                        v-model="member.tempat_lahir"
+                                        type="text"
+                                        :data-testid="`input-kk-member-tempat-lahir-${idx}`"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                    <p
+                                        v-if="
+                                            kkForm.errors[
+                                                `anggota.${idx}.tempat_lahir`
+                                            ]
+                                        "
+                                        class="text-[11px] font-medium text-red-600"
+                                    >
+                                        {{
+                                            kkForm.errors[
+                                                `anggota.${idx}.tempat_lahir`
+                                            ]
+                                        }}
+                                    </p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Tanggal Lahir
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <input
+                                        v-model="member.tanggal_lahir"
+                                        type="date"
+                                        :data-testid="`input-kk-member-tanggal-lahir-${idx}`"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs tabular-nums text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                    <p
+                                        v-if="
+                                            kkForm.errors[
+                                                `anggota.${idx}.tanggal_lahir`
+                                            ]
+                                        "
+                                        class="text-[11px] font-medium text-red-600"
+                                    >
+                                        {{
+                                            kkForm.errors[
+                                                `anggota.${idx}.tanggal_lahir`
+                                            ]
+                                        }}
+                                    </p>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Agama
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <input
+                                        v-model="member.agama"
+                                        type="text"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Status Perkawinan
+                                        <span class="text-red-600">*</span>
+                                    </label>
+                                    <select
+                                        v-model="member.status_perkawinan"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    >
+                                        <option value="belum_kawin">
+                                            Belum Kawin
+                                        </option>
+                                        <option value="kawin">Kawin</option>
+                                        <option value="cerai_hidup">
+                                            Cerai Hidup
+                                        </option>
+                                        <option value="cerai_mati">
+                                            Cerai Mati
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Pendidikan Terakhir
+                                    </label>
+                                    <input
+                                        v-model="member.pendidikan"
+                                        type="text"
+                                        placeholder="Contoh: SLTA/Sederajat"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                </div>
+
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Pekerjaan
+                                    </label>
+                                    <input
+                                        v-model="member.pekerjaan"
+                                        type="text"
+                                        placeholder="Contoh: Petani/Pekebun"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </form>
 
@@ -1383,20 +1830,23 @@ function submitImportExcel() {
                     :loading="kkForm.processing"
                     data-testid="submit-kk-btn"
                 >
-                    Simpan KK
+                    {{
+                        editingKk
+                            ? 'Simpan Perubahan KK'
+                            : 'Simpan KK & Anggota'
+                    }}
                 </BaseButton>
             </template>
         </BaseModal>
 
-        <!-- MODAL FORM PENDUDUK (Tambah / Ubah Biodata Warga) -->
+        <!-- MODAL FORM PENDUDUK (Tambah Anggota ke KK / Ubah Biodata Warga) -->
         <BaseModal
             :show="isPendudukModalOpen"
             :title="
                 editingPenduduk
                     ? 'Ubah Biodata Penduduk'
-                    : 'Tambah Data Penduduk Baru'
+                    : 'Tambah Anggota Keluarga'
             "
-            subtitle="Lengkapi biodata penduduk sesuai KTP/KK dan kategori kesejahteraan DTSEN."
             max-width="2xl"
             @close="closePendudukModal"
         >
@@ -1406,7 +1856,23 @@ function submitImportExcel() {
                 class="grid grid-cols-1 gap-4 sm:grid-cols-2"
                 @submit.prevent="submitPendudukForm"
             >
-                <div class="space-y-1.5 sm:col-span-2">
+                <div
+                    v-if="!editingPenduduk && targetKkForNewMember"
+                    class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 sm:col-span-2"
+                >
+                    Kartu Keluarga Tujuan:
+                    <span class="font-semibold tabular-nums text-slate-900">
+                        {{ targetKkForNewMember.nomor_kk }}
+                    </span>
+                    <span class="text-slate-500">
+                        ({{ targetKkForNewMember.dusun }})
+                    </span>
+                </div>
+
+                <div
+                    v-else
+                    class="space-y-1.5 sm:col-span-2"
+                >
                     <label
                         for="select-kk"
                         class="block text-sm font-medium text-slate-700"
@@ -1632,34 +2098,6 @@ function submitImportExcel() {
                         class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
                     />
                 </div>
-
-                <div class="space-y-1.5 sm:col-span-2">
-                    <label
-                        for="select-dtsen"
-                        class="block text-sm font-medium text-slate-700"
-                    >
-                        Status Kesejahteraan (DTSEN)
-                        <span class="text-red-600">*</span>
-                    </label>
-                    <select
-                        id="select-dtsen"
-                        v-model="pendudukForm.status_kesejahteraan"
-                        class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
-                    >
-                        <option value="dtsen_desil_1">
-                            DTSEN Desil 1 (Miskin Ekstrem)
-                        </option>
-                        <option value="dtsen_desil_2">
-                            DTSEN Desil 2 (Miskin)
-                        </option>
-                        <option value="dtsen_desil_3_4">
-                            DTSEN Desil 3–4 (Rentan Miskin)
-                        </option>
-                        <option value="non_prioritas">
-                            Non-Prioritas (Desil 5–10 / Mampu)
-                        </option>
-                    </select>
-                </div>
             </form>
 
             <template #footer>
@@ -1682,11 +2120,6 @@ function submitImportExcel() {
         <BaseModal
             :show="isMutasiModalOpen"
             title="Mutasi / Reaktivasi Status Kependudukan"
-            :subtitle="
-                mutasiTarget
-                    ? `${mutasiTarget.nama_lengkap} (NIK: ${mutasiTarget.nik})`
-                    : ''
-            "
             max-width="lg"
             @close="closeMutasiModal"
         >
@@ -1696,6 +2129,12 @@ function submitImportExcel() {
                 class="space-y-4"
                 @submit.prevent="submitMutasiForm"
             >
+                <div
+                    v-if="mutasiTarget"
+                    class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700"
+                >
+                    Warga: <span class="font-semibold text-slate-900">{{ mutasiTarget.nama_lengkap }}</span> (NIK: {{ mutasiTarget.nik }})
+                </div>
                 <BaseCallout
                     v-if="isMutasiBlockedBySuratKematian"
                     variant="danger"
@@ -1812,12 +2251,11 @@ function submitImportExcel() {
             </template>
         </BaseModal>
 
-        <!-- MODAL IMPORT EXCEL SIAK/PRODESKEL & TABEL RINGKASAN ERROR PER BARIS -->
+        <!-- MODAL IMPORT EXCEL KEPENDUDUKAN (2 LANGKAH: PRATINJAU & KONFIRMASI SIMPAN) -->
         <BaseModal
             :show="isImportModalOpen"
-            title="Import Massal Excel Kependudukan (SIAK / Prodeskel)"
-            subtitle="Unggah berkas Excel (.xlsx/.xls/.csv) untuk menambah, memperbarui, atau memulihkan data KK & Penduduk."
-            max-width="xl"
+            title="Import Excel Kependudukan"
+            max-width="3xl"
             @close="closeImportModal"
         >
             <form
@@ -1830,8 +2268,8 @@ function submitImportExcel() {
                     class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50/50 px-3.5 py-2.5 text-xs text-slate-700"
                 >
                     <span>
-                        Gunakan format kolom standar SIAK/Prodeskel agar proses
-                        validasi berjalan lancar.
+                        Gunakan format kolom standar Template Excel atau berkas
+                        hasil Export Excel agar validasi berjalan lancar.
                     </span>
                     <a
                         :href="templateExcelUrl"
@@ -1844,6 +2282,7 @@ function submitImportExcel() {
                 </div>
 
                 <FileDropzone
+                    v-if="!isPreviewReady"
                     v-model="importForm.file"
                     label="Berkas Excel Kependudukan"
                     accept=".xlsx,.xls,.csv"
@@ -1851,6 +2290,236 @@ function submitImportExcel() {
                     :error="importForm.errors.file"
                     required
                 />
+
+                <!-- 4 Kartu Ringkasan Hasil Validasi / Pratinjau Import -->
+                <div
+                    v-if="importSummary"
+                    data-testid="import-summary-cards"
+                    class="grid grid-cols-2 gap-2.5 sm:grid-cols-4"
+                >
+                    <div
+                        class="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2"
+                    >
+                        <p class="text-[11px] font-medium text-emerald-800">
+                            Baru Ditambahkan
+                        </p>
+                        <p
+                            class="mt-0.5 text-lg font-bold tabular-nums text-emerald-900"
+                        >
+                            {{ importSummary.ditambahkan ?? 0 }}
+                        </p>
+                    </div>
+                    <div
+                        class="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2"
+                    >
+                        <p class="text-[11px] font-medium text-blue-800">
+                            Data Diperbarui
+                        </p>
+                        <p
+                            class="mt-0.5 text-lg font-bold tabular-nums text-blue-900"
+                        >
+                            {{ importSummary.diperbarui ?? 0 }}
+                        </p>
+                    </div>
+                    <div
+                        class="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2"
+                    >
+                        <p class="text-[11px] font-medium text-amber-800">
+                            Arsip Dipulihkan
+                        </p>
+                        <p
+                            class="mt-0.5 text-lg font-bold tabular-nums text-amber-900"
+                        >
+                            {{ importSummary.dipulihkan ?? 0 }}
+                        </p>
+                    </div>
+                    <div
+                        class="rounded-lg border border-red-200 bg-red-50/60 px-3 py-2"
+                    >
+                        <p class="text-[11px] font-medium text-red-800">
+                            Baris Bermasalah
+                        </p>
+                        <p
+                            class="mt-0.5 text-lg font-bold tabular-nums text-red-900"
+                        >
+                            {{ importSummary.gagal ?? importErrors.length }}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Tabel Pratinjau Baris Sebelum Disimpan (Tahap 2) -->
+                <div
+                    v-if="isPreviewReady"
+                    data-testid="import-preview-section"
+                    class="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50/50 p-3.5"
+                >
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-2"
+                    >
+                        <p class="text-xs font-semibold text-slate-800">
+                            Pratinjau Data Sebelum Disimpan ({{
+                                importPreviewRows.length
+                            }}
+                            Baris)
+                        </p>
+                        <div class="inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-xs">
+                            <button
+                                type="button"
+                                :class="[
+                                    'rounded px-2.5 py-1 font-medium transition-colors',
+                                    importPreviewTab === 'all'
+                                        ? 'bg-slate-900 text-white'
+                                        : 'text-slate-600 hover:text-slate-900',
+                                ]"
+                                @click="importPreviewTab = 'all'"
+                            >
+                                Semua ({{ importPreviewRows.length }})
+                            </button>
+                            <button
+                                type="button"
+                                :class="[
+                                    'rounded px-2.5 py-1 font-medium transition-colors',
+                                    importPreviewTab === 'valid'
+                                        ? 'bg-emerald-700 text-white'
+                                        : 'text-slate-600 hover:text-slate-900',
+                                ]"
+                                @click="importPreviewTab = 'valid'"
+                            >
+                                Valid ({{ importSummary?.berhasil ?? 0 }})
+                            </button>
+                            <button
+                                type="button"
+                                :class="[
+                                    'rounded px-2.5 py-1 font-medium transition-colors',
+                                    importPreviewTab === 'error'
+                                        ? 'bg-red-600 text-white'
+                                        : 'text-slate-600 hover:text-slate-900',
+                                ]"
+                                @click="importPreviewTab = 'error'"
+                            >
+                                Error ({{ importSummary?.gagal ?? 0 }})
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        class="max-h-60 overflow-y-auto rounded border border-slate-200 bg-white"
+                    >
+                        <table
+                            data-testid="import-preview-table"
+                            class="min-w-full divide-y divide-slate-200 text-xs"
+                        >
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium text-slate-600"
+                                    >
+                                        Baris
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium text-slate-600"
+                                    >
+                                        Warga &amp; NIK
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium text-slate-600"
+                                    >
+                                        Nomor KK &amp; Dusun
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium text-slate-600"
+                                    >
+                                        Hubungan &amp; DTSEN
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium text-slate-600"
+                                    >
+                                        Status Review
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <tr
+                                    v-for="(pRow, idx) in filteredImportPreviewRows"
+                                    :key="`prev-${pRow.baris}-${idx}`"
+                                    :class="
+                                        pRow.aksi === 'gagal'
+                                            ? 'bg-red-50/40'
+                                            : ''
+                                    "
+                                >
+                                    <td
+                                        class="px-3 py-2 font-semibold tabular-nums text-slate-900"
+                                    >
+                                        #{{ pRow.baris }}
+                                    </td>
+                                    <td class="px-3 py-2 text-slate-700">
+                                        <p class="font-medium text-slate-900">
+                                            {{ pRow.nama_lengkap || '-' }}
+                                        </p>
+                                        <p class="tabular-nums text-slate-500">
+                                            {{ pRow.nik || '-' }}
+                                        </p>
+                                    </td>
+                                    <td class="px-3 py-2 text-slate-700">
+                                        <p class="tabular-nums font-medium">
+                                            {{ pRow.nomor_kk || '-' }}
+                                        </p>
+                                        <p class="text-slate-500">
+                                            {{ pRow.dusun || '-' }}
+                                        </p>
+                                    </td>
+                                    <td class="px-3 py-2 text-slate-700">
+                                        <p class="font-medium">
+                                            {{
+                                                formatHubungan(
+                                                    pRow.hubungan_keluarga,
+                                                )
+                                            }}
+                                        </p>
+                                        <p class="text-slate-500">
+                                            {{
+                                                formatDtsenTableLabel(
+                                                    pRow.status_kesejahteraan,
+                                                )
+                                            }}
+                                        </p>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <span
+                                            v-if="pRow.aksi === 'ditambahkan'"
+                                            class="inline-flex rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
+                                        >
+                                            Baru Ditambahkan
+                                        </span>
+                                        <span
+                                            v-else-if="
+                                                pRow.aksi === 'diperbarui'
+                                            "
+                                            class="inline-flex rounded bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800"
+                                        >
+                                            Akan Diperbarui
+                                        </span>
+                                        <span
+                                            v-else-if="
+                                                pRow.aksi === 'dipulihkan'
+                                            "
+                                            class="inline-flex rounded bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800"
+                                        >
+                                            Akan Dipulihkan
+                                        </span>
+                                        <span
+                                            v-else
+                                            class="text-red-700 font-medium"
+                                        >
+                                            {{ pRow.pesan }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
                 <!-- Ringkasan & Tabel Baris Gagal Hasil Import -->
                 <div
@@ -1932,17 +2601,37 @@ function submitImportExcel() {
             </form>
 
             <template #footer>
-                <BaseButton variant="secondary" @click="closeImportModal">
+                <BaseButton
+                    v-if="isPreviewReady"
+                    variant="secondary"
+                    data-testid="btn-reset-import-preview"
+                    @click="resetImportPreview"
+                >
+                    Ganti File Excel
+                </BaseButton>
+                <BaseButton
+                    v-else
+                    variant="secondary"
+                    @click="closeImportModal"
+                >
                     Tutup
                 </BaseButton>
+
                 <BaseButton
                     type="submit"
                     form="form-import-excel"
                     variant="primary"
+                    :disabled="
+                        isPreviewReady && (importSummary?.berhasil ?? 0) === 0
+                    "
                     :loading="importForm.processing"
                     data-testid="submit-import-btn"
                 >
-                    Proses Import
+                    {{
+                        isPreviewReady
+                            ? `Simpan ${importSummary?.berhasil ?? 0} Data Valid`
+                            : 'Cek & Review Data'
+                    }}
                 </BaseButton>
             </template>
         </BaseModal>

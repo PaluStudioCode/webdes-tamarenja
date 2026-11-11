@@ -4,6 +4,7 @@ namespace App\Http\Requests\Kependudukan;
 
 use App\Enums\StatusKependudukan;
 use App\Enums\StatusKesejahteraan;
+use App\Models\KartuKeluarga;
 use App\Models\Penduduk;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,19 +26,34 @@ class UpdatePendudukRequest extends FormRequest
 
         $penduduk = $this->route('penduduk');
         if ($penduduk instanceof Penduduk) {
-            if (! $this->has('status_kependudukan')) {
+            if (! $this->filled('status_kependudukan')) {
                 $statusVal = $penduduk->status_kependudukan instanceof StatusKependudukan
                     ? $penduduk->status_kependudukan->value
                     : (string) $penduduk->status_kependudukan;
                 $this->merge(['status_kependudukan' => $statusVal]);
             }
+        }
 
-            if (! $this->has('status_kesejahteraan')) {
-                $kesejahteraanVal = $penduduk->status_kesejahteraan instanceof StatusKesejahteraan
-                    ? $penduduk->status_kesejahteraan->value
-                    : (string) $penduduk->status_kesejahteraan;
-                $this->merge(['status_kesejahteraan' => $kesejahteraanVal]);
-            }
+        $kkId = $this->input('kartu_keluarga_id')
+            ?? ($penduduk instanceof Penduduk ? $penduduk->kartu_keluarga_id : null);
+        $kk = $kkId !== null ? KartuKeluarga::query()->find($kkId) : null;
+        $isMovingKk = $penduduk instanceof Penduduk
+            && $kkId !== null
+            && (int) $kkId !== (int) $penduduk->kartu_keluarga_id;
+
+        if ($kk !== null && ($isMovingKk || ! $this->filled('status_kesejahteraan'))) {
+            $kkStatus = $kk->status_kesejahteraan instanceof StatusKesejahteraan
+                ? $kk->status_kesejahteraan->value
+                : (string) $kk->status_kesejahteraan;
+
+            $this->merge([
+                'status_kesejahteraan' => $kkStatus !== '' ? $kkStatus : StatusKesejahteraan::NonPrioritas->value,
+            ]);
+        } elseif ($penduduk instanceof Penduduk && ! $this->filled('status_kesejahteraan')) {
+            $kesejahteraanVal = $penduduk->status_kesejahteraan instanceof StatusKesejahteraan
+                ? $penduduk->status_kesejahteraan->value
+                : (string) $penduduk->status_kesejahteraan;
+            $this->merge(['status_kesejahteraan' => $kesejahteraanVal]);
         }
     }
 
@@ -79,7 +95,7 @@ class UpdatePendudukRequest extends FormRequest
                 'string',
                 Rule::in(['kepala_keluarga', 'istri', 'anak', 'lainnya']),
             ],
-            'status_kesejahteraan' => ['required', Rule::enum(StatusKesejahteraan::class)],
+            'status_kesejahteraan' => ['nullable', Rule::enum(StatusKesejahteraan::class)],
             'status_kependudukan' => ['required', Rule::enum(StatusKependudukan::class)],
             'tanggal_mutasi' => ['nullable', 'date', 'before_or_equal:today'],
             'catatan_mutasi' => ['nullable', 'string', 'max:255'],

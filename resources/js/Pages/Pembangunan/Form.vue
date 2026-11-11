@@ -5,7 +5,6 @@ import { ArrowLeft, Save } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import ConditionalBreadcrumb from '@/Components/ConditionalBreadcrumb.vue';
 import PageHeader from '@/Components/PageHeader.vue';
-import BaseCallout from '@/Components/BaseCallout.vue';
 import BaseButton from '@/Components/BaseButton.vue';
 import CurrencyInput from '@/Components/CurrencyInput.vue';
 import DusunCombobox from '@/Components/DusunCombobox.vue';
@@ -85,21 +84,37 @@ const existingPhotoUrls = computed(() => ({
     foto_100: props.proyek?.foto_100_url || '',
 }));
 
+const hasFoto100 = computed(() => Boolean(form.foto_100 || props.proyek?.foto_100_path));
+const hasFoto50 = computed(() => Boolean(form.foto_50 || props.proyek?.foto_50_path));
+
+const computedProgresFisik = computed(() => {
+    if (hasFoto100.value) {
+        return 100;
+    }
+    if (hasFoto50.value) {
+        return 50;
+    }
+    return 0;
+});
+
 const autoStatusPreview = computed(() => {
-    const p = Number(form.progres_fisik || 0);
-    if (p <= 0) {
-        return { status: 'belum_dimulai', label: 'Belum Dimulai' };
-    }
+    const p = computedProgresFisik.value;
     if (p >= 100) {
-        return { status: 'selesai', label: 'Selesai' };
+        return { status: 'selesai', label: 'Selesai (100%)' };
     }
-    return { status: 'sedang_dikerjakan', label: 'Sedang Dikerjakan' };
+    if (p >= 50) {
+        return { status: 'sedang_dikerjakan', label: 'Sedang Dikerjakan (50%)' };
+    }
+    return { status: 'belum_dimulai', label: 'Belum Dimulai (0%)' };
 });
 
 function submitForm() {
+    form.progres_fisik = computedProgresFisik.value;
+
     if (isEditMode.value) {
         form.transform((data) => ({
             ...data,
+            progres_fisik: computedProgresFisik.value,
             _method: 'put',
         })).post(`/panel/pembangunan/${props.proyek.id}`, {
             forceFormData: true,
@@ -107,7 +122,10 @@ function submitForm() {
         return;
     }
 
-    form.post('/panel/pembangunan', {
+    form.transform((data) => ({
+        ...data,
+        progres_fisik: computedProgresFisik.value,
+    })).post('/panel/pembangunan', {
         forceFormData: true,
     });
 }
@@ -135,16 +153,6 @@ function submitForm() {
                     </template>
                 </PageHeader>
             </div>
-
-            <BaseCallout
-                variant="info"
-                title="Aturan Sinkronisasi APBDes & Validasi Bertahap 3 Titik Foto"
-            >
-                Setiap penyimpanan proyek akan otomatis menyinkronkan total Pagu &amp; Realisasi baris
-                <strong>Bidang 2: Pelaksanaan Pembangunan Desa (Komponen Proyek Fisik)</strong> pada dokumen APBDes tahun terkait.
-                Progres fisik <strong>1%–49%</strong> mewajibkan Foto 0%, <strong>50%–99%</strong> mewajibkan Foto 0% &amp; 50%, dan
-                <strong>100%</strong> mewajibkan ketiga titik foto (0%, 50%, 100%).
-            </BaseCallout>
 
             <form
                 data-testid="form-proyek-pembangunan"
@@ -307,12 +315,17 @@ function submitForm() {
                     </div>
                 </div>
 
-                <!-- Bagian 2: Progres Fisik, Status Otomatis & Dokumentasi 3 Titik Foto -->
-                <div class="rounded-lg border border-slate-200 bg-white p-6 space-y-6">
+                <!-- Bagian 2: Dokumentasi 3 Titik Foto (0% – 50% – 100%) -->
+                <div class="rounded-lg border border-slate-200 bg-white p-6 space-y-5">
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-                        <h2 class="text-base font-semibold text-slate-900">
-                            2. Progres Fisik &amp; Dokumentasi 3 Titik Foto (0% &ndash; 50% &ndash; 100%)
-                        </h2>
+                        <div>
+                            <h2 class="text-base font-semibold text-slate-900">
+                                2. Dokumentasi Foto Lapangan (0% &ndash; 50% &ndash; 100%)
+                            </h2>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                Unggah foto sesuai tahapan pengerjaan. Status dan persentase proyek akan otomatis terhitung.
+                            </p>
+                        </div>
                         <div class="flex items-center gap-2 text-xs text-slate-600">
                             <span>Status Otomatis:</span>
                             <StatusBadge
@@ -322,66 +335,10 @@ function submitForm() {
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                        <div class="space-y-2">
-                            <div class="flex items-center justify-between">
-                                <label
-                                    for="progres_fisik"
-                                    class="text-sm font-medium text-slate-700"
-                                >
-                                    Persentase Progres Fisik Lapangan (%) <span class="text-red-600">*</span>
-                                </label>
-                                <span class="text-sm font-bold tabular-nums text-blue-700">
-                                    {{ form.progres_fisik }}%
-                                </span>
-                            </div>
-
-                            <div class="flex items-center gap-4">
-                                <input
-                                    id="progres_fisik_slider"
-                                    v-model.number="form.progres_fisik"
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    step="1"
-                                    class="h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-slate-200 accent-blue-700"
-                                />
-                                <input
-                                    id="progres_fisik"
-                                    v-model.number="form.progres_fisik"
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    data-testid="input-progres-fisik"
-                                    class="h-10 w-24 rounded-md border border-slate-300 bg-white px-3 text-right text-sm font-semibold tabular-nums text-slate-900 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
-                                />
-                            </div>
-                            <p v-if="form.errors.progres_fisik" class="text-xs font-medium text-red-600">
-                                {{ form.errors.progres_fisik }}
-                            </p>
-                        </div>
-
-                        <div class="space-y-1.5">
-                            <label
-                                for="catatan_kendala"
-                                class="block text-sm font-medium text-slate-700"
-                            >
-                                Catatan Kendala Lapangan (Opsional)
-                            </label>
-                            <textarea
-                                id="catatan_kendala"
-                                v-model="form.catatan_kendala"
-                                rows="2"
-                                placeholder="Contoh: Cuaca hujan intensif pada minggu ke-3 pengerjaan"
-                                class="w-full rounded-md border border-slate-300 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-700/20"
-                            />
-                        </div>
-                    </div>
-
                     <ProjectPhotoCheckpoints
                         v-model="photoFilesModel"
                         :existing-urls="existingPhotoUrls"
-                        :progres-fisik="Number(form.progres_fisik || 0)"
+                        :progres-fisik="computedProgresFisik"
                         :errors="form.errors"
                     />
                 </div>

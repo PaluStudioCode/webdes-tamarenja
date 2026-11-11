@@ -54,6 +54,8 @@ class DummyDesaSeeder extends Seeder
         $fotoKadesPath = DummyAssetGenerator::putJpg('sotk/foto-kades-tamarenja.jpg', 'KEPALA DESA', 'public', 400, 500);
 
         $profil->update([
+            'nama_kepala_desa' => $profil->nama_kepala_desa === 'H. Moh. Ridwan, S.Sos.' ? 'Baswan Laramang' : $profil->nama_kepala_desa,
+            'nama_sekdes' => $profil->nama_sekdes === 'Andi Saputra, S.AP.' ? 'Arif Sandi' : $profil->nama_sekdes,
             'logo_desa_path' => $logoPath,
             'foto_kepala_desa_path' => $fotoKadesPath,
         ]);
@@ -113,6 +115,7 @@ class DummyDesaSeeder extends Seeder
                     'rt' => str_pad((string) (($idx % 3) + 1), 3, '0', STR_PAD_LEFT),
                     'rw' => '001',
                     'alamat' => "Jl. Poros {$dusun} No. {$i}",
+                    'status_kesejahteraan' => $desil,
                     'deleted_at' => null,
                 ]
             );
@@ -975,18 +978,21 @@ class DummyDesaSeeder extends Seeder
             }
         }
 
-        // 10 Perangkat Desa & BPD
+        // 13 Perangkat Desa & BPD (11 Pemerintah Desa sesuai Papan Struktur Organisasi Kantor Desa + 2 BPD)
         $daftarPerangkat = [
-            ['urutan' => 1, 'nama' => 'H. Moh. Ridwan, S.Sos.', 'jabatan' => 'Kepala Desa', 'kelompok' => 'pimpinan', 'nip' => null],
-            ['urutan' => 2, 'nama' => 'Andi Saputra, S.AP.', 'jabatan' => 'Sekretaris Desa', 'kelompok' => 'sekretariat', 'nip' => '198604122010011008'],
-            ['urutan' => 3, 'nama' => 'Siti Rahmawati, S.E.', 'jabatan' => 'Kaur Keuangan', 'kelompok' => 'sekretariat', 'nip' => null],
-            ['urutan' => 4, 'nama' => 'Moh. Fadli, A.Md.', 'jabatan' => 'Kaur Tata Usaha & Umum', 'kelompok' => 'sekretariat', 'nip' => null],
-            ['urutan' => 5, 'nama' => 'Rizky Pratama, S.Kom.', 'jabatan' => 'Kaur Perencanaan', 'kelompok' => 'sekretariat', 'nip' => null],
-            ['urutan' => 6, 'nama' => 'Syahrul Ramadhan', 'jabatan' => 'Kasi Pemerintahan', 'kelompok' => 'pelaksana_teknis', 'nip' => null],
-            ['urutan' => 7, 'nama' => 'Nurlina, S.Sos.', 'jabatan' => 'Kasi Kesejahteraan & Pelayanan', 'kelompok' => 'pelaksana_teknis', 'nip' => null],
-            ['urutan' => 8, 'nama' => 'Ruslan Abdul Gani', 'jabatan' => 'Kepala Dusun I', 'kelompok' => 'kewilayahan_dusun', 'nip' => null],
-            ['urutan' => 9, 'nama' => 'Drs. H. Mahmud Lamakarate', 'jabatan' => 'Ketua BPD', 'kelompok' => 'bpd', 'nip' => null],
-            ['urutan' => 10, 'nama' => 'Hj. Rostina', 'jabatan' => 'Sekretaris BPD', 'kelompok' => 'bpd', 'nip' => null],
+            ['urutan' => 1, 'nama' => 'Baswan Laramang', 'jabatan' => 'Kepala Desa', 'kelompok' => 'pimpinan', 'nip' => null],
+            ['urutan' => 2, 'nama' => 'Arif Sandi', 'jabatan' => 'Sekretaris Desa', 'kelompok' => 'sekretariat', 'nip' => '198604122010011008'],
+            ['urutan' => 3, 'nama' => 'Efendi', 'jabatan' => 'Kepala Urusan Keuangan', 'kelompok' => 'sekretariat', 'nip' => null],
+            ['urutan' => 4, 'nama' => 'Andri', 'jabatan' => 'Kepala Urusan Tata Usaha dan Umum', 'kelompok' => 'sekretariat', 'nip' => null],
+            ['urutan' => 5, 'nama' => 'Kisman', 'jabatan' => 'Kepala Urusan Perencanaan', 'kelompok' => 'sekretariat', 'nip' => null],
+            ['urutan' => 6, 'nama' => 'Arifain', 'jabatan' => 'Kepala Seksi Pemerintahan', 'kelompok' => 'pelaksana_teknis', 'nip' => null],
+            ['urutan' => 7, 'nama' => 'Alwin', 'jabatan' => 'Kepala Seksi Kesejahteraan', 'kelompok' => 'pelaksana_teknis', 'nip' => null],
+            ['urutan' => 8, 'nama' => 'Sandra', 'jabatan' => 'Kepala Seksi Pelayanan', 'kelompok' => 'pelaksana_teknis', 'nip' => null],
+            ['urutan' => 9, 'nama' => 'Sharil', 'jabatan' => 'Kepala Dusun I', 'kelompok' => 'kewilayahan_dusun', 'nip' => null],
+            ['urutan' => 10, 'nama' => 'Moh. Irfan', 'jabatan' => 'Kepala Dusun II', 'kelompok' => 'kewilayahan_dusun', 'nip' => null],
+            ['urutan' => 11, 'nama' => 'Taufik. E', 'jabatan' => 'Kepala Dusun III', 'kelompok' => 'kewilayahan_dusun', 'nip' => null],
+            ['urutan' => 12, 'nama' => 'Drs. H. Mahmud Lamakarate', 'jabatan' => 'Ketua BPD', 'kelompok' => 'bpd', 'nip' => null],
+            ['urutan' => 13, 'nama' => 'Hj. Rostina', 'jabatan' => 'Sekretaris BPD', 'kelompok' => 'bpd', 'nip' => null],
         ];
 
         foreach ($daftarPerangkat as $p) {
@@ -1001,10 +1007,10 @@ class DummyDesaSeeder extends Seeder
             PerangkatDesa::query()->updateOrCreate(
                 [
                     'urutan' => $p['urutan'],
-                    'jabatan' => $p['jabatan'],
                 ],
                 [
                     'nama_lengkap' => $p['nama'],
+                    'jabatan' => $p['jabatan'],
                     'kelompok_sotk' => $p['kelompok'],
                     'nip_niap' => $p['nip'],
                     'foto_path' => $fotoSotk,

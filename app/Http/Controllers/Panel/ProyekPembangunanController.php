@@ -107,6 +107,10 @@ class ProyekPembangunanController extends Controller
             'daftar_dusun' => $profilDesa?->daftar_dusun ?? ['Dusun I', 'Dusun II', 'Dusun III'],
             'opsi_sumber_dana' => $this->getSumberDanaOptions(),
             'opsi_status' => $this->getStatusOptions(),
+            'koordinat_default' => [
+                'latitude' => -0.5835,
+                'longitude' => 119.7932,
+            ],
         ]);
     }
 
@@ -152,7 +156,7 @@ class ProyekPembangunanController extends Controller
             ->route('panel.pembangunan.index', ['tahun' => $proyek->tahun_anggaran])
             ->with('notification', [
                 'type' => 'success',
-                'message' => "Proyek \"{$proyek->nama_kegiatan}\" berhasil ditambahkan dan disinkronkan ke APBDes Bidang 2.",
+                'message' => "Proyek \"{$proyek->nama_kegiatan}\" berhasil ditambahkan ke katalog pembangunan desa.",
             ]);
     }
 
@@ -196,12 +200,12 @@ class ProyekPembangunanController extends Controller
             ->route('panel.pembangunan.index', ['tahun' => $updated->tahun_anggaran])
             ->with('notification', [
                 'type' => 'success',
-                'message' => "Proyek \"{$updated->nama_kegiatan}\" berhasil diperbarui dan disinkronkan ke APBDes Bidang 2.",
+                'message' => "Proyek \"{$updated->nama_kegiatan}\" berhasil diperbarui.",
             ]);
     }
 
     /**
-     * Soft-delete proyek pembangunan fisik dan hitung ulang APBDes Bidang 2 Fisik.
+     * Soft-delete proyek pembangunan fisik.
      */
     public function destroy(Request $request, ProyekPembangunan $proyek): RedirectResponse
     {
@@ -210,7 +214,7 @@ class ProyekPembangunanController extends Controller
 
         return back()->with('notification', [
             'type' => 'success',
-            'message' => "Proyek \"{$nama}\" berhasil dihapus dan total APBDes Bidang 2 telah disesuaikan.",
+            'message' => "Proyek \"{$nama}\" berhasil dihapus.",
         ]);
     }
 
@@ -319,19 +323,6 @@ class ProyekPembangunanController extends Controller
 
     protected function resolveLogoBase64(?ProfilDesa $profilDesa): ?string
     {
-        if (! $profilDesa || empty($profilDesa->logo_desa_path)) {
-            return null;
-        }
-
-        if (! Storage::disk('public')->exists($profilDesa->logo_desa_path)) {
-            return null;
-        }
-
-        $bytes = Storage::disk('public')->get($profilDesa->logo_desa_path);
-        if (! $bytes) {
-            return null;
-        }
-
-        return 'data:image/png;base64,' . base64_encode($bytes);
+        return PdfService::resolveLogoBase64($profilDesa);
     }
 }

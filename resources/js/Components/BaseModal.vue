@@ -18,7 +18,8 @@ const props = defineProps({
     maxWidth: {
         type: String,
         default: 'lg',
-        validator: (val) => ['sm', 'md', 'lg', 'xl', '2xl'].includes(val),
+        validator: (val) =>
+            ['sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl'].includes(val),
     },
     closeable: {
         type: Boolean,
@@ -34,6 +35,8 @@ const MAX_WIDTH_MAP = {
     lg: 'max-w-lg',
     xl: 'max-w-xl',
     '2xl': 'max-w-2xl',
+    '3xl': 'max-w-3xl',
+    '4xl': 'max-w-4xl',
 };
 
 const widthClass = computed(
@@ -100,12 +103,6 @@ onUnmounted(() => {
                         >
                             {{ title }}
                         </h2>
-                        <p
-                            v-if="subtitle"
-                            class="mt-0.5 text-xs text-slate-500"
-                        >
-                            {{ subtitle }}
-                        </p>
                     </div>
 
                     <button

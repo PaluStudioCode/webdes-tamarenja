@@ -64,7 +64,7 @@ return [
             'kelompok' => 'belanja',
             'kode_pos' => 'bidang_2_fisik',
             'nama_pos' => 'Bidang Pelaksanaan Pembangunan Desa - Komponen Fisik',
-            'is_otomatis_modul_1' => true,
+            'is_otomatis_modul_1' => false,
         ],
         [
             'urutan' => 9,

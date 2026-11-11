@@ -25,13 +25,6 @@ defineProps({
                 >
                     {{ title }}
                 </h1>
-                <p
-                    v-if="description"
-                    data-testid="page-header-description"
-                    class="mt-1 text-sm text-slate-600"
-                >
-                    {{ description }}
-                </p>
             </div>
 
             <div

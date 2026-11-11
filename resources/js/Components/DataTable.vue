@@ -71,6 +71,14 @@ const props = defineProps({
         type: String,
         default: '',
     },
+    responsiveActions: {
+        type: Boolean,
+        default: false,
+    },
+    isRowExpanded: {
+        type: Function,
+        default: null,
+    },
 });
 
 const emit = defineEmits(['sort', 'page-change', 'action', 'empty-action']);
@@ -143,23 +151,32 @@ function getResolvedActions(row) {
         (act) => act && !act.hidden && isActionAllowedForRole(act),
     );
 
-    if (allowed.length <= 2 && !allowed.some((a) => a.variant === 'danger')) {
-        return { inline: allowed, menu: [] };
+    if (props.responsiveActions) {
+        return { inline: allowed, menu: allowed, all: allowed };
     }
 
-    const explicitPrimary = allowed.filter(
-        (act) => act.primary && act.variant !== 'danger',
+    if (
+        allowed.length <= 2 &&
+        !allowed.some((a) => a.variant === 'danger' || a.menuOnly)
+    ) {
+        return { inline: allowed, menu: [], all: allowed };
+    }
+
+    const canBeInline = allowed.filter(
+        (act) => !act.menuOnly && act.variant !== 'danger',
     );
+
+    const explicitPrimary = canBeInline.filter((act) => act.primary);
 
     const inline =
         explicitPrimary.length > 0
             ? explicitPrimary.slice(0, 2)
-            : allowed.filter((act) => act.variant !== 'danger').slice(0, 1);
+            : canBeInline.slice(0, 1);
 
     const inlineSet = new Set(inline);
     const menu = allowed.filter((act) => !inlineSet.has(act));
 
-    return { inline, menu };
+    return { inline, menu, all: allowed };
 }
 
 const hasActionsColumn = computed(() => Boolean(props.rowActions));
@@ -289,9 +306,11 @@ onUnmounted(() => {
                 </thead>
 
                 <tbody class="divide-y divide-slate-200 bg-white">
-                    <tr
+                    <template
                         v-for="(row, rowIndex) in items"
                         :key="getRowId(row, rowIndex)"
+                    >
+                    <tr
                         class="transition-colors hover:bg-slate-50/60"
                     >
                         <td
@@ -326,150 +345,323 @@ onUnmounted(() => {
                                 <div
                                     class="inline-flex items-center justify-end gap-1"
                                 >
-                                    <!-- Aksi Langsung (Maks 1-2 Tombol) -->
-                                    <template
-                                        v-for="act in getResolvedActions(row)
-                                            .inline"
-                                        :key="act.key"
-                                    >
-                                        <a
-                                            v-if="act.href && act.external"
-                                            :href="act.href"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            :data-testid="`row-action-${act.key}-${rowIndex}`"
-                                            class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                                        >
-                                            <component
-                                                :is="act.icon"
-                                                v-if="act.icon"
-                                                class="h-4 w-4 shrink-0"
-                                                :stroke-width="1.75"
-                                            />
-                                            <span>{{ act.label }}</span>
-                                        </a>
-
-                                        <Link
-                                            v-else-if="act.href"
-                                            :href="act.href"
-                                            :data-testid="`row-action-${act.key}-${rowIndex}`"
-                                            class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                                        >
-                                            <component
-                                                :is="act.icon"
-                                                v-if="act.icon"
-                                                class="h-4 w-4 shrink-0"
-                                                :stroke-width="1.75"
-                                            />
-                                            <span>{{ act.label }}</span>
-                                        </Link>
-
-                                        <button
-                                            v-else
-                                            type="button"
-                                            :data-testid="`row-action-${act.key}-${rowIndex}`"
-                                            class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                                            @click="triggerRowAction(act, row)"
-                                        >
-                                            <component
-                                                :is="act.icon"
-                                                v-if="act.icon"
-                                                class="h-4 w-4 shrink-0"
-                                                :stroke-width="1.75"
-                                            />
-                                            <span>{{ act.label }}</span>
-                                        </button>
-                                    </template>
-
-                                    <!-- Menu Tiga Titik (MoreHorizontal) untuk Aksi Sekunder -->
-                                    <div
-                                        v-if="
-                                            getResolvedActions(row).menu
-                                                .length > 0
-                                        "
-                                        class="relative inline-block text-left"
-                                    >
-                                        <button
-                                            type="button"
-                                            aria-label="Aksi lainnya"
-                                            :data-testid="`row-more-btn-${rowIndex}`"
-                                            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
-                                            @click.stop="
-                                                toggleRowMenu(
-                                                    getRowId(row, rowIndex),
-                                                )
-                                            "
-                                        >
-                                            <MoreHorizontal
-                                                class="h-4 w-4"
-                                                :stroke-width="2"
-                                            />
-                                        </button>
-
+                                    <!-- Mode Responsif: Desktop Seluruh Aksi Berjejer, Mobile Masuk Titik 3 -->
+                                    <template v-if="responsiveActions">
+                                        <!-- Desktop (>= md) -->
                                         <div
-                                            v-if="
-                                                openMenuRowId ===
-                                                getRowId(row, rowIndex)
-                                            "
-                                            :data-testid="`row-more-menu-${rowIndex}`"
-                                            class="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-md"
+                                            v-if="getResolvedActions(row).all.length > 0"
+                                            class="hidden md:inline-flex items-center gap-1"
                                         >
                                             <template
-                                                v-for="sec in getResolvedActions(
-                                                    row,
-                                                ).menu"
-                                                :key="sec.key"
+                                                v-for="act in getResolvedActions(row).all"
+                                                :key="`dt-desk-${act.key}`"
                                             >
-                                                <Link
-                                                    v-if="sec.href"
-                                                    :href="sec.href"
-                                                    :data-testid="`row-action-${sec.key}-${rowIndex}`"
-                                                    class="flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                                                    @click="
-                                                        openMenuRowId = null
-                                                    "
+                                                <a
+                                                    v-if="act.href && act.external"
+                                                    :href="act.href"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    :data-testid="`row-action-${act.key}-${rowIndex}`"
+                                                    :class="[
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
+                                                        act.variant === 'danger'
+                                                            ? 'text-red-600 hover:bg-red-50 hover:text-red-700'
+                                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                                                    ]"
                                                 >
                                                     <component
-                                                        :is="sec.icon"
-                                                        v-if="sec.icon"
+                                                        :is="act.icon"
+                                                        v-if="act.icon"
                                                         class="h-4 w-4 shrink-0"
                                                         :stroke-width="1.75"
                                                     />
-                                                    <span>{{ sec.label }}</span>
+                                                    <span>{{ act.label }}</span>
+                                                </a>
+
+                                                <Link
+                                                    v-else-if="act.href"
+                                                    :href="act.href"
+                                                    :data-testid="`row-action-${act.key}-${rowIndex}`"
+                                                    :class="[
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
+                                                        act.variant === 'danger'
+                                                            ? 'text-red-600 hover:bg-red-50 hover:text-red-700'
+                                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                                                    ]"
+                                                >
+                                                    <component
+                                                        :is="act.icon"
+                                                        v-if="act.icon"
+                                                        class="h-4 w-4 shrink-0"
+                                                        :stroke-width="1.75"
+                                                    />
+                                                    <span>{{ act.label }}</span>
                                                 </Link>
 
                                                 <button
                                                     v-else
                                                     type="button"
-                                                    :data-testid="`row-action-${sec.key}-${rowIndex}`"
+                                                    :data-testid="`row-action-${act.key}-${rowIndex}`"
                                                     :class="[
-                                                        'flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium',
-                                                        sec.variant === 'danger'
-                                                            ? 'text-red-600 hover:bg-red-50'
-                                                            : 'text-slate-700 hover:bg-slate-50',
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
+                                                        act.variant === 'danger'
+                                                            ? 'text-red-600 hover:bg-red-50 hover:text-red-700'
+                                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
                                                     ]"
-                                                    @click="
-                                                        triggerRowAction(
-                                                            sec,
-                                                            row,
-                                                        )
-                                                    "
+                                                    @click="triggerRowAction(act, row)"
                                                 >
                                                     <component
-                                                        :is="sec.icon"
-                                                        v-if="sec.icon"
+                                                        :is="act.icon"
+                                                        v-if="act.icon"
                                                         class="h-4 w-4 shrink-0"
                                                         :stroke-width="1.75"
                                                     />
-                                                    <span>{{ sec.label }}</span>
+                                                    <span>{{ act.label }}</span>
                                                 </button>
                                             </template>
                                         </div>
-                                    </div>
+
+                                        <!-- Mobile (< md) Titik Tiga -->
+                                        <div
+                                            v-if="getResolvedActions(row).all.length > 0"
+                                            class="relative inline-block text-left md:hidden"
+                                        >
+                                            <button
+                                                type="button"
+                                                aria-label="Aksi lainnya"
+                                                :data-testid="`row-more-btn-${rowIndex}`"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                                                @click.stop="toggleRowMenu(getRowId(row, rowIndex))"
+                                            >
+                                                <MoreHorizontal
+                                                    class="h-4 w-4"
+                                                    :stroke-width="2"
+                                                />
+                                            </button>
+
+                                            <div
+                                                v-if="openMenuRowId === getRowId(row, rowIndex)"
+                                                :data-testid="`row-more-menu-${rowIndex}`"
+                                                class="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-md"
+                                            >
+                                                <template
+                                                    v-for="sec in getResolvedActions(row).all"
+                                                    :key="`dt-mob-${sec.key}`"
+                                                >
+                                                    <Link
+                                                        v-if="sec.href"
+                                                        :href="sec.href"
+                                                        :data-testid="`row-action-menu-${sec.key}-${rowIndex}`"
+                                                        class="flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                                        @click="openMenuRowId = null"
+                                                    >
+                                                        <component
+                                                            :is="sec.icon"
+                                                            v-if="sec.icon"
+                                                            class="h-4 w-4 shrink-0"
+                                                            :stroke-width="1.75"
+                                                        />
+                                                        <span>{{ sec.label }}</span>
+                                                    </Link>
+
+                                                    <button
+                                                        v-else
+                                                        type="button"
+                                                        :data-testid="`row-action-menu-${sec.key}-${rowIndex}`"
+                                                        :class="[
+                                                            'flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium',
+                                                            sec.variant === 'danger'
+                                                                ? 'text-red-600 hover:bg-red-50'
+                                                                : 'text-slate-700 hover:bg-slate-50',
+                                                        ]"
+                                                        @click="triggerRowAction(sec, row)"
+                                                    >
+                                                        <component
+                                                            :is="sec.icon"
+                                                            v-if="sec.icon"
+                                                            class="h-4 w-4 shrink-0"
+                                                            :stroke-width="1.75"
+                                                        />
+                                                        <span>{{ sec.label }}</span>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- Mode Standar Non-Responsive (inline + menu) -->
+                                    <template v-else>
+                                        <!-- Aksi Langsung (Maks 1-2 Tombol) -->
+                                        <template
+                                            v-for="act in getResolvedActions(row)
+                                                .inline"
+                                            :key="act.key"
+                                        >
+                                            <a
+                                                v-if="act.href && act.external"
+                                                :href="act.href"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                :data-testid="`row-action-${act.key}-${rowIndex}`"
+                                                class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                            >
+                                                <component
+                                                    :is="act.icon"
+                                                    v-if="act.icon"
+                                                    class="h-4 w-4 shrink-0"
+                                                    :stroke-width="1.75"
+                                                />
+                                                <span>{{ act.label }}</span>
+                                            </a>
+
+                                            <Link
+                                                v-else-if="act.href"
+                                                :href="act.href"
+                                                :data-testid="`row-action-${act.key}-${rowIndex}`"
+                                                class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                            >
+                                                <component
+                                                    :is="act.icon"
+                                                    v-if="act.icon"
+                                                    class="h-4 w-4 shrink-0"
+                                                    :stroke-width="1.75"
+                                                />
+                                                <span>{{ act.label }}</span>
+                                            </Link>
+
+                                            <button
+                                                v-else
+                                                type="button"
+                                                :data-testid="`row-action-${act.key}-${rowIndex}`"
+                                                class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                                @click="triggerRowAction(act, row)"
+                                            >
+                                                <component
+                                                    :is="act.icon"
+                                                    v-if="act.icon"
+                                                    class="h-4 w-4 shrink-0"
+                                                    :stroke-width="1.75"
+                                                />
+                                                <span>{{ act.label }}</span>
+                                            </button>
+                                        </template>
+
+                                        <!-- Menu Tiga Titik (MoreHorizontal) untuk Aksi Sekunder -->
+                                        <div
+                                            v-if="
+                                                getResolvedActions(row).menu
+                                                    .length > 0
+                                            "
+                                            class="relative inline-block text-left"
+                                        >
+                                            <button
+                                                type="button"
+                                                aria-label="Aksi lainnya"
+                                                :data-testid="`row-more-btn-${rowIndex}`"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                                                @click.stop="
+                                                    toggleRowMenu(
+                                                        getRowId(row, rowIndex),
+                                                    )
+                                                "
+                                            >
+                                                <MoreHorizontal
+                                                    class="h-4 w-4"
+                                                    :stroke-width="2"
+                                                />
+                                            </button>
+
+                                            <div
+                                                v-if="
+                                                    openMenuRowId ===
+                                                    getRowId(row, rowIndex)
+                                                "
+                                                :data-testid="`row-more-menu-${rowIndex}`"
+                                                class="absolute right-0 z-20 mt-1 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-md"
+                                            >
+                                                <template
+                                                    v-for="sec in getResolvedActions(
+                                                        row,
+                                                    ).menu"
+                                                    :key="sec.key"
+                                                >
+                                                    <Link
+                                                        v-if="sec.href"
+                                                        :href="sec.href"
+                                                        :data-testid="`row-action-${sec.key}-${rowIndex}`"
+                                                        class="flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                                        @click="
+                                                            openMenuRowId = null
+                                                        "
+                                                    >
+                                                        <component
+                                                            :is="sec.icon"
+                                                            v-if="sec.icon"
+                                                            class="h-4 w-4 shrink-0"
+                                                            :stroke-width="1.75"
+                                                        />
+                                                        <span>{{ sec.label }}</span>
+                                                    </Link>
+
+                                                    <button
+                                                        v-else
+                                                        type="button"
+                                                        :data-testid="`row-action-${sec.key}-${rowIndex}`"
+                                                        :class="[
+                                                            'flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium',
+                                                            sec.variant === 'danger'
+                                                                ? 'text-red-600 hover:bg-red-50'
+                                                                : 'text-slate-700 hover:bg-slate-50',
+                                                        ]"
+                                                        @click="
+                                                            triggerRowAction(
+                                                                sec,
+                                                                row,
+                                                            )
+                                                        "
+                                                    >
+                                                        <component
+                                                            :is="sec.icon"
+                                                            v-if="sec.icon"
+                                                            class="h-4 w-4 shrink-0"
+                                                            :stroke-width="1.75"
+                                                        />
+                                                        <span>{{ sec.label }}</span>
+                                                    </button>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                             </slot>
                         </td>
                     </tr>
+
+                    <tr
+                        v-if="
+                            $slots['expanded-row'] &&
+                            isRowExpanded &&
+                            isRowExpanded(row, rowIndex)
+                        "
+                        :data-testid="`expanded-row-${getRowId(row, rowIndex)}`"
+                        class="bg-slate-50/70"
+                    >
+                        <td
+                            :colspan="
+                                visibleColumns.length +
+                                (hasActionsColumn || $slots.actions ? 1 : 0)
+                            "
+                            class="px-4 py-3"
+                        >
+                            <slot
+                                name="expanded-row"
+                                :row="row"
+                                :index="rowIndex"
+                                :is-operator="isOperator"
+                            />
+                        </td>
+                    </tr>
+                    </template>
                 </tbody>
             </table>
         </div>

@@ -19,7 +19,9 @@ import StatusBadge from '@/Components/StatusBadge.vue';
 import BaseButton from '@/Components/BaseButton.vue';
 import BaseModal from '@/Components/BaseModal.vue';
 import BaseCallout from '@/Components/BaseCallout.vue';
+import BuatSuratLoketModal from '@/Components/BuatSuratLoketModal.vue';
 import { useConfirm } from '@/Composables/useConfirm';
+import { formatRupiah } from '@/Utils/formatters';
 
 const props = defineProps({
     antrean: {
@@ -42,10 +44,19 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    tanggal_hari_ini: {
+        type: String,
+        default: () => new Date().toISOString().slice(0, 10),
+    },
+    residents: {
+        type: Array,
+        default: null,
+    },
 });
 
 const page = usePage();
 const confirm = useConfirm();
+const showBuatModal = ref(false);
 
 const isOperator = computed(
     () => page.props?.auth?.user?.role === 'operator',
@@ -112,9 +123,15 @@ function resetFilters() {
 const columns = [
     { key: 'pemohon', label: 'Pemohon & NIK' },
     { key: 'jenis_surat', label: 'Jenis Surat & Keperluan' },
-    { key: 'kontak', label: 'Waktu & WhatsApp' },
-    { key: 'status', label: 'Status & Nomor Surat' },
-    { key: 'actions', label: 'Aksi Layanan', align: 'right' },
+    { key: 'kontak', label: 'Waktu Pengajuan' },
+    { key: 'status', label: 'Status' },
+    {
+        key: 'actions',
+        label: 'Aksi',
+        align: 'right',
+        class: 'whitespace-nowrap',
+        cellClass: 'whitespace-nowrap',
+    },
 ];
 
 /**
@@ -164,6 +181,14 @@ async function openVerifikasiModal(item) {
         } catch {
             bansosKkInfo.value = null;
         }
+    }
+}
+
+function switchFromVerifikasiToTolak() {
+    const item = activeAntrean.value;
+    showVerifikasiModal.value = false;
+    if (item) {
+        openTolakModal(item);
     }
 }
 
@@ -268,15 +293,15 @@ async function handleDeleteAntrean(item) {
                 subtitle="Pelayanan permohonan surat online warga, layanan kilat loket 10 template, dan pengarsipan Buku Agenda Surat."
             >
                 <template #actions>
-                    <Link
+                    <BaseButton
                         v-if="isOperator"
-                        href="/panel/persuratan/surat-keluar/buat"
+                        variant="primary"
                         data-testid="btn-buat-surat-loket"
-                        class="inline-flex h-10 items-center justify-center rounded-md bg-blue-700 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-800"
+                        @click="showBuatModal = true"
                     >
                         <Plus class="mr-1.5 h-4 w-4" />
-                        <span>Buat Surat di Loket</span>
-                    </Link>
+                        <span>Buat Surat</span>
+                    </BaseButton>
                 </template>
             </PageHeader>
 
@@ -336,11 +361,8 @@ async function handleDeleteAntrean(item) {
                 </template>
 
                 <template #cell-kontak="{ row }">
-                    <div class="text-xs tabular-nums">
-                        <p class="text-slate-700">{{ row.created_at || '—' }}</p>
-                        <p v-if="row.no_wa_pemohon" class="mt-0.5 font-medium text-emerald-700">
-                            WA: {{ row.no_wa_pemohon }}
-                        </p>
+                    <div class="text-xs tabular-nums text-slate-700">
+                        <p>{{ row.created_at || '—' }}</p>
                     </div>
                 </template>
 
@@ -351,12 +373,6 @@ async function handleDeleteAntrean(item) {
                             :label="row.status_label"
                         />
                         <p
-                            v-if="row.nomor_surat"
-                            class="text-xs font-semibold tabular-nums text-slate-700"
-                        >
-                            {{ row.nomor_surat }}
-                        </p>
-                        <p
                             v-if="row.alasan_penolakan"
                             class="text-xs text-red-600"
                         >
@@ -366,7 +382,7 @@ async function handleDeleteAntrean(item) {
                 </template>
 
                 <template #cell-actions="{ row }">
-                    <div class="flex flex-wrap items-center justify-end gap-2">
+                    <div class="flex items-center justify-end gap-2 whitespace-nowrap">
                         <!-- Aksi saat Menunggu Verifikasi (Khusus Operator) -->
                         <template v-if="row.status === 'menunggu_verifikasi' && isOperator">
                             <BaseButton
@@ -376,7 +392,7 @@ async function handleDeleteAntrean(item) {
                                 @click="openVerifikasiModal(row)"
                             >
                                 <CheckCircle2 class="mr-1 h-3.5 w-3.5" />
-                                <span>Verifikasi &amp; Cetak</span>
+                                <span>Verifikasi</span>
                             </BaseButton>
 
                             <BaseButton
@@ -390,17 +406,8 @@ async function handleDeleteAntrean(item) {
                             </BaseButton>
                         </template>
 
-                        <!-- Aksi saat sudah Terbit (Cetak PDF F4 & Kabari Warga via WA) -->
+                        <!-- Aksi saat sudah Terbit (Kabari Warga via WA) -->
                         <template v-else-if="row.status === 'terbit'">
-                            <a
-                                :href="`/panel/persuratan/surat-keluar/${row.id}/pdf`"
-                                :data-testid="`btn-cetak-antrean-${row.id}`"
-                                class="inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                                <Printer class="mr-1 h-3.5 w-3.5" />
-                                <span>Cetak F4</span>
-                            </a>
-
                             <a
                                 v-if="row.no_wa_pemohon"
                                 :href="buildWaPickupUrl(row)"
@@ -410,7 +417,7 @@ async function handleDeleteAntrean(item) {
                                 class="inline-flex h-8 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
                             >
                                 <MessageCircle class="mr-1 h-3.5 w-3.5" />
-                                <span>Kabari Warga via WA</span>
+                                <span>Whatsapp</span>
                             </a>
                         </template>
 
@@ -433,17 +440,270 @@ async function handleDeleteAntrean(item) {
         <BaseModal
             :show="showVerifikasiModal"
             title="Verifikasi Permohonan & Terbitkan Surat Resmi"
-            max-width="lg"
+            max-width="2xl"
             @close="showVerifikasiModal = false"
         >
             <div v-if="activeAntrean" class="space-y-4">
+                <!-- 1. Identitas & Kontak Pemohon -->
                 <div class="rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-sm">
-                    <p class="font-semibold text-slate-900">
-                        {{ activeAntrean.nama_pemohon }} (NIK: {{ activeAntrean.nik_pemohon }})
-                    </p>
-                    <p class="mt-0.5 text-xs text-slate-600">
-                        Jenis Surat: <strong>{{ activeAntrean.jenis_surat_label }}</strong>
-                    </p>
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900">
+                                {{ activeAntrean.nama_pemohon }}
+                            </p>
+                            <p class="mt-0.5 text-xs text-slate-600">
+                                NIK: <span class="font-mono font-medium">{{ activeAntrean.nik_pemohon }}</span>
+                                <span v-if="activeAntrean.dusun_pemohon"> &bull; {{ activeAntrean.dusun_pemohon }}</span>
+                            </p>
+                            <p v-if="activeAntrean.created_at" class="mt-0.5 text-xs text-slate-500">
+                                Waktu Pengajuan: {{ activeAntrean.created_at }}
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                                {{ activeAntrean.jenis_surat_label }}
+                            </span>
+                            <p v-if="activeAntrean.no_wa_pemohon" class="mt-1 text-xs font-medium text-emerald-700">
+                                WA: {{ activeAntrean.no_wa_pemohon }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Rincian Data Khusus yang Diisi Warga Saat Pengajuan Online -->
+                <div
+                    v-if="activeAntrean.data_khusus && Object.keys(activeAntrean.data_khusus).length > 0"
+                    class="rounded-lg border border-slate-200 bg-white p-4"
+                    data-testid="section-review-data-khusus"
+                >
+                    <div class="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600">
+                            Rincian Data Pengajuan Warga
+                        </h4>
+                        <span class="text-[11px] text-slate-400">Data Mandiri Online</span>
+                    </div>
+
+                    <!-- 1. SKU -->
+                    <dl
+                        v-if="activeAntrean.jenis_surat === 'sku'"
+                        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2"
+                    >
+                        <div>
+                            <dt class="font-medium text-slate-500">Nama Usaha</dt>
+                            <dd class="font-semibold text-slate-900">{{ activeAntrean.data_khusus.nama_usaha || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Jenis Usaha</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.jenis_usaha || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Bidang Usaha</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.bidang_usaha || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Lama Usaha Berjalan</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.lama_usaha || '—' }}</dd>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <dt class="font-medium text-slate-500">Alamat Lokasi Usaha</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.alamat_usaha || '—' }}</dd>
+                        </div>
+                    </dl>
+
+                    <!-- 2. Domisili -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'domisili'"
+                        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2"
+                    >
+                        <div>
+                            <dt class="font-medium text-slate-500">Tinggal Sejak Tahun</dt>
+                            <dd class="font-semibold text-slate-900">{{ activeAntrean.data_khusus.sejak_tahun || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Status Tempat Tinggal</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.status_tempat_tinggal || '—' }}</dd>
+                        </div>
+                    </dl>
+
+                    <!-- 3. SKTM -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'sktm'"
+                        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2"
+                    >
+                        <div>
+                            <dt class="font-medium text-slate-500">Penghasilan Rata-rata/Bulan</dt>
+                            <dd class="font-semibold text-slate-900">
+                                {{ formatRupiah(activeAntrean.data_khusus.penghasilan_rata_rata || 0) }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Jumlah Tanggungan Keluarga</dt>
+                            <dd class="font-semibold text-slate-900">
+                                {{ activeAntrean.data_khusus.jumlah_tanggungan || 0 }} Orang
+                            </dd>
+                        </div>
+                        <div v-if="activeAntrean.data_khusus.nama_tanggungan" class="sm:col-span-2">
+                            <dt class="font-medium text-slate-500">Nama Tanggungan yang Dituju</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.nama_tanggungan }}</dd>
+                        </div>
+                    </dl>
+
+                    <!-- 4. Pengantar SKCK -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'pengantar_skck'"
+                        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs"
+                    >
+                        <div>
+                            <dt class="font-medium text-slate-500">Tujuan Pengurusan SKCK</dt>
+                            <dd class="font-semibold text-slate-900">{{ activeAntrean.data_khusus.tujuan_skck || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Catatan Kelakuan Baik</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.catatan_kelakuan || '—' }}</dd>
+                        </div>
+                    </dl>
+
+                    <!-- 5. Kematian -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'kematian'"
+                        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2"
+                    >
+                        <div>
+                            <dt class="font-medium text-slate-500">Hari, Tanggal & Jam Wafat</dt>
+                            <dd class="font-semibold text-slate-900">
+                                {{ activeAntrean.data_khusus.hari_meninggal }}, {{ activeAntrean.data_khusus.tanggal_meninggal }}
+                                <span v-if="activeAntrean.data_khusus.jam_meninggal"> pukul {{ activeAntrean.data_khusus.jam_meninggal }}</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Tempat Meninggal</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.tempat_meninggal || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Penyebab Kematian</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.penyebab_meninggal || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Lokasi Pemakaman</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.lokasi_makam || '—' }}</dd>
+                        </div>
+                        <div class="rounded border border-slate-100 bg-slate-50 p-2 sm:col-span-2">
+                            <dt class="font-medium text-slate-500">Identitas Pelapor Kematian</dt>
+                            <dd class="font-medium text-slate-800">
+                                {{ activeAntrean.data_khusus.nama_pelapor }}
+                                <span v-if="activeAntrean.data_khusus.nik_pelapor"> (NIK: {{ activeAntrean.data_khusus.nik_pelapor }})</span>
+                                &bull; Hubungan: {{ activeAntrean.data_khusus.hubungan_pelapor }}
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <!-- 6. Kelahiran -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'kelahiran'"
+                        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2"
+                    >
+                        <div>
+                            <dt class="font-medium text-slate-500">Nama Bayi</dt>
+                            <dd class="font-semibold text-slate-900">{{ activeAntrean.data_khusus.nama_bayi || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Jenis Kelamin</dt>
+                            <dd class="font-semibold text-slate-900">
+                                {{ activeAntrean.data_khusus.jenis_kelamin_bayi === 'L' ? 'Laki-laki (L)' : 'Perempuan (P)' }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Hari, Tanggal & Jam Lahir</dt>
+                            <dd class="text-slate-800">
+                                {{ activeAntrean.data_khusus.hari_lahir_bayi }}, {{ activeAntrean.data_khusus.tanggal_lahir_bayi }}
+                                <span v-if="activeAntrean.data_khusus.jam_lahir_bayi"> pukul {{ activeAntrean.data_khusus.jam_lahir_bayi }}</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Tempat Lahir & Anak Ke-</dt>
+                            <dd class="text-slate-800">
+                                {{ activeAntrean.data_khusus.tempat_lahir_bayi || '—' }} (Anak ke-{{ activeAntrean.data_khusus.anak_ke || 1 }})
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Nama Ayah Kandung</dt>
+                            <dd class="text-slate-800">
+                                {{ activeAntrean.data_khusus.nama_ayah || '—' }}
+                                <span v-if="activeAntrean.data_khusus.nik_ayah" class="text-slate-500"> (NIK: {{ activeAntrean.data_khusus.nik_ayah }})</span>
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Nama Ibu Kandung</dt>
+                            <dd class="text-slate-800">
+                                {{ activeAntrean.data_khusus.nama_ibu || '—' }}
+                                <span v-if="activeAntrean.data_khusus.nik_ibu" class="text-slate-500"> (NIK: {{ activeAntrean.data_khusus.nik_ibu }})</span>
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <!-- 7. Belum Menikah -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'belum_menikah'"
+                        class="text-xs"
+                    >
+                        <dt class="font-medium text-slate-500">Pernyataan Status Pernikahan</dt>
+                        <dd class="mt-0.5 font-semibold text-slate-900">{{ activeAntrean.data_khusus.pernyataan_belum_menikah || '—' }}</dd>
+                    </dl>
+
+                    <!-- 8. Janda / Duda -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'janda_duda'"
+                        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2"
+                    >
+                        <div>
+                            <dt class="font-medium text-slate-500">Status Perceraian</dt>
+                            <dd class="font-semibold text-slate-900">
+                                {{ activeAntrean.data_khusus.status_cerai === 'cerai_mati' ? 'Cerai Mati' : 'Cerai Hidup' }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Nama Mantan Pasangan</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.nama_mantan_pasangan || '—' }}</dd>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <dt class="font-medium text-slate-500">Bercerai Sejak</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.sejak_tanggal_tahun || '—' }}</dd>
+                        </div>
+                    </dl>
+
+                    <!-- 9. Kehilangan -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'kehilangan'"
+                        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs sm:grid-cols-2"
+                    >
+                        <div class="sm:col-span-2">
+                            <dt class="font-medium text-slate-500">Rincian Barang yang Hilang</dt>
+                            <dd class="font-semibold text-slate-900">{{ activeAntrean.data_khusus.barang_hilang || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Perkiraan Waktu Kehilangan</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.waktu_kehilangan || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Perkiraan Lokasi Kehilangan</dt>
+                            <dd class="text-slate-800">{{ activeAntrean.data_khusus.lokasi_kehilangan || '—' }}</dd>
+                        </div>
+                    </dl>
+
+                    <!-- 10. Keterangan Umum -->
+                    <dl
+                        v-else-if="activeAntrean.jenis_surat === 'keterangan_umum'"
+                        class="space-y-2 text-xs"
+                    >
+                        <div v-if="activeAntrean.data_khusus.judul_keterangan">
+                            <dt class="font-medium text-slate-500">Judul Keterangan Kustom</dt>
+                            <dd class="font-semibold text-slate-900">{{ activeAntrean.data_khusus.judul_keterangan }}</dd>
+                        </div>
+                        <div>
+                            <dt class="font-medium text-slate-500">Uraian / Isi Fakta Administratif</dt>
+                            <dd class="mt-0.5 whitespace-pre-line text-slate-800">{{ activeAntrean.data_khusus.isi_keterangan || '—' }}</dd>
+                        </div>
+                    </dl>
                 </div>
 
                 <!-- Panel Riwayat Bansos 1 KK otomatis bila SKTM -->
@@ -457,52 +717,69 @@ async function handleDeleteAntrean(item) {
                     <strong>{{ bansosKkInfo.total_bantuan_aktif }} bantuan</strong>.
                 </BaseCallout>
 
-                <div class="space-y-1.5">
-                    <label class="block text-sm font-medium text-slate-700">
-                        Pejabat Penandatangan Surat <span class="text-red-600">*</span>
-                    </label>
-                    <select
-                        v-model="verifikasiForm.opsi_penandatangan"
-                        data-testid="select-verifikasi-penandatangan"
-                        class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
-                    >
-                        <option
-                            v-for="pejabat in pejabat_penandatangan"
-                            :key="pejabat.value"
-                            :value="pejabat.value"
+                <!-- 3. Form Pengesahan & Penerbitan -->
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-medium text-slate-700">
+                            Pejabat Penandatangan Surat <span class="text-red-600">*</span>
+                        </label>
+                        <select
+                            v-model="verifikasiForm.opsi_penandatangan"
+                            data-testid="select-verifikasi-penandatangan"
+                            class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
                         >
-                            {{ pejabat.label }}
-                        </option>
-                    </select>
+                            <option
+                                v-for="pejabat in pejabat_penandatangan"
+                                :key="pejabat.value"
+                                :value="pejabat.value"
+                            >
+                                {{ pejabat.label }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="block text-sm font-medium text-slate-700">
+                            Keperluan Surat
+                        </label>
+                        <input
+                            v-model="verifikasiForm.keperluan"
+                            type="text"
+                            class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
+                        />
+                    </div>
                 </div>
 
-                <div class="space-y-1.5">
-                    <label class="block text-sm font-medium text-slate-700">
-                        Keperluan Surat
-                    </label>
-                    <input
-                        v-model="verifikasiForm.keperluan"
-                        type="text"
-                        class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
-                    />
-                </div>
+                <!-- 4. Tombol Aksi Verifikasi -->
+                <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
+                    <button
+                        v-if="isOperator"
+                        type="button"
+                        data-testid="btn-verifikasi-tolak-shortcut"
+                        class="inline-flex h-9 items-center justify-center rounded-md border border-red-200 bg-white px-3 text-xs font-medium text-red-600 hover:border-red-300 hover:bg-red-50"
+                        @click="switchFromVerifikasiToTolak"
+                    >
+                        <XCircle class="mr-1 h-3.5 w-3.5" />
+                        <span>Tolak Permohonan</span>
+                    </button>
 
-                <div class="flex items-center justify-end gap-2 pt-2">
-                    <BaseButton
-                        variant="outline"
-                        @click="showVerifikasiModal = false"
-                    >
-                        Batal
-                    </BaseButton>
-                    <BaseButton
-                        variant="primary"
-                        :loading="isSubmittingVerifikasi"
-                        data-testid="btn-confirm-verifikasi"
-                        @click="submitVerifikasi"
-                    >
-                        <Printer class="mr-1.5 h-4 w-4" />
-                        <span>Terbitkan &amp; Cetak PDF F4</span>
-                    </BaseButton>
+                    <div class="ml-auto flex items-center gap-2">
+                        <BaseButton
+                            variant="outline"
+                            @click="showVerifikasiModal = false"
+                        >
+                            Batal
+                        </BaseButton>
+                        <BaseButton
+                            variant="primary"
+                            :loading="isSubmittingVerifikasi"
+                            data-testid="btn-confirm-verifikasi"
+                            @click="submitVerifikasi"
+                        >
+                            <Printer class="mr-1.5 h-4 w-4" />
+                            <span>Terbitkan dan cetak</span>
+                        </BaseButton>
+                    </div>
                 </div>
             </div>
         </BaseModal>
@@ -540,5 +817,15 @@ async function handleDeleteAntrean(item) {
                 </div>
             </div>
         </BaseModal>
+
+        <!-- Modal Buat Surat di Loket (10 Template Baku) -->
+        <BuatSuratLoketModal
+            :show="showBuatModal"
+            :opsi_jenis_surat="opsi_jenis_surat"
+            :pejabat_penandatangan="pejabat_penandatangan"
+            :tanggal_hari_ini="tanggal_hari_ini"
+            :residents="residents"
+            @close="showBuatModal = false"
+        />
     </AppLayout>
 </template>

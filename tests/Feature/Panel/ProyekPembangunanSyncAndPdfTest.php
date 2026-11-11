@@ -55,10 +55,8 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
         ]);
     }
 
-    public function test_input_proyek_pertama_kali_menginisialisasi_otomatis_apbdes_murni_dan_sinkron_bidang_2_fisik(): void
+    public function test_input_proyek_berhasil_disimpan_secara_mandiri_sebagai_katalog_dokumentasi(): void
     {
-        $this->assertDatabaseMissing('apbdes', ['tahun_anggaran' => 2026]);
-
         $response = $this->actingAs($this->operator)
             ->post(route('panel.pembangunan.store'), [
                 'tahun_anggaran' => 2026,
@@ -78,22 +76,10 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
         $response->assertRedirect(route('panel.pembangunan.index', ['tahun' => 2026]));
 
         $proyek = ProyekPembangunan::firstOrFail();
+        $this->assertSame('Pembangunan Rabat Beton Dusun I', $proyek->nama_kegiatan);
         $this->assertSame(0, $proyek->progres_fisik);
         $this->assertSame(StatusProyek::BelumDimulai, $proyek->status_proyek);
-
-        // Pastikan APBDes Murni 2026 otomatis dibuat beserta 14 pos baku
-        $murni = Apbdes::query()
-            ->with('rincian')
-            ->where('tahun_anggaran', 2026)
-            ->where('jenis_dokumen', JenisDokumenApbdes::Murni)
-            ->firstOrFail();
-
-        $this->assertCount(14, $murni->rincian);
-
-        $bidang2 = $murni->rincian->firstWhere('kode_pos', 'bidang_2_fisik');
-        $this->assertNotNull($bidang2);
-        $this->assertSame(180_000_000, $bidang2->pagu_anggaran);
-        $this->assertSame(0, $bidang2->total_realisasi);
+        $this->assertSame(180_000_000, (int) $proyek->pagu_anggaran);
     }
 
     public function test_validasi_realisasi_melebihi_pagu_dan_koordinat_di_luar_batas_ditolak(): void
@@ -116,9 +102,9 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
         $response->assertSessionHasErrors(['realisasi_anggaran', 'latitude', 'longitude']);
     }
 
-    public function test_seluruh_batas_validasi_bertahap_3_titik_foto_0_1_49_50_99_100_persen_dan_status_otomatis(): void
+    public function test_status_dan_progres_otomatis_mengikuti_unggahan_tiga_titik_foto(): void
     {
-        // 1. Batas 0%: foto opsional -> berhasil, status = belum_dimulai
+        // 1. Proyek awal dengan foto_0 -> progres = 0, status = belum_dimulai
         $this->actingAs($this->operator)
             ->post(route('panel.pembangunan.store'), [
                 'tahun_anggaran' => 2026,
@@ -127,79 +113,17 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
                 'pagu_anggaran' => 200_000_000,
                 'realisasi_anggaran' => 0,
                 'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 0,
+                'foto_0' => UploadedFile::fake()->image('kondisi-0.jpg', 1200, 900),
             ])
             ->assertRedirect();
 
         $proyek = ProyekPembangunan::firstOrFail();
+        $this->assertSame(0, (int) $proyek->progres_fisik);
         $this->assertSame(StatusProyek::BelumDimulai, $proyek->status_proyek);
-
-        // 2. Batas 1% tanpa foto_0 -> gagal validasi foto_0
-        $this->actingAs($this->operator)
-            ->from(route('panel.pembangunan.edit', $proyek))
-            ->put(route('panel.pembangunan.update', $proyek), [
-                'tahun_anggaran' => 2026,
-                'nama_kegiatan' => $proyek->nama_kegiatan,
-                'lokasi_dusun' => $proyek->lokasi_dusun,
-                'pagu_anggaran' => 200_000_000,
-                'realisasi_anggaran' => 20_000_000,
-                'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 1,
-            ])
-            ->assertSessionHasErrors(['foto_0']);
-
-        // 3. Batas 1% dengan foto_0 -> berhasil, status = sedang_dikerjakan
-        $this->actingAs($this->operator)
-            ->put(route('panel.pembangunan.update', $proyek), [
-                'tahun_anggaran' => 2026,
-                'nama_kegiatan' => $proyek->nama_kegiatan,
-                'lokasi_dusun' => $proyek->lokasi_dusun,
-                'pagu_anggaran' => 200_000_000,
-                'realisasi_anggaran' => 20_000_000,
-                'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 1,
-                'foto_0' => UploadedFile::fake()->image('kondisi-0.jpg', 1200, 900),
-            ])
-            ->assertSessionHasNoErrors();
-
-        $proyek->refresh();
-        $this->assertSame(1, $proyek->progres_fisik);
-        $this->assertSame(StatusProyek::SedangDikerjakan, $proyek->status_proyek);
         $this->assertNotNull($proyek->foto_0_path);
         Storage::disk('public')->assertExists($proyek->foto_0_path);
 
-        // 4. Batas 49% (hanya foto_0 yang sudah tersimpan, tanpa foto_50) -> berhasil
-        $this->actingAs($this->operator)
-            ->put(route('panel.pembangunan.update', $proyek), [
-                'tahun_anggaran' => 2026,
-                'nama_kegiatan' => $proyek->nama_kegiatan,
-                'lokasi_dusun' => $proyek->lokasi_dusun,
-                'pagu_anggaran' => 200_000_000,
-                'realisasi_anggaran' => 90_000_000,
-                'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 49,
-            ])
-            ->assertSessionHasNoErrors();
-
-        $proyek->refresh();
-        $this->assertSame(49, $proyek->progres_fisik);
-        $this->assertSame(StatusProyek::SedangDikerjakan, $proyek->status_proyek);
-
-        // 5. Batas 50% tanpa foto_50 -> gagal validasi foto_50
-        $this->actingAs($this->operator)
-            ->from(route('panel.pembangunan.edit', $proyek))
-            ->put(route('panel.pembangunan.update', $proyek), [
-                'tahun_anggaran' => 2026,
-                'nama_kegiatan' => $proyek->nama_kegiatan,
-                'lokasi_dusun' => $proyek->lokasi_dusun,
-                'pagu_anggaran' => 200_000_000,
-                'realisasi_anggaran' => 100_000_000,
-                'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 50,
-            ])
-            ->assertSessionHasErrors(['foto_50']);
-
-        // 6. Batas 50% dengan foto_50 -> berhasil, status = sedang_dikerjakan
+        // 2. Unggah foto_50 -> status otomatis = sedang_dikerjakan (50%)
         $this->actingAs($this->operator)
             ->put(route('panel.pembangunan.update', $proyek), [
                 'tahun_anggaran' => 2026,
@@ -208,49 +132,17 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
                 'pagu_anggaran' => 200_000_000,
                 'realisasi_anggaran' => 100_000_000,
                 'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 50,
                 'foto_50' => UploadedFile::fake()->image('progres-50.jpg', 1200, 900),
             ])
             ->assertSessionHasNoErrors();
 
         $proyek->refresh();
-        $this->assertSame(50, $proyek->progres_fisik);
+        $this->assertSame(50, (int) $proyek->progres_fisik);
         $this->assertSame(StatusProyek::SedangDikerjakan, $proyek->status_proyek);
         $this->assertNotNull($proyek->foto_50_path);
         Storage::disk('public')->assertExists($proyek->foto_50_path);
 
-        // 7. Batas 99% (memiliki foto_0 & foto_50, tanpa foto_100) -> berhasil
-        $this->actingAs($this->operator)
-            ->put(route('panel.pembangunan.update', $proyek), [
-                'tahun_anggaran' => 2026,
-                'nama_kegiatan' => $proyek->nama_kegiatan,
-                'lokasi_dusun' => $proyek->lokasi_dusun,
-                'pagu_anggaran' => 200_000_000,
-                'realisasi_anggaran' => 190_000_000,
-                'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 99,
-            ])
-            ->assertSessionHasNoErrors();
-
-        $proyek->refresh();
-        $this->assertSame(99, $proyek->progres_fisik);
-        $this->assertSame(StatusProyek::SedangDikerjakan, $proyek->status_proyek);
-
-        // 8. Batas 100% tanpa foto_100 -> gagal validasi foto_100
-        $this->actingAs($this->operator)
-            ->from(route('panel.pembangunan.edit', $proyek))
-            ->put(route('panel.pembangunan.update', $proyek), [
-                'tahun_anggaran' => 2026,
-                'nama_kegiatan' => $proyek->nama_kegiatan,
-                'lokasi_dusun' => $proyek->lokasi_dusun,
-                'pagu_anggaran' => 200_000_000,
-                'realisasi_anggaran' => 200_000_000,
-                'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 100,
-            ])
-            ->assertSessionHasErrors(['foto_100']);
-
-        // 9. Batas 100% dengan foto_100 -> berhasil, status = selesai
+        // 3. Unggah foto_100 -> status otomatis = selesai (100%)
         $this->actingAs($this->operator)
             ->put(route('panel.pembangunan.update', $proyek), [
                 'tahun_anggaran' => 2026,
@@ -259,25 +151,34 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
                 'pagu_anggaran' => 200_000_000,
                 'realisasi_anggaran' => 200_000_000,
                 'sumber_dana' => SumberDanaProyek::Dds->value,
-                'progres_fisik' => 100,
                 'foto_100' => UploadedFile::fake()->image('selesai-100.jpg', 1200, 900),
             ])
             ->assertSessionHasNoErrors();
 
         $proyek->refresh();
-        $this->assertSame(100, $proyek->progres_fisik);
+        $this->assertSame(100, (int) $proyek->progres_fisik);
         $this->assertSame(StatusProyek::Selesai, $proyek->status_proyek);
         $this->assertNotNull($proyek->foto_100_path);
         Storage::disk('public')->assertExists($proyek->foto_100_path);
     }
 
-    public function test_sinkronisasi_hanya_memperbarui_perubahan_tanpa_merusak_histori_murni_yang_terkunci(): void
+    public function test_proyek_crud_berjalan_mandiri_tanpa_mengubah_data_apbdes(): void
     {
-        // 1. Tambah Proyek A saat baru ada Murni
+        // 1. Siapkan APBDes Murni 2026 dengan nilai manual
+        $apbdesService = app(ApbdesService::class);
+        $murni = $apbdesService->initializeMurni(2026, $this->operator->id, 'Perdes No 1/2026');
+        $murniBidang2 = $murni->rincian()->where('kode_pos', 'bidang_2_fisik')->firstOrFail();
+        $murniBidang2->update([
+            'pagu_anggaran' => 500_000_000,
+            'realisasi_tahap_1' => 200_000_000,
+            'total_realisasi' => 200_000_000,
+        ]);
+
+        // 2. Tambah Proyek A di katalog pembangunan
         $this->actingAs($this->operator)
             ->post(route('panel.pembangunan.store'), [
                 'tahun_anggaran' => 2026,
-                'nama_kegiatan' => 'Proyek A (Masa Murni)',
+                'nama_kegiatan' => 'Proyek A (Katalog Dokumentasi)',
                 'lokasi_dusun' => 'Dusun I',
                 'pagu_anggaran' => 150_000_000,
                 'realisasi_anggaran' => 75_000_000,
@@ -288,37 +189,16 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
 
         $proyekA = ProyekPembangunan::firstOrFail();
 
-        // 2. Buat APBDes Perubahan (Clone & Freeze Murni)
-        $apbdesService = app(ApbdesService::class);
-        $perubahan = $apbdesService->createPerubahanCloneAndFreeze(2026, $this->operator->id, 'Perdes No 5/2026');
+        // Nilai APBDes Bidang 2 tetap 500jt / 200jt (tidak tertimpa proyek)
+        $murniBidang2->refresh();
+        $this->assertSame(500_000_000, $murniBidang2->pagu_anggaran);
+        $this->assertSame(200_000_000, $murniBidang2->total_realisasi);
 
-        $murni = Apbdes::query()
-            ->with('rincian')
-            ->where('tahun_anggaran', 2026)
-            ->where('jenis_dokumen', JenisDokumenApbdes::Murni)
-            ->firstOrFail();
-
-        $this->assertTrue($murni->is_terkunci);
-        $this->assertSame(150_000_000, $murni->rincian->firstWhere('kode_pos', 'bidang_2_fisik')->pagu_anggaran);
-        $this->assertSame(75_000_000, $murni->rincian->firstWhere('kode_pos', 'bidang_2_fisik')->total_realisasi);
-
-        // 3. Tambah Proyek B dan perbarui Proyek A setelah Perubahan ada
-        $this->actingAs($this->operator)
-            ->post(route('panel.pembangunan.store'), [
-                'tahun_anggaran' => 2026,
-                'nama_kegiatan' => 'Proyek B (Masa Perubahan)',
-                'lokasi_dusun' => 'Dusun II',
-                'pagu_anggaran' => 100_000_000,
-                'realisasi_anggaran' => 40_000_000,
-                'sumber_dana' => SumberDanaProyek::Add->value,
-                'progres_fisik' => 0,
-            ])
-            ->assertRedirect();
-
+        // 3. Update Proyek A
         $this->actingAs($this->operator)
             ->put(route('panel.pembangunan.update', $proyekA), [
                 'tahun_anggaran' => 2026,
-                'nama_kegiatan' => 'Proyek A (Masa Murni - Update Realisasi)',
+                'nama_kegiatan' => 'Proyek A (Update Realisasi)',
                 'lokasi_dusun' => 'Dusun I',
                 'pagu_anggaran' => 150_000_000,
                 'realisasi_anggaran' => 150_000_000,
@@ -327,18 +207,11 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
             ])
             ->assertRedirect();
 
-        // Pastikan Murni tetap utuh 150 jt / 75 jt (tidak tersentuh)
-        $murni->refresh();
-        $murniBidang2 = $murni->rincian()->where('kode_pos', 'bidang_2_fisik')->firstOrFail();
-        $this->assertSame(150_000_000, $murniBidang2->pagu_anggaran);
-        $this->assertSame(75_000_000, $murniBidang2->total_realisasi);
+        $murniBidang2->refresh();
+        $this->assertSame(500_000_000, $murniBidang2->pagu_anggaran);
+        $this->assertSame(200_000_000, $murniBidang2->total_realisasi);
 
-        // Pastikan Perubahan terupdate menjadi 250 jt / 190 jt
-        $perubahanBidang2 = $perubahan->rincian()->where('kode_pos', 'bidang_2_fisik')->firstOrFail();
-        $this->assertSame(250_000_000, $perubahanBidang2->pagu_anggaran);
-        $this->assertSame(190_000_000, $perubahanBidang2->total_realisasi);
-
-        // 4. Soft-delete Proyek A -> Perubahan harus berkurang menjadi 100 jt / 40 jt, Murni tetap 150 jt / 75 jt
+        // 4. Hapus Proyek A
         $this->actingAs($this->operator)
             ->delete(route('panel.pembangunan.destroy', $proyekA))
             ->assertRedirect();
@@ -346,12 +219,8 @@ class ProyekPembangunanSyncAndPdfTest extends TestCase
         $this->assertSoftDeleted('proyek_pembangunan', ['id' => $proyekA->id]);
 
         $murniBidang2->refresh();
-        $perubahanBidang2->refresh();
-
-        $this->assertSame(150_000_000, $murniBidang2->pagu_anggaran);
-        $this->assertSame(75_000_000, $murniBidang2->total_realisasi);
-        $this->assertSame(100_000_000, $perubahanBidang2->pagu_anggaran);
-        $this->assertSame(40_000_000, $perubahanBidang2->total_realisasi);
+        $this->assertSame(500_000_000, $murniBidang2->pagu_anggaran);
+        $this->assertSame(200_000_000, $murniBidang2->total_realisasi);
     }
 
     public function test_penghapusan_berkas_foto_lama_di_disk_saat_diganti_foto_baru(): void

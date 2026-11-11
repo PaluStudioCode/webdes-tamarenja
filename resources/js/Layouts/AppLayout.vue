@@ -212,34 +212,24 @@ const menuGroups = computed(() => {
                     ),
                 },
                 {
-                    key: 'sosial',
-                    label: 'Bansos & Kegiatan',
+                    key: 'bansos',
+                    label: 'Bantuan Sosial',
                     href: '/panel/sosial/bansos',
                     icon: HeartHandshake,
                     active: isRouteOrPrefixActive(
-                        'panel.sosial*',
-                        '/panel/sosial',
+                        'panel.sosial.bansos*',
+                        '/panel/sosial/bansos',
                     ),
-                    children: [
-                        {
-                            key: 'bansos',
-                            label: 'Data Bansos',
-                            href: '/panel/sosial/bansos',
-                            active: isRouteOrPrefixActive(
-                                'panel.sosial.bansos*',
-                                '/panel/sosial/bansos',
-                            ),
-                        },
-                        {
-                            key: 'kegiatan',
-                            label: 'Kegiatan Desa',
-                            href: '/panel/sosial/kegiatan',
-                            active: isRouteOrPrefixActive(
-                                'panel.sosial.kegiatan*',
-                                '/panel/sosial/kegiatan',
-                            ),
-                        },
-                    ],
+                },
+                {
+                    key: 'kegiatan',
+                    label: 'Kegiatan Desa',
+                    href: '/panel/sosial/kegiatan',
+                    icon: Calendar,
+                    active: isRouteOrPrefixActive(
+                        'panel.sosial.kegiatan*',
+                        '/panel/sosial/kegiatan',
+                    ),
                 },
             ],
         },
@@ -322,14 +312,14 @@ onUnmounted(() => {
         <aside
             data-testid="desktop-sidebar"
             :class="[
-                'hidden shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:flex',
+                'fixed inset-y-0 left-0 z-40 hidden shrink-0 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:flex',
                 isSidebarCollapsed ? 'w-20' : 'w-64',
             ]"
         >
             <!-- Identitas Desa Satu Kali di Puncak Sidebar -->
             <div
                 :class="[
-                    'flex h-16 items-center border-b border-slate-200 px-4',
+                    'flex h-16 shrink-0 items-center border-b border-slate-200 px-4',
                     isSidebarCollapsed ? 'justify-center' : 'gap-3',
                 ]"
             >
@@ -408,7 +398,7 @@ onUnmounted(() => {
                                 </span>
                             </Link>
 
-                            <!-- Submenu Ringkas (Bansos & Kegiatan) -->
+                            <!-- Submenu (opsional jika memiliki children) -->
                             <ul
                                 v-if="item.children && !isSidebarCollapsed"
                                 class="mt-1 ml-6 space-y-0.5 border-l border-slate-200 pl-3"
@@ -548,7 +538,13 @@ onUnmounted(() => {
         </div>
 
         <!-- Area Utama (Topbar + Konten Kerja) -->
-        <div class="flex min-w-0 flex-1 flex-col">
+        <div
+            data-testid="app-main-wrapper"
+            :class="[
+                'flex min-w-0 flex-1 flex-col transition-all duration-200',
+                isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64',
+            ]"
+        >
             <!-- Topbar Ringkas (Tanpa Spanduk Selamat Datang Berulang) -->
             <header
                 data-testid="app-topbar"
@@ -626,19 +622,6 @@ onUnmounted(() => {
                             </option>
                         </select>
                     </div>
-
-                    <!-- Indikator Peran -->
-                    <span
-                        data-testid="topbar-role-badge"
-                        :class="[
-                            'hidden items-center rounded-md border px-2.5 py-1 text-xs font-medium sm:inline-flex',
-                            isOperator
-                                ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-700',
-                        ]"
-                    >
-                        {{ roleBadgeLabel }}
-                    </span>
 
                     <!-- Menu Akun Pengguna -->
                     <div ref="userMenuRef" class="relative">

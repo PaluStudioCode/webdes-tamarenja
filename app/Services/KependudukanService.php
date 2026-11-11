@@ -23,6 +23,16 @@ class KependudukanService
     public function storeOrRestoreKartuKeluarga(array $data): array
     {
         return DB::transaction(function () use ($data) {
+            $statusKesejahteraan = isset($data['status_kesejahteraan'])
+                ? ($data['status_kesejahteraan'] instanceof StatusKesejahteraan
+                    ? $data['status_kesejahteraan']->value
+                    : (string) $data['status_kesejahteraan'])
+                : StatusKesejahteraan::NonPrioritas->value;
+
+            if ($statusKesejahteraan === '') {
+                $statusKesejahteraan = StatusKesejahteraan::NonPrioritas->value;
+            }
+
             $existing = KartuKeluarga::withTrashed()
                 ->where('nomor_kk', $data['nomor_kk'])
                 ->first();
@@ -40,10 +50,25 @@ class KependudukanService
                     'rt' => $data['rt'],
                     'rw' => $data['rw'],
                     'alamat' => $data['alamat'] ?? null,
+                    'status_kesejahteraan' => $statusKesejahteraan,
                 ]);
 
+                $existing->penduduk()->withTrashed()->update([
+                    'status_kesejahteraan' => $statusKesejahteraan,
+                ]);
+
+                if (! empty($data['anggota']) && is_array($data['anggota'])) {
+                    foreach ($data['anggota'] as $memberData) {
+                        $this->storeOrRestorePenduduk(array_merge($memberData, [
+                            'kartu_keluarga_id' => $existing->id,
+                            'status_kesejahteraan' => $statusKesejahteraan,
+                            'status_kependudukan' => $memberData['status_kependudukan'] ?? StatusKependudukan::Aktif->value,
+                        ]));
+                    }
+                }
+
                 return [
-                    'model' => $existing->fresh(),
+                    'model' => $existing->fresh(['penduduk']),
                     'restored' => true,
                 ];
             }
@@ -54,12 +79,61 @@ class KependudukanService
                 'rt' => $data['rt'],
                 'rw' => $data['rw'],
                 'alamat' => $data['alamat'] ?? null,
+                'status_kesejahteraan' => $statusKesejahteraan,
             ]);
 
+            if (! empty($data['anggota']) && is_array($data['anggota'])) {
+                foreach ($data['anggota'] as $memberData) {
+                    $this->storeOrRestorePenduduk(array_merge($memberData, [
+                        'kartu_keluarga_id' => $kk->id,
+                        'status_kesejahteraan' => $statusKesejahteraan,
+                        'status_kependudukan' => $memberData['status_kependudukan'] ?? StatusKependudukan::Aktif->value,
+                    ]));
+                }
+            }
+
             return [
-                'model' => $kk,
+                'model' => $kk->fresh(['penduduk']),
                 'restored' => false,
             ];
+        });
+    }
+
+    /**
+     * Perbarui Kartu Keluarga dan sinkronkan status_kesejahteraan ke seluruh anggota keluarga di KK tersebut.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function updateKartuKeluarga(KartuKeluarga $kk, array $data): KartuKeluarga
+    {
+        return DB::transaction(function () use ($kk, $data) {
+            $statusKesejahteraan = isset($data['status_kesejahteraan'])
+                ? ($data['status_kesejahteraan'] instanceof StatusKesejahteraan
+                    ? $data['status_kesejahteraan']->value
+                    : (string) $data['status_kesejahteraan'])
+                : ($kk->status_kesejahteraan instanceof StatusKesejahteraan
+                    ? $kk->status_kesejahteraan->value
+                    : (string) $kk->status_kesejahteraan);
+
+            if ($statusKesejahteraan === '') {
+                $statusKesejahteraan = StatusKesejahteraan::NonPrioritas->value;
+            }
+
+            $kk->update([
+                'nomor_kk' => $data['nomor_kk'] ?? $kk->nomor_kk,
+                'dusun' => $data['dusun'] ?? $kk->dusun,
+                'rt' => $data['rt'] ?? $kk->rt,
+                'rw' => $data['rw'] ?? $kk->rw,
+                'alamat' => array_key_exists('alamat', $data) ? $data['alamat'] : $kk->alamat,
+                'status_kesejahteraan' => $statusKesejahteraan,
+            ]);
+
+            // Sinkronkan status_kesejahteraan ke seluruh anggota keluarga pada KK ini (1 KK = 1 Status Kesejahteraan)
+            $kk->penduduk()->withTrashed()->update([
+                'status_kesejahteraan' => $statusKesejahteraan,
+            ]);
+
+            return $kk->fresh();
         });
     }
 
@@ -82,11 +156,24 @@ class KependudukanService
                     : (string) $data['status_kependudukan'])
                 : StatusKependudukan::Aktif->value;
 
-            $statusKesejahteraan = isset($data['status_kesejahteraan'])
-                ? ($data['status_kesejahteraan'] instanceof StatusKesejahteraan
+            $kk = KartuKeluarga::query()->find($data['kartu_keluarga_id']);
+            if (isset($data['status_kesejahteraan']) && $data['status_kesejahteraan'] !== '') {
+                $statusKesejahteraan = $data['status_kesejahteraan'] instanceof StatusKesejahteraan
                     ? $data['status_kesejahteraan']->value
-                    : (string) $data['status_kesejahteraan'])
-                : StatusKesejahteraan::NonPrioritas->value;
+                    : (string) $data['status_kesejahteraan'];
+
+                // Sinkronkan KK & seluruh anggotanya agar tetap 1 KK = 1 Status Kesejahteraan
+                if ($kk !== null) {
+                    $kk->update(['status_kesejahteraan' => $statusKesejahteraan]);
+                    $kk->penduduk()->withTrashed()->update(['status_kesejahteraan' => $statusKesejahteraan]);
+                }
+            } elseif ($kk !== null && $kk->status_kesejahteraan !== null) {
+                $statusKesejahteraan = $kk->status_kesejahteraan instanceof StatusKesejahteraan
+                    ? $kk->status_kesejahteraan->value
+                    : (string) $kk->status_kesejahteraan;
+            } else {
+                $statusKesejahteraan = StatusKesejahteraan::NonPrioritas->value;
+            }
 
             $payload = [
                 'kartu_keluarga_id' => $data['kartu_keluarga_id'],
@@ -168,16 +255,25 @@ class KependudukanService
                 );
             }
 
-            $statusKesejahteraan = isset($data['status_kesejahteraan'])
-                ? ($data['status_kesejahteraan'] instanceof StatusKesejahteraan
-                    ? $data['status_kesejahteraan']->value
-                    : (string) $data['status_kesejahteraan'])
-                : ($penduduk->status_kesejahteraan instanceof StatusKesejahteraan
-                    ? $penduduk->status_kesejahteraan->value
-                    : (string) $penduduk->status_kesejahteraan);
+            $targetKkId = $data['kartu_keluarga_id'] ?? $penduduk->kartu_keluarga_id;
+            $targetKk = KartuKeluarga::query()->find($targetKkId);
+
+            if ($targetKk !== null && $targetKk->status_kesejahteraan !== null) {
+                $statusKesejahteraan = $targetKk->status_kesejahteraan instanceof StatusKesejahteraan
+                    ? $targetKk->status_kesejahteraan->value
+                    : (string) $targetKk->status_kesejahteraan;
+            } else {
+                $statusKesejahteraan = isset($data['status_kesejahteraan'])
+                    ? ($data['status_kesejahteraan'] instanceof StatusKesejahteraan
+                        ? $data['status_kesejahteraan']->value
+                        : (string) $data['status_kesejahteraan'])
+                    : ($penduduk->status_kesejahteraan instanceof StatusKesejahteraan
+                        ? $penduduk->status_kesejahteraan->value
+                        : (string) $penduduk->status_kesejahteraan);
+            }
 
             $updatePayload = [
-                'kartu_keluarga_id' => $data['kartu_keluarga_id'] ?? $penduduk->kartu_keluarga_id,
+                'kartu_keluarga_id' => $targetKkId,
                 'nik' => $data['nik'] ?? $penduduk->nik,
                 'nama_lengkap' => $data['nama_lengkap'] ?? $penduduk->nama_lengkap,
                 'tempat_lahir' => $data['tempat_lahir'] ?? $penduduk->tempat_lahir,

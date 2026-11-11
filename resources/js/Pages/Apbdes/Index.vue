@@ -181,7 +181,7 @@ function getRowPercentage(row) {
 }
 
 function isRowReadOnly(row) {
-    return !canEditCurrentDocument.value || Boolean(row.is_otomatis_modul_1);
+    return !canEditCurrentDocument.value;
 }
 
 const groupedRows = computed(() => {
@@ -249,7 +249,6 @@ function saveApbdesDocument() {
 
     isSaving.value = true;
     const payloadRincian = editableRows.value
-        .filter((r) => !r.is_otomatis_modul_1)
         .map((r) => ({
             id: r.id,
             kode_pos: r.kode_pos,
@@ -471,10 +470,10 @@ const chartOptions = {
 
                 <BaseCallout
                     variant="info"
-                    title="Sinkronisasi Otomatis Bidang 2 & Keseimbangan Anggaran"
+                    title="Keseimbangan Struktur Anggaran APBDes"
                 >
-                    Baris <strong>Bidang 2: Pelaksanaan Pembangunan Desa (Komponen Proyek Fisik)</strong> dihitung dan dikunci otomatis dari akumulasi proyek fisik pada Modul 1.
-                    <span v-if="!ringkasan?.is_pagu_seimbang" class="font-semibold text-amber-800">
+                    Struktur APBDes seimbang ketika total Pendapatan ditambah Penerimaan Pembiayaan (SiLPA) sama dengan total Belanja ditambah Pengeluaran Pembiayaan.
+                    <span v-if="!ringkasan?.is_pagu_seimbang" class="block mt-1 font-semibold text-amber-800">
                         Perhatian: Terdapat selisih keseimbangan pagu sebesar {{ formatRupiah(ringkasan?.selisih_keseimbangan_pagu || 0) }} (Pendapatan &minus; Belanja + Pembiayaan Netto).
                     </span>
                 </BaseCallout>
@@ -557,24 +556,12 @@ const chartOptions = {
                                         v-for="row in group.rows"
                                         :key="row.kode_pos"
                                         :data-testid="`row-pos-${row.kode_pos}`"
-                                        :class="
-                                            row.is_otomatis_modul_1
-                                                ? 'bg-blue-50/40'
-                                                : 'hover:bg-slate-50/60'
-                                        "
+                                        class="hover:bg-slate-50/60"
                                     >
                                         <td class="px-4 py-3 align-middle">
                                             <div class="font-medium text-slate-900">
                                                 {{ row.nama_pos }}
                                             </div>
-                                            <span
-                                                v-if="row.is_otomatis_modul_1"
-                                                data-testid="badge-otomatis-modul-1"
-                                                class="mt-1 inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700"
-                                            >
-                                                <Lock class="h-3 w-3" />
-                                                <span>Otomatis Modul 1 (Read-Only)</span>
-                                            </span>
                                         </td>
 
                                         <td class="w-44 px-3 py-2.5 align-middle">

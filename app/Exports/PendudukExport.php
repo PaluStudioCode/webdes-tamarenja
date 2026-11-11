@@ -4,18 +4,26 @@ namespace App\Exports;
 
 use App\Enums\StatusKependudukan;
 use App\Enums\StatusKesejahteraan;
+use App\Models\KartuKeluarga;
 use App\Models\Penduduk;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Cell\StringValueBinder;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PendudukExport extends StringValueBinder implements FromCollection, ShouldAutoSize, WithCustomValueBinder, WithHeadings, WithMapping, WithTitle
+class PendudukExport extends StringValueBinder implements FromCollection, ShouldAutoSize, WithCustomValueBinder, WithEvents, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     /**
      * @param  array<string, mixed>  $filters
@@ -35,23 +43,23 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
     public function headings(): array
     {
         return [
-            'nomor_kk',
-            'dusun',
-            'rt',
-            'rw',
-            'alamat',
-            'nik',
-            'nama_lengkap',
-            'tempat_lahir',
-            'tanggal_lahir',
-            'jenis_kelamin',
-            'agama',
-            'pendidikan',
-            'pekerjaan',
-            'status_perkawinan',
-            'hubungan_keluarga',
-            'status_kesejahteraan',
-            'status_kependudukan',
+            'Nomor KK',
+            'Dusun',
+            'RT',
+            'RW',
+            'Alamat',
+            'NIK',
+            'Nama Lengkap',
+            'Tempat Lahir',
+            'Tanggal Lahir',
+            'Jenis Kelamin',
+            'Agama',
+            'Pendidikan',
+            'Pekerjaan',
+            'Status Perkawinan',
+            'Hubungan Keluarga',
+            'Kategori DTSEN',
+            'Status Warga',
         ];
     }
 
@@ -80,7 +88,20 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
             ->when($statusKesejahteraan !== '', function (Builder $q) use ($statusKesejahteraan) {
                 $q->where('status_kesejahteraan', $statusKesejahteraan);
             })
-            ->orderBy('kartu_keluarga_id')
+            ->orderBy(
+                KartuKeluarga::select('nomor_kk')
+                    ->whereColumn('kartu_keluarga.id', 'penduduk.kartu_keluarga_id')
+                    ->limit(1)
+            )
+            ->orderByRaw("
+                CASE hubungan_keluarga
+                    WHEN 'kepala_keluarga' THEN 1
+                    WHEN 'istri' THEN 2
+                    WHEN 'anak' THEN 3
+                    ELSE 4
+                END ASC
+            ")
+            ->orderBy('tanggal_lahir')
             ->orderBy('nama_lengkap')
             ->get();
     }
@@ -92,12 +113,43 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
     public function map($penduduk): array
     {
         $kk = $penduduk->kartuKeluarga;
-        $statusKesejahteraan = $penduduk->status_kesejahteraan instanceof StatusKesejahteraan
-            ? $penduduk->status_kesejahteraan->value
-            : (string) $penduduk->status_kesejahteraan;
-        $statusKependudukan = $penduduk->status_kependudukan instanceof StatusKependudukan
+
+        $statusPerkawinanLabel = match ((string) $penduduk->status_perkawinan) {
+            'belum_kawin' => 'Belum Kawin',
+            'kawin' => 'Kawin',
+            'cerai_hidup' => 'Cerai Hidup',
+            'cerai_mati' => 'Cerai Mati',
+            default => (string) $penduduk->status_perkawinan,
+        };
+
+        $hubunganKeluargaLabel = match ((string) $penduduk->hubungan_keluarga) {
+            'kepala_keluarga' => 'Kepala Keluarga',
+            'istri' => 'Istri',
+            'anak' => 'Anak',
+            'lainnya' => 'Famili Lain',
+            default => (string) $penduduk->hubungan_keluarga,
+        };
+
+        $rawKesejahteraan = $kk?->status_kesejahteraan ?? $penduduk->status_kesejahteraan;
+        $statusKesejahteraanVal = $rawKesejahteraan instanceof StatusKesejahteraan
+            ? $rawKesejahteraan->value
+            : (string) $rawKesejahteraan;
+        $statusKesejahteraanLabel = match ($statusKesejahteraanVal) {
+            StatusKesejahteraan::DtsenDesil1->value => 'Desil 1',
+            StatusKesejahteraan::DtsenDesil2->value => 'Desil 2',
+            StatusKesejahteraan::DtsenDesil34->value => 'Desil 3-4',
+            default => 'Non-Prioritas',
+        };
+
+        $statusKependudukanVal = $penduduk->status_kependudukan instanceof StatusKependudukan
             ? $penduduk->status_kependudukan->value
             : (string) $penduduk->status_kependudukan;
+        $statusKependudukanLabel = match ($statusKependudukanVal) {
+            StatusKependudukan::Aktif->value => 'Aktif',
+            StatusKependudukan::PindahKeluar->value => 'Pindah Keluar',
+            StatusKependudukan::MeninggalDunia->value => 'Meninggal Dunia',
+            default => $statusKependudukanVal,
+        };
 
         return [
             (string) ($kk?->nomor_kk ?? ''),
@@ -113,10 +165,64 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
             (string) $penduduk->agama,
             $penduduk->pendidikan,
             $penduduk->pekerjaan,
-            (string) $penduduk->status_perkawinan,
-            (string) $penduduk->hubungan_keluarga,
-            $statusKesejahteraan,
-            $statusKependudukan,
+            $statusPerkawinanLabel,
+            $hubunganKeluargaLabel,
+            $statusKesejahteraanLabel,
+            $statusKependudukanLabel,
+        ];
+    }
+
+    public function styles(Worksheet $sheet): array
+    {
+        return [
+            1 => [
+                'font' => [
+                    'bold' => true,
+                    'color' => ['rgb' => 'FFFFFF'],
+                    'size' => 10,
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '1E3A8A'],
+                ],
+                'alignment' => [
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<class-string, callable>
+     */
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+                $highestRow = max(1, $sheet->getHighestRow());
+
+                $sheet->getRowDimension(1)->setRowHeight(24);
+                $sheet->freezePane('A2');
+
+                $sheet->getStyle("A1:Q{$highestRow}")->applyFromArray([
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => Border::BORDER_THIN,
+                            'color' => ['rgb' => 'CBD5E1'],
+                        ],
+                    ],
+                    'alignment' => [
+                        'vertical' => Alignment::VERTICAL_CENTER,
+                    ],
+                ]);
+
+                foreach (['C', 'D', 'I', 'J'] as $col) {
+                    $sheet->getStyle("{$col}1:{$col}{$highestRow}")
+                        ->getAlignment()
+                        ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                }
+            },
         ];
     }
 }

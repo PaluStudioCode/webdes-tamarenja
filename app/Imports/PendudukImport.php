@@ -2,9 +2,11 @@
 
 namespace App\Imports;
 
+use App\Enums\JenisSurat;
 use App\Enums\StatusKependudukan;
 use App\Enums\StatusKesejahteraan;
 use App\Enums\StatusPesertaBansos;
+use App\Enums\StatusSuratKeluar;
 use App\Models\KartuKeluarga;
 use App\Models\Penduduk;
 use Carbon\Carbon;
@@ -30,6 +32,31 @@ class PendudukImport implements ToCollection, WithHeadingRow
      * @var list<array{baris: int, nik: string, nama_lengkap: string, errors: list<string>, pesan: string}>
      */
     protected array $failedRows = [];
+
+    /**
+     * @var list<array{
+     *     baris: int,
+     *     nomor_kk: string,
+     *     dusun: string,
+     *     nik: string,
+     *     nama_lengkap: string,
+     *     hubungan_keluarga: string,
+     *     status_kesejahteraan: string,
+     *     status_kependudukan: string,
+     *     aksi: string,
+     *     pesan: string|null
+     * }>
+     */
+    protected array $previewRows = [];
+
+    /**
+     * @var array<string, string>
+     */
+    protected array $seenKkWelfare = [];
+
+    public function __construct(
+        protected bool $dryRun = false
+    ) {}
 
     public function collection(Collection $rows): void
     {
@@ -99,19 +126,128 @@ class PendudukImport implements ToCollection, WithHeadingRow
 
             if ($validator->fails()) {
                 $errors = array_values($validator->errors()->all());
+                $pesan = implode(' ', $errors);
                 $this->failedRows[] = [
                     'baris' => $rowNumber,
                     'nik' => $cleaned['nik'] !== '' ? $cleaned['nik'] : '-',
                     'nama_lengkap' => $cleaned['nama_lengkap'] !== '' ? $cleaned['nama_lengkap'] : '-',
                     'errors' => $errors,
-                    'pesan' => implode(' ', $errors),
+                    'pesan' => $pesan,
+                ];
+                $this->previewRows[] = [
+                    'baris' => $rowNumber,
+                    'nomor_kk' => $cleaned['nomor_kk'] !== '' ? $cleaned['nomor_kk'] : '-',
+                    'dusun' => $cleaned['dusun'] !== '' ? $cleaned['dusun'] : '-',
+                    'nik' => $cleaned['nik'] !== '' ? $cleaned['nik'] : '-',
+                    'nama_lengkap' => $cleaned['nama_lengkap'] !== '' ? $cleaned['nama_lengkap'] : '-',
+                    'hubungan_keluarga' => $cleaned['hubungan_keluarga'],
+                    'status_kesejahteraan' => $cleaned['status_kesejahteraan'],
+                    'status_kependudukan' => $cleaned['status_kependudukan'],
+                    'aksi' => 'gagal',
+                    'pesan' => $pesan,
+                ];
+
+                continue;
+            }
+
+            // Cek apakah warga sudah ada di DB dan apakah terkena proteksi Surat Kematian Terbit
+            $existingPenduduk = Penduduk::withTrashed()
+                ->where('nik', $cleaned['nik'])
+                ->first();
+
+            if ($existingPenduduk !== null) {
+                $currentStatus = $existingPenduduk->status_kependudukan instanceof StatusKependudukan
+                    ? $existingPenduduk->status_kependudukan->value
+                    : (string) $existingPenduduk->status_kependudukan;
+
+                if (
+                    $currentStatus === StatusKependudukan::MeninggalDunia->value &&
+                    $cleaned['status_kependudukan'] !== StatusKependudukan::MeninggalDunia->value
+                ) {
+                    $hasTerbitSuratKematian = $existingPenduduk->suratKeluar()
+                        ->where('jenis_surat', JenisSurat::Kematian)
+                        ->where('status', StatusSuratKeluar::Terbit)
+                        ->exists();
+
+                    if ($hasTerbitSuratKematian) {
+                        $errMsg = 'Warga telah berstatus Meninggal Dunia dengan Surat Kematian Terbit sehingga tidak dapat diaktifkan kembali.';
+                        $this->failedRows[] = [
+                            'baris' => $rowNumber,
+                            'nik' => $cleaned['nik'],
+                            'nama_lengkap' => $cleaned['nama_lengkap'],
+                            'errors' => [$errMsg],
+                            'pesan' => $errMsg,
+                        ];
+                        $this->previewRows[] = [
+                            'baris' => $rowNumber,
+                            'nomor_kk' => $cleaned['nomor_kk'],
+                            'dusun' => $cleaned['dusun'],
+                            'nik' => $cleaned['nik'],
+                            'nama_lengkap' => $cleaned['nama_lengkap'],
+                            'hubungan_keluarga' => $cleaned['hubungan_keluarga'],
+                            'status_kesejahteraan' => $cleaned['status_kesejahteraan'],
+                            'status_kependudukan' => $cleaned['status_kependudukan'],
+                            'aksi' => 'gagal',
+                            'pesan' => $errMsg,
+                        ];
+
+                        continue;
+                    }
+                }
+            }
+
+            // Tentukan status_kesejahteraan KK secara cerdas (baris anggota kosong tidak menimpa Kepala Keluarga)
+            $existingKk = KartuKeluarga::withTrashed()
+                ->where('nomor_kk', $cleaned['nomor_kk'])
+                ->first();
+
+            $existingKkWelfare = $this->seenKkWelfare[$cleaned['nomor_kk']]
+                ?? ($existingKk?->status_kesejahteraan instanceof StatusKesejahteraan
+                    ? $existingKk->status_kesejahteraan->value
+                    : ($existingKk ? (string) $existingKk->status_kesejahteraan : null));
+
+            $shouldUpdateKkWelfare = $existingKkWelfare === null
+                || $cleaned['hubungan_keluarga'] === 'kepala_keluarga'
+                || $cleaned['has_explicit_kesejahteraan'] === '1';
+
+            $resolvedKkWelfare = $shouldUpdateKkWelfare
+                ? $cleaned['status_kesejahteraan']
+                : $existingKkWelfare;
+
+            $this->seenKkWelfare[$cleaned['nomor_kk']] = $resolvedKkWelfare;
+
+            $aksi = $existingPenduduk === null
+                ? 'ditambahkan'
+                : ($existingPenduduk->trashed() ? 'dipulihkan' : 'diperbarui');
+
+            if ($this->dryRun) {
+                if ($aksi === 'ditambahkan') {
+                    $this->insertedCount++;
+                } elseif ($aksi === 'dipulihkan') {
+                    $this->restoredCount++;
+                } else {
+                    $this->updatedCount++;
+                }
+                $this->successCount++;
+
+                $this->previewRows[] = [
+                    'baris' => $rowNumber,
+                    'nomor_kk' => $cleaned['nomor_kk'],
+                    'dusun' => $cleaned['dusun'],
+                    'nik' => $cleaned['nik'],
+                    'nama_lengkap' => $cleaned['nama_lengkap'],
+                    'hubungan_keluarga' => $cleaned['hubungan_keluarga'],
+                    'status_kesejahteraan' => $resolvedKkWelfare,
+                    'status_kependudukan' => $cleaned['status_kependudukan'],
+                    'aksi' => $aksi,
+                    'pesan' => null,
                 ];
 
                 continue;
             }
 
             try {
-                DB::transaction(function () use ($cleaned) {
+                DB::transaction(function () use ($cleaned, $resolvedKkWelfare, $rowNumber, $aksi) {
                     // 1. Upsert with trashed untuk Kartu Keluarga
                     $kk = KartuKeluarga::withTrashed()
                         ->where('nomor_kk', $cleaned['nomor_kk'])
@@ -126,6 +262,7 @@ class PendudukImport implements ToCollection, WithHeadingRow
                             'rt' => $cleaned['rt'],
                             'rw' => $cleaned['rw'],
                             'alamat' => $cleaned['alamat'] !== '' ? $cleaned['alamat'] : $kk->alamat,
+                            'status_kesejahteraan' => $resolvedKkWelfare,
                         ]);
                     } else {
                         $kk = KartuKeluarga::create([
@@ -134,8 +271,13 @@ class PendudukImport implements ToCollection, WithHeadingRow
                             'rt' => $cleaned['rt'],
                             'rw' => $cleaned['rw'],
                             'alamat' => $cleaned['alamat'] !== '' ? $cleaned['alamat'] : null,
+                            'status_kesejahteraan' => $resolvedKkWelfare,
                         ]);
                     }
+
+                    $kkStatusKesejahteraan = $kk->status_kesejahteraan instanceof StatusKesejahteraan
+                        ? $kk->status_kesejahteraan->value
+                        : (string) $kk->status_kesejahteraan;
 
                     // 2. Upsert with trashed untuk Penduduk
                     $penduduk = Penduduk::withTrashed()
@@ -154,7 +296,7 @@ class PendudukImport implements ToCollection, WithHeadingRow
                         'pekerjaan' => $cleaned['pekerjaan'] !== '' ? $cleaned['pekerjaan'] : null,
                         'status_perkawinan' => $cleaned['status_perkawinan'],
                         'hubungan_keluarga' => $cleaned['hubungan_keluarga'],
-                        'status_kesejahteraan' => $cleaned['status_kesejahteraan'],
+                        'status_kesejahteraan' => $kkStatusKesejahteraan,
                         'status_kependudukan' => $cleaned['status_kependudukan'],
                         'tanggal_mutasi' => $cleaned['status_kependudukan'] === StatusKependudukan::Aktif->value
                             ? null
@@ -176,6 +318,11 @@ class PendudukImport implements ToCollection, WithHeadingRow
                         $this->insertedCount++;
                     }
 
+                    // Seragamkan seluruh anggota dalam KK yang sama agar konsisten 1 KK = 1 Status Kesejahteraan
+                    $kk->penduduk()->withTrashed()->update([
+                        'status_kesejahteraan' => $kkStatusKesejahteraan,
+                    ]);
+
                     // Sinkronkan Bansos aktif bila status_kependudukan di-import sebagai non-aktif
                     if ($cleaned['status_kependudukan'] === StatusKependudukan::PindahKeluar->value) {
                         $penduduk->penerimaBansos()
@@ -188,14 +335,39 @@ class PendudukImport implements ToCollection, WithHeadingRow
                     }
 
                     $this->successCount++;
+                    $this->previewRows[] = [
+                        'baris' => $rowNumber,
+                        'nomor_kk' => $cleaned['nomor_kk'],
+                        'dusun' => $cleaned['dusun'],
+                        'nik' => $cleaned['nik'],
+                        'nama_lengkap' => $cleaned['nama_lengkap'],
+                        'hubungan_keluarga' => $cleaned['hubungan_keluarga'],
+                        'status_kesejahteraan' => $kkStatusKesejahteraan,
+                        'status_kependudukan' => $cleaned['status_kependudukan'],
+                        'aksi' => $aksi,
+                        'pesan' => null,
+                    ];
                 });
             } catch (\Throwable $e) {
+                $errMsg = 'Gagal menyimpan baris ke database.';
                 $this->failedRows[] = [
                     'baris' => $rowNumber,
                     'nik' => $cleaned['nik'] !== '' ? $cleaned['nik'] : '-',
                     'nama_lengkap' => $cleaned['nama_lengkap'] !== '' ? $cleaned['nama_lengkap'] : '-',
-                    'errors' => ['Gagal menyimpan baris ke database.'],
-                    'pesan' => 'Gagal menyimpan baris ke database.',
+                    'errors' => [$errMsg],
+                    'pesan' => $errMsg,
+                ];
+                $this->previewRows[] = [
+                    'baris' => $rowNumber,
+                    'nomor_kk' => $cleaned['nomor_kk'] !== '' ? $cleaned['nomor_kk'] : '-',
+                    'dusun' => $cleaned['dusun'] !== '' ? $cleaned['dusun'] : '-',
+                    'nik' => $cleaned['nik'] !== '' ? $cleaned['nik'] : '-',
+                    'nama_lengkap' => $cleaned['nama_lengkap'] !== '' ? $cleaned['nama_lengkap'] : '-',
+                    'hubungan_keluarga' => $cleaned['hubungan_keluarga'],
+                    'status_kesejahteraan' => $cleaned['status_kesejahteraan'],
+                    'status_kependudukan' => $cleaned['status_kependudukan'],
+                    'aksi' => 'gagal',
+                    'pesan' => $errMsg,
                 ];
             }
         }
@@ -223,6 +395,8 @@ class PendudukImport implements ToCollection, WithHeadingRow
      */
     protected function cleanAndNormalizeRow(array $row): array
     {
+        $rawKesejahteraanCell = trim((string) ($row['status_kesejahteraan'] ?? $row['kategori_dtsen'] ?? $row['desil'] ?? ''));
+
         $nomorKk = $this->cleanNumericIdentifier($row['nomor_kk'] ?? $row['no_kk'] ?? '');
         $nik = $this->cleanNumericIdentifier($row['nik'] ?? '');
         $dusun = trim((string) ($row['dusun'] ?? $row['nama_dusun'] ?? ''));
@@ -238,8 +412,8 @@ class PendudukImport implements ToCollection, WithHeadingRow
         $pekerjaan = trim((string) ($row['pekerjaan'] ?? ''));
         $statusPerkawinan = $this->normalizeStatusPerkawinan($row['status_perkawinan'] ?? $row['status_kawin'] ?? 'belum_kawin');
         $hubunganKeluarga = $this->normalizeHubunganKeluarga($row['hubungan_keluarga'] ?? $row['shdk'] ?? 'lainnya');
-        $statusKesejahteraan = $this->normalizeStatusKesejahteraan($row['status_kesejahteraan'] ?? $row['desil'] ?? 'non_prioritas');
-        $statusKependudukan = $this->normalizeStatusKependudukan($row['status_kependudukan'] ?? $row['status'] ?? 'aktif');
+        $statusKesejahteraan = $this->normalizeStatusKesejahteraan($rawKesejahteraanCell !== '' ? $rawKesejahteraanCell : 'non_prioritas');
+        $statusKependudukan = $this->normalizeStatusKependudukan($row['status_kependudukan'] ?? $row['status_warga'] ?? $row['status'] ?? 'aktif');
 
         return [
             'nomor_kk' => $nomorKk,
@@ -258,6 +432,7 @@ class PendudukImport implements ToCollection, WithHeadingRow
             'status_perkawinan' => $statusPerkawinan,
             'hubungan_keluarga' => $hubunganKeluarga,
             'status_kesejahteraan' => $statusKesejahteraan,
+            'has_explicit_kesejahteraan' => $rawKesejahteraanCell !== '' ? '1' : '0',
             'status_kependudukan' => $statusKependudukan,
         ];
     }
@@ -382,7 +557,7 @@ class PendudukImport implements ToCollection, WithHeadingRow
             'dtsen_desil_1', 'desil_1', 'desil 1', '1', 'miskin ekstrem' => StatusKesejahteraan::DtsenDesil1->value,
             'dtsen_desil_2', 'desil_2', 'desil 2', '2', 'miskin' => StatusKesejahteraan::DtsenDesil2->value,
             'dtsen_desil_3_4', 'desil_3_4', 'desil 3-4', 'desil 3', 'desil 4', '3', '4', 'rentan miskin' => StatusKesejahteraan::DtsenDesil34->value,
-            'non_prioritas', 'non prioritas', 'mampu', 'desil 5-10' => StatusKesejahteraan::NonPrioritas->value,
+            'non_prioritas', 'non-prioritas', 'non prioritas', 'mampu', 'desil 5-10' => StatusKesejahteraan::NonPrioritas->value,
             default => $clean,
         };
     }
@@ -411,7 +586,8 @@ class PendudukImport implements ToCollection, WithHeadingRow
      *     diperbarui: int,
      *     dipulihkan: int,
      *     gagal: int,
-     *     failed_rows: list<array{baris: int, nik: string, nama_lengkap: string, errors: list<string>, pesan: string}>
+     *     failed_rows: list<array{baris: int, nik: string, nama_lengkap: string, errors: list<string>, pesan: string}>,
+     *     preview_rows: list<array{baris: int, nomor_kk: string, dusun: string, nik: string, nama_lengkap: string, hubungan_keluarga: string, status_kesejahteraan: string, status_kependudukan: string, aksi: string, pesan: string|null}>
      * }
      */
     public function getSummary(): array
@@ -423,6 +599,7 @@ class PendudukImport implements ToCollection, WithHeadingRow
             'dipulihkan' => $this->restoredCount,
             'gagal' => count($this->failedRows),
             'failed_rows' => $this->failedRows,
+            'preview_rows' => $this->previewRows,
         ];
     }
 }

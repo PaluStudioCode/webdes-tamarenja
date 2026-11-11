@@ -2,7 +2,6 @@
 import { computed, reactive, ref } from 'vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import {
-    ExternalLink,
     Eye,
     FileText,
     Pencil,
@@ -17,7 +16,6 @@ import UnifiedFilterBar from '@/Components/UnifiedFilterBar.vue';
 import DataTable from '@/Components/DataTable.vue';
 import BaseButton from '@/Components/BaseButton.vue';
 import BaseModal from '@/Components/BaseModal.vue';
-import SlideOverDrawer from '@/Components/SlideOverDrawer.vue';
 import FileDropzone from '@/Components/FileDropzone.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 
@@ -105,8 +103,13 @@ const columns = [
     { key: 'surat', label: 'Nomor & Tanggal Surat' },
     { key: 'pengirim_perihal', label: 'Pengirim & Perihal' },
     { key: 'disposisi', label: 'Disposisi' },
-    { key: 'berkas', label: 'Berkas Scan' },
-    { key: 'actions', label: 'Aksi', align: 'right' },
+    {
+        key: 'actions',
+        label: 'Aksi',
+        align: 'right',
+        class: 'whitespace-nowrap',
+        cellClass: 'whitespace-nowrap',
+    },
 ];
 
 // Modal Tambah / Edit Surat Masuk
@@ -227,15 +230,6 @@ async function handleDelete(item) {
     });
 }
 
-// Slide-Over Drawer Pratinjau Scan Private Storage
-const showPreviewDrawer = ref(false);
-const previewItem = ref(null);
-
-function openPreviewDrawer(item) {
-    previewItem.value = item;
-    showPreviewDrawer.value = true;
-}
-
 function resolveStreamUrl(item) {
     if (!item) {
         return '';
@@ -307,7 +301,7 @@ function resolveStreamUrl(item) {
                             }}
                         </span>
                         <p class="mt-1 text-xs tabular-nums text-slate-500">
-                            Terima: {{ row.tanggal_terima || '—' }}
+                            {{ row.tanggal_terima || '—' }}
                         </p>
                     </div>
                 </template>
@@ -318,7 +312,7 @@ function resolveStreamUrl(item) {
                             {{ row.nomor_surat_masuk }}
                         </p>
                         <p class="text-xs tabular-nums text-slate-500">
-                            Tgl Surat: {{ row.tanggal_surat || '—' }}
+                            Tgl: {{ row.tanggal_surat || '—' }}
                         </p>
                     </div>
                 </template>
@@ -348,47 +342,50 @@ function resolveStreamUrl(item) {
                     </div>
                 </template>
 
-                <template #cell-berkas="{ row }">
-                    <button
-                        v-if="row.has_scan || row.berkas_scan_path"
-                        type="button"
-                        :data-testid="`btn-preview-scan-${row.id}`"
-                        class="inline-flex h-8 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
-                        @click="openPreviewDrawer(row)"
-                    >
-                        <Eye class="h-3.5 w-3.5" />
-                        <span>Lihat Scan</span>
-                    </button>
-                    <span v-else class="text-xs text-slate-400">
-                        Belum diunggah
-                    </span>
-                </template>
-
                 <template #cell-actions="{ row }">
-                    <div
-                        v-if="isOperator"
-                        class="flex items-center justify-end gap-1.5"
-                    >
-                        <button
-                            type="button"
-                            :data-testid="`btn-edit-surat-masuk-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            @click="openEditModal(row)"
+                    <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        <!-- Tombol Lihat Berkas Scan (jika ada) -->
+                        <a
+                            v-if="row.has_scan || row.berkas_scan_path"
+                            :href="resolveStreamUrl(row)"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            :data-testid="`btn-preview-scan-${row.id}`"
+                            class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
                         >
-                            <Pencil class="mr-1 h-3.5 w-3.5" />
-                            <span>Edit</span>
-                        </button>
+                            <Eye class="h-3.5 w-3.5" />
+                            <span>Lihat</span>
+                        </a>
 
-                        <button
-                            type="button"
-                            :data-testid="`btn-delete-surat-masuk-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium text-red-600 hover:bg-red-50"
-                            @click="handleDelete(row)"
+                        <!-- Tombol Edit & Hapus (Khusus Operator) -->
+                        <template v-if="isOperator">
+                            <button
+                                type="button"
+                                :data-testid="`btn-edit-surat-masuk-${row.id}`"
+                                class="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                @click="openEditModal(row)"
+                            >
+                                <Pencil class="mr-1 h-3.5 w-3.5" />
+                                <span>Edit</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                :data-testid="`btn-delete-surat-masuk-${row.id}`"
+                                class="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-red-600 hover:border-red-200 hover:bg-red-50"
+                                @click="handleDelete(row)"
+                            >
+                                <Trash2 class="h-3.5 w-3.5" />
+                            </button>
+                        </template>
+
+                        <span
+                            v-else-if="!row.has_scan && !row.berkas_scan_path"
+                            class="text-xs text-slate-400"
                         >
-                            <Trash2 class="h-3.5 w-3.5" />
-                        </button>
+                            Read-Only
+                        </span>
                     </div>
-                    <span v-else class="text-xs text-slate-400">Read-Only</span>
                 </template>
             </DataTable>
         </div>
@@ -525,88 +522,10 @@ function resolveStreamUrl(item) {
                         :loading="isSubmitting"
                         data-testid="btn-submit-surat-masuk"
                     >
-                        {{
-                            isEditing
-                                ? 'Simpan Perubahan'
-                                : 'Simpan ke Buku Agenda'
-                        }}
+                        {{ isEditing ? 'Perbarui' : 'Simpan' }}
                     </BaseButton>
                 </div>
             </form>
         </BaseModal>
-
-        <!-- Slide-Over Drawer Pratinjau Scan Surat Masuk -->
-        <SlideOverDrawer
-            :show="showPreviewDrawer"
-            :title="
-                previewItem
-                    ? `Pratinjau Scan — Agenda #${previewItem.nomor_urut_padded || previewItem.nomor_urut_agenda}`
-                    : 'Pratinjau Berkas Scan Surat Masuk'
-            "
-            :subtitle="
-                previewItem
-                    ? `${previewItem.nomor_surat_masuk} • ${previewItem.pengirim}`
-                    : ''
-            "
-            max-width="2xl"
-            @close="showPreviewDrawer = false"
-        >
-            <div v-if="previewItem" class="space-y-4">
-                <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="space-y-1">
-                            <p class="font-semibold text-slate-900">
-                                {{ previewItem.perihal }}
-                            </p>
-                            <p class="text-xs text-slate-600">
-                                Pengirim: <strong>{{ previewItem.pengirim }}</strong>
-                                &bull; Tgl Terima: {{ previewItem.tanggal_terima }}
-                            </p>
-                            <p
-                                v-if="previewItem.tujuan_disposisi"
-                                class="text-xs text-slate-600"
-                            >
-                                Disposisi: <strong>{{ previewItem.tujuan_disposisi }}</strong>
-                                <span v-if="previewItem.catatan_disposisi">
-                                    — {{ previewItem.catatan_disposisi }}
-                                </span>
-                            </p>
-                        </div>
-
-                        <a
-                            :href="resolveStreamUrl(previewItem)"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            data-testid="link-open-scan-tab"
-                            class="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                            <ExternalLink class="h-3.5 w-3.5" />
-                            <span>Buka Tab Baru</span>
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Pratinjau PDF atau Gambar dari Streaming Terproteksi -->
-                <div
-                    data-testid="scan-preview-container"
-                    class="overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
-                >
-                    <iframe
-                        v-if="previewItem.scan_type === 'pdf'"
-                        :src="resolveStreamUrl(previewItem)"
-                        title="Pratinjau PDF Surat Masuk"
-                        data-testid="scan-preview-iframe"
-                        class="h-[520px] w-full border-0"
-                    />
-                    <img
-                        v-else
-                        :src="resolveStreamUrl(previewItem)"
-                        :alt="`Scan ${previewItem.nomor_surat_masuk}`"
-                        data-testid="scan-preview-image"
-                        class="mx-auto max-h-[560px] w-auto object-contain p-2"
-                    />
-                </div>
-            </div>
-        </SlideOverDrawer>
     </AppLayout>
 </template>

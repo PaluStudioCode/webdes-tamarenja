@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Kependudukan;
 
+use App\Enums\StatusKesejahteraan;
 use App\Models\KartuKeluarga;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,6 +20,19 @@ class UpdateKartuKeluargaRequest extends FormRequest
             $raw = trim((string) $this->input('nomor_kk'));
             $cleaned = ltrim($raw, "'");
             $this->merge(['nomor_kk' => $cleaned]);
+        }
+
+        if (! $this->filled('status_kesejahteraan')) {
+            $kkParam = $this->route('kartuKeluarga');
+            $existingVal = $kkParam instanceof KartuKeluarga
+                ? ($kkParam->status_kesejahteraan instanceof StatusKesejahteraan
+                    ? $kkParam->status_kesejahteraan->value
+                    : (string) $kkParam->status_kesejahteraan)
+                : StatusKesejahteraan::NonPrioritas->value;
+
+            $this->merge([
+                'status_kesejahteraan' => $existingVal !== '' ? $existingVal : StatusKesejahteraan::NonPrioritas->value,
+            ]);
         }
     }
 
@@ -42,6 +56,7 @@ class UpdateKartuKeluargaRequest extends FormRequest
             'rt' => ['required', 'string', 'max:5'],
             'rw' => ['required', 'string', 'max:5'],
             'alamat' => ['nullable', 'string', 'max:500'],
+            'status_kesejahteraan' => ['required', Rule::enum(StatusKesejahteraan::class)],
         ];
     }
 
@@ -58,6 +73,7 @@ class UpdateKartuKeluargaRequest extends FormRequest
             'dusun.required' => 'Nama Dusun wajib diisi.',
             'rt.required' => 'Nomor RT wajib diisi.',
             'rw.required' => 'Nomor RW wajib diisi.',
+            'status_kesejahteraan.required' => 'Status kesejahteraan (DTSEN) wajib dipilih.',
         ];
     }
 }
