@@ -24,6 +24,13 @@ class AppServiceProvider extends ServiceProvider
     {
         Vite::prefetch(concurrency: 3);
 
+        if (class_exists(\Illuminate\Foundation\Console\ServeCommand::class)) {
+            \Illuminate\Foundation\Console\ServeCommand::$passthroughVariables = array_merge(
+                \Illuminate\Foundation\Console\ServeCommand::$passthroughVariables,
+                ['Path', 'PATH', 'SystemRoot', 'SYSTEMROOT', 'windir', 'TEMP', 'TMP', 'LOCALAPPDATA', 'APPDATA', 'USERPROFILE']
+            );
+        }
+
         $this->registerAuthorizationGates();
     }
 
