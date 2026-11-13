@@ -60,6 +60,23 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
             'Hubungan Keluarga',
             'Kategori DTSEN',
             'Status Warga',
+            'Suku',
+            'Kewarganegaraan',
+            'Peserta KIP/PIP',
+            'Kelas Sekolah',
+            'Jenis BPJS',
+            'Status Kepemilikan Rumah',
+            'Kondisi Rumah',
+            'Jenis Listrik',
+            'Kamar Mandi',
+            'Penghasilan Bulanan',
+            'Kepemilikan Usaha',
+            'Kepemilikan Hewan Ternak',
+            'Kepemilikan Kendaraan/Elektronik',
+            'Kepemilikan SHML',
+            'Kepemilikan Tanah Bidang',
+            'Kepemilikan Tanah Sawah',
+            'Tanaman',
         ];
     }
 
@@ -169,6 +186,23 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
             $hubunganKeluargaLabel,
             $statusKesejahteraanLabel,
             $statusKependudukanLabel,
+            $penduduk->suku,
+            (string) ($penduduk->kewarganegaraan ?: 'WNI'),
+            $penduduk->peserta_kip_pip,
+            $penduduk->kelas_sekolah,
+            $penduduk->jenis_bpjs,
+            $kk?->status_kepemilikan_rumah,
+            $kk?->kondisi_rumah,
+            $kk?->jenis_listrik,
+            $kk?->kamar_mandi,
+            $kk?->penghasilan_bulanan,
+            $kk?->kepemilikan_usaha,
+            $kk?->kepemilikan_hewan_ternak,
+            $kk?->kepemilikan_kendaraan_elektronik,
+            $kk?->kepemilikan_shml,
+            $kk?->kepemilikan_tanah_bidang,
+            $kk?->kepemilikan_tanah_sawah,
+            $kk?->tanaman,
         ];
     }
 
@@ -201,11 +235,12 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
                 $highestRow = max(1, $sheet->getHighestRow());
+                $highestCol = $sheet->getHighestColumn();
 
                 $sheet->getRowDimension(1)->setRowHeight(24);
                 $sheet->freezePane('A2');
 
-                $sheet->getStyle("A1:Q{$highestRow}")->applyFromArray([
+                $sheet->getStyle("A1:{$highestCol}{$highestRow}")->applyFromArray([
                     'borders' => [
                         'allBorders' => [
                             'borderStyle' => Border::BORDER_THIN,

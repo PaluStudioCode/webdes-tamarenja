@@ -57,6 +57,18 @@ class UpdateKartuKeluargaRequest extends FormRequest
             'rw' => ['required', 'string', 'max:5'],
             'alamat' => ['nullable', 'string', 'max:500'],
             'status_kesejahteraan' => ['required', Rule::enum(StatusKesejahteraan::class)],
+            'status_kepemilikan_rumah' => ['nullable', 'string', 'max:50'],
+            'kondisi_rumah' => ['nullable', 'string', 'max:50'],
+            'jenis_listrik' => ['nullable', 'string', 'max:50'],
+            'kamar_mandi' => ['nullable', 'string', 'max:30'],
+            'penghasilan_bulanan' => ['nullable', 'string', 'max:100'],
+            'kepemilikan_usaha' => ['nullable', 'string', 'max:150'],
+            'kepemilikan_hewan_ternak' => ['nullable', 'string', 'max:150'],
+            'kepemilikan_kendaraan_elektronik' => ['nullable', 'string', 'max:200'],
+            'kepemilikan_shml' => ['nullable', 'string', 'max:50'],
+            'kepemilikan_tanah_bidang' => ['nullable', 'string', 'max:50'],
+            'kepemilikan_tanah_sawah' => ['nullable', 'string', 'max:50'],
+            'tanaman' => ['nullable', 'string', 'max:1000'],
         ];
     }
 

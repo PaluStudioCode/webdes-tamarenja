@@ -191,7 +191,7 @@ class KependudukanCrudAndMutasiTest extends TestCase
             ])
             ->assertSessionHasErrors('nomor_kk');
 
-        // 4. Update KK
+        // 4. Update KK (termasuk field hunian, ekonomi, dan aset keluarga)
         $this->actingAs($this->operator)
             ->put(route('panel.kependudukan.kk.update', $kk), [
                 'nomor_kk' => '7203080101260001',
@@ -199,10 +199,35 @@ class KependudukanCrudAndMutasiTest extends TestCase
                 'rt' => '003',
                 'rw' => '001',
                 'alamat' => 'Alamat Baru Dusun III',
+                'status_kepemilikan_rumah' => 'Milik Sendiri',
+                'kondisi_rumah' => 'Permanen',
+                'jenis_listrik' => 'Manual 900 Watt',
+                'kamar_mandi' => 'Ada',
+                'penghasilan_bulanan' => 'Rp 2.500.000',
+                'kepemilikan_usaha' => 'Warung Sembako',
+                'kepemilikan_hewan_ternak' => 'Sapi 2 ekor, Ayam 15 ekor',
+                'kepemilikan_kendaraan_elektronik' => 'Motor 1, TV 1, HP 2',
+                'kepemilikan_shml' => '1',
+                'kepemilikan_tanah_bidang' => '2',
+                'kepemilikan_tanah_sawah' => '1 Bidang',
+                'tanaman' => 'Kelapa 50 Pohon, Coklat 40 Pohon',
             ])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('Dusun III', $kk->fresh()->dusun);
+        $freshKk = $kk->fresh();
+        $this->assertSame('Dusun III', $freshKk->dusun);
+        $this->assertSame('Milik Sendiri', $freshKk->status_kepemilikan_rumah);
+        $this->assertSame('Permanen', $freshKk->kondisi_rumah);
+        $this->assertSame('Manual 900 Watt', $freshKk->jenis_listrik);
+        $this->assertSame('Ada', $freshKk->kamar_mandi);
+        $this->assertSame('Rp 2.500.000', $freshKk->penghasilan_bulanan);
+        $this->assertSame('Warung Sembako', $freshKk->kepemilikan_usaha);
+        $this->assertSame('Sapi 2 ekor, Ayam 15 ekor', $freshKk->kepemilikan_hewan_ternak);
+        $this->assertSame('Motor 1, TV 1, HP 2', $freshKk->kepemilikan_kendaraan_elektronik);
+        $this->assertSame('1', $freshKk->kepemilikan_shml);
+        $this->assertSame('2', $freshKk->kepemilikan_tanah_bidang);
+        $this->assertSame('1 Bidang', $freshKk->kepemilikan_tanah_sawah);
+        $this->assertSame('Kelapa 50 Pohon, Coklat 40 Pohon', $freshKk->tanaman);
 
         // 5. Soft delete KK tanpa anggota -> berhasil
         $this->actingAs($this->operator)
@@ -264,7 +289,7 @@ class KependudukanCrudAndMutasiTest extends TestCase
             ])
             ->assertSessionHasErrors('nik');
 
-        // 2. Buat penduduk baru (dengan kutip tunggal pembuka '7203...)
+        // 2. Buat penduduk baru (dengan kutip tunggal pembuka '7203... serta field suku, kewarganegaraan, KIP/PIP, kelas sekolah, dan BPJS)
         $this->actingAs($this->operator)
             ->post(route('panel.kependudukan.penduduk.store'), [
                 'kartu_keluarga_id' => $kk->id,
@@ -274,17 +299,26 @@ class KependudukanCrudAndMutasiTest extends TestCase
                 'tanggal_lahir' => '1988-05-12',
                 'jenis_kelamin' => 'L',
                 'agama' => 'Islam',
+                'suku' => 'Kaili',
+                'kewarganegaraan' => 'WNI',
                 'pendidikan' => 'SLTA/Sederajat',
+                'peserta_kip_pip' => 'Tidak',
+                'kelas_sekolah' => null,
                 'pekerjaan' => 'Petani/Pekebun',
                 'status_perkawinan' => 'kawin',
                 'hubungan_keluarga' => 'kepala_keluarga',
                 'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil2->value,
+                'jenis_bpjs' => 'Pemerintah',
             ])
             ->assertSessionHasNoErrors();
 
         $penduduk = Penduduk::where('nik', '7203081205880010')->firstOrFail();
         $this->assertSame(StatusKependudukan::Aktif, $penduduk->status_kependudukan);
         $this->assertSame(StatusKesejahteraan::DtsenDesil2, $penduduk->status_kesejahteraan);
+        $this->assertSame('Kaili', $penduduk->suku);
+        $this->assertSame('WNI', $penduduk->kewarganegaraan);
+        $this->assertSame('Tidak', $penduduk->peserta_kip_pip);
+        $this->assertSame('Pemerintah', $penduduk->jenis_bpjs);
 
         // 3. Soft delete penduduk
         $this->actingAs($this->operator)

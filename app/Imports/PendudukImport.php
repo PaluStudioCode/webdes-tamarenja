@@ -84,7 +84,11 @@ class PendudukImport implements ToCollection, WithHeadingRow
                     'tanggal_lahir' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
                     'jenis_kelamin' => ['required', 'string', Rule::in(['L', 'P'])],
                     'agama' => ['required', 'string', 'max:30'],
+                    'suku' => ['nullable', 'string', 'max:50'],
+                    'kewarganegaraan' => ['nullable', 'string', Rule::in(['WNI', 'WNA'])],
                     'pendidikan' => ['nullable', 'string', 'max:50'],
+                    'peserta_kip_pip' => ['nullable', 'string', 'max:50'],
+                    'kelas_sekolah' => ['nullable', 'string', 'max:50'],
                     'pekerjaan' => ['nullable', 'string', 'max:100'],
                     'status_perkawinan' => [
                         'required',
@@ -97,7 +101,20 @@ class PendudukImport implements ToCollection, WithHeadingRow
                         Rule::in(['kepala_keluarga', 'istri', 'anak', 'lainnya']),
                     ],
                     'status_kesejahteraan' => ['required', Rule::enum(StatusKesejahteraan::class)],
+                    'jenis_bpjs' => ['nullable', 'string', 'max:50'],
                     'status_kependudukan' => ['required', Rule::enum(StatusKependudukan::class)],
+                    'status_kepemilikan_rumah' => ['nullable', 'string', 'max:50'],
+                    'kondisi_rumah' => ['nullable', 'string', 'max:50'],
+                    'jenis_listrik' => ['nullable', 'string', 'max:50'],
+                    'kamar_mandi' => ['nullable', 'string', 'max:30'],
+                    'penghasilan_bulanan' => ['nullable', 'string', 'max:100'],
+                    'kepemilikan_usaha' => ['nullable', 'string', 'max:150'],
+                    'kepemilikan_hewan_ternak' => ['nullable', 'string', 'max:150'],
+                    'kepemilikan_kendaraan_elektronik' => ['nullable', 'string', 'max:200'],
+                    'kepemilikan_shml' => ['nullable', 'string', 'max:50'],
+                    'kepemilikan_tanah_bidang' => ['nullable', 'string', 'max:50'],
+                    'kepemilikan_tanah_sawah' => ['nullable', 'string', 'max:50'],
+                    'tanaman' => ['nullable', 'string', 'max:1000'],
                 ],
                 [
                     'nomor_kk.required' => 'Nomor KK wajib diisi.',
@@ -263,6 +280,18 @@ class PendudukImport implements ToCollection, WithHeadingRow
                             'rw' => $cleaned['rw'],
                             'alamat' => $cleaned['alamat'] !== '' ? $cleaned['alamat'] : $kk->alamat,
                             'status_kesejahteraan' => $resolvedKkWelfare,
+                            'status_kepemilikan_rumah' => $cleaned['status_kepemilikan_rumah'] !== '' ? $cleaned['status_kepemilikan_rumah'] : $kk->status_kepemilikan_rumah,
+                            'kondisi_rumah' => $cleaned['kondisi_rumah'] !== '' ? $cleaned['kondisi_rumah'] : $kk->kondisi_rumah,
+                            'jenis_listrik' => $cleaned['jenis_listrik'] !== '' ? $cleaned['jenis_listrik'] : $kk->jenis_listrik,
+                            'kamar_mandi' => $cleaned['kamar_mandi'] !== '' ? $cleaned['kamar_mandi'] : $kk->kamar_mandi,
+                            'penghasilan_bulanan' => $cleaned['penghasilan_bulanan'] !== '' ? $cleaned['penghasilan_bulanan'] : $kk->penghasilan_bulanan,
+                            'kepemilikan_usaha' => $cleaned['kepemilikan_usaha'] !== '' ? $cleaned['kepemilikan_usaha'] : $kk->kepemilikan_usaha,
+                            'kepemilikan_hewan_ternak' => $cleaned['kepemilikan_hewan_ternak'] !== '' ? $cleaned['kepemilikan_hewan_ternak'] : $kk->kepemilikan_hewan_ternak,
+                            'kepemilikan_kendaraan_elektronik' => $cleaned['kepemilikan_kendaraan_elektronik'] !== '' ? $cleaned['kepemilikan_kendaraan_elektronik'] : $kk->kepemilikan_kendaraan_elektronik,
+                            'kepemilikan_shml' => $cleaned['kepemilikan_shml'] !== '' ? $cleaned['kepemilikan_shml'] : $kk->kepemilikan_shml,
+                            'kepemilikan_tanah_bidang' => $cleaned['kepemilikan_tanah_bidang'] !== '' ? $cleaned['kepemilikan_tanah_bidang'] : $kk->kepemilikan_tanah_bidang,
+                            'kepemilikan_tanah_sawah' => $cleaned['kepemilikan_tanah_sawah'] !== '' ? $cleaned['kepemilikan_tanah_sawah'] : $kk->kepemilikan_tanah_sawah,
+                            'tanaman' => $cleaned['tanaman'] !== '' ? $cleaned['tanaman'] : $kk->tanaman,
                         ]);
                     } else {
                         $kk = KartuKeluarga::create([
@@ -272,6 +301,18 @@ class PendudukImport implements ToCollection, WithHeadingRow
                             'rw' => $cleaned['rw'],
                             'alamat' => $cleaned['alamat'] !== '' ? $cleaned['alamat'] : null,
                             'status_kesejahteraan' => $resolvedKkWelfare,
+                            'status_kepemilikan_rumah' => $cleaned['status_kepemilikan_rumah'] !== '' ? $cleaned['status_kepemilikan_rumah'] : null,
+                            'kondisi_rumah' => $cleaned['kondisi_rumah'] !== '' ? $cleaned['kondisi_rumah'] : null,
+                            'jenis_listrik' => $cleaned['jenis_listrik'] !== '' ? $cleaned['jenis_listrik'] : null,
+                            'kamar_mandi' => $cleaned['kamar_mandi'] !== '' ? $cleaned['kamar_mandi'] : null,
+                            'penghasilan_bulanan' => $cleaned['penghasilan_bulanan'] !== '' ? $cleaned['penghasilan_bulanan'] : null,
+                            'kepemilikan_usaha' => $cleaned['kepemilikan_usaha'] !== '' ? $cleaned['kepemilikan_usaha'] : null,
+                            'kepemilikan_hewan_ternak' => $cleaned['kepemilikan_hewan_ternak'] !== '' ? $cleaned['kepemilikan_hewan_ternak'] : null,
+                            'kepemilikan_kendaraan_elektronik' => $cleaned['kepemilikan_kendaraan_elektronik'] !== '' ? $cleaned['kepemilikan_kendaraan_elektronik'] : null,
+                            'kepemilikan_shml' => $cleaned['kepemilikan_shml'] !== '' ? $cleaned['kepemilikan_shml'] : null,
+                            'kepemilikan_tanah_bidang' => $cleaned['kepemilikan_tanah_bidang'] !== '' ? $cleaned['kepemilikan_tanah_bidang'] : null,
+                            'kepemilikan_tanah_sawah' => $cleaned['kepemilikan_tanah_sawah'] !== '' ? $cleaned['kepemilikan_tanah_sawah'] : null,
+                            'tanaman' => $cleaned['tanaman'] !== '' ? $cleaned['tanaman'] : null,
                         ]);
                     }
 
@@ -292,11 +333,16 @@ class PendudukImport implements ToCollection, WithHeadingRow
                         'tanggal_lahir' => $cleaned['tanggal_lahir'],
                         'jenis_kelamin' => $cleaned['jenis_kelamin'],
                         'agama' => $cleaned['agama'],
+                        'suku' => $cleaned['suku'] !== '' ? $cleaned['suku'] : ($penduduk?->suku ?? null),
+                        'kewarganegaraan' => $cleaned['kewarganegaraan'] !== '' ? $cleaned['kewarganegaraan'] : ($penduduk?->kewarganegaraan ?? 'WNI'),
                         'pendidikan' => $cleaned['pendidikan'] !== '' ? $cleaned['pendidikan'] : null,
+                        'peserta_kip_pip' => $cleaned['peserta_kip_pip'] !== '' ? $cleaned['peserta_kip_pip'] : ($penduduk?->peserta_kip_pip ?? null),
+                        'kelas_sekolah' => $cleaned['kelas_sekolah'] !== '' ? $cleaned['kelas_sekolah'] : ($penduduk?->kelas_sekolah ?? null),
                         'pekerjaan' => $cleaned['pekerjaan'] !== '' ? $cleaned['pekerjaan'] : null,
                         'status_perkawinan' => $cleaned['status_perkawinan'],
                         'hubungan_keluarga' => $cleaned['hubungan_keluarga'],
                         'status_kesejahteraan' => $kkStatusKesejahteraan,
+                        'jenis_bpjs' => $cleaned['jenis_bpjs'] !== '' ? $cleaned['jenis_bpjs'] : ($penduduk?->jenis_bpjs ?? null),
                         'status_kependudukan' => $cleaned['status_kependudukan'],
                         'tanggal_mutasi' => $cleaned['status_kependudukan'] === StatusKependudukan::Aktif->value
                             ? null
@@ -408,12 +454,31 @@ class PendudukImport implements ToCollection, WithHeadingRow
         $tanggalLahir = $this->parseExcelDate($row['tanggal_lahir'] ?? $row['tgl_lahir'] ?? null);
         $jenisKelamin = $this->normalizeJenisKelamin($row['jenis_kelamin'] ?? $row['jk'] ?? '');
         $agama = trim((string) ($row['agama'] ?? 'Islam'));
+        $suku = trim((string) ($row['suku'] ?? ''));
+        $rawKewarganegaraan = strtoupper(trim((string) ($row['kewarganegaraan'] ?? 'WNI')));
+        $kewarganegaraan = in_array($rawKewarganegaraan, ['WNI', 'WNA'], true) ? $rawKewarganegaraan : 'WNI';
         $pendidikan = trim((string) ($row['pendidikan'] ?? ''));
+        $pesertaKipPip = trim((string) ($row['peserta_kip_pip'] ?? $row['peserta_kippip'] ?? ''));
+        $kelasSekolah = trim((string) ($row['kelas_sekolah'] ?? $row['anak_sekolah_paud_tk_sd_smp_sma'] ?? ''));
         $pekerjaan = trim((string) ($row['pekerjaan'] ?? ''));
         $statusPerkawinan = $this->normalizeStatusPerkawinan($row['status_perkawinan'] ?? $row['status_kawin'] ?? 'belum_kawin');
         $hubunganKeluarga = $this->normalizeHubunganKeluarga($row['hubungan_keluarga'] ?? $row['shdk'] ?? 'lainnya');
         $statusKesejahteraan = $this->normalizeStatusKesejahteraan($rawKesejahteraanCell !== '' ? $rawKesejahteraanCell : 'non_prioritas');
+        $jenisBpjs = trim((string) ($row['jenis_bpjs'] ?? ''));
         $statusKependudukan = $this->normalizeStatusKependudukan($row['status_kependudukan'] ?? $row['status_warga'] ?? $row['status'] ?? 'aktif');
+
+        $statusKepemilikanRumah = trim((string) ($row['status_kepemilikan_rumah'] ?? ''));
+        $kondisiRumah = trim((string) ($row['kondisi_rumah'] ?? $row['kondisi_rumah_permanen_semi_permanen_kayu'] ?? ''));
+        $jenisListrik = trim((string) ($row['jenis_listrik'] ?? $row['jenis_listrik_yg_di_gunakan'] ?? ''));
+        $kamarMandi = trim((string) ($row['kamar_mandi'] ?? ''));
+        $penghasilanBulanan = trim((string) ($row['penghasilan_bulanan'] ?? $row['penghasilan_rata2_bln'] ?? $row['penghasilan_rata2bln'] ?? ''));
+        $kepemilikanUsaha = trim((string) ($row['kepemilikan_usaha'] ?? ''));
+        $kepemilikanHewanTernak = trim((string) ($row['kepemilikan_hewan_ternak'] ?? ''));
+        $kepemilikanKendaraanElektronik = trim((string) ($row['kepemilikan_kendaraan_elektronik'] ?? $row['kepemilikan_kendaraanelektronik'] ?? ''));
+        $kepemilikanShml = trim((string) ($row['kepemilikan_shml'] ?? $row['kepemilikan_shml_jumlah'] ?? ''));
+        $kepemilikanTanahBidang = trim((string) ($row['kepemilikan_tanah_bidang'] ?? $row['kepemilikan_tanah_bidang_jumlah'] ?? ''));
+        $kepemilikanTanahSawah = trim((string) ($row['kepemilikan_tanah_sawah'] ?? ''));
+        $tanaman = trim((string) ($row['tanaman'] ?? ''));
 
         return [
             'nomor_kk' => $nomorKk,
@@ -427,13 +492,30 @@ class PendudukImport implements ToCollection, WithHeadingRow
             'tanggal_lahir' => $tanggalLahir,
             'jenis_kelamin' => $jenisKelamin,
             'agama' => $agama,
+            'suku' => $suku,
+            'kewarganegaraan' => $kewarganegaraan,
             'pendidikan' => $pendidikan,
+            'peserta_kip_pip' => $pesertaKipPip,
+            'kelas_sekolah' => $kelasSekolah,
             'pekerjaan' => $pekerjaan,
             'status_perkawinan' => $statusPerkawinan,
             'hubungan_keluarga' => $hubunganKeluarga,
             'status_kesejahteraan' => $statusKesejahteraan,
+            'jenis_bpjs' => $jenisBpjs,
             'has_explicit_kesejahteraan' => $rawKesejahteraanCell !== '' ? '1' : '0',
             'status_kependudukan' => $statusKependudukan,
+            'status_kepemilikan_rumah' => $statusKepemilikanRumah,
+            'kondisi_rumah' => $kondisiRumah,
+            'jenis_listrik' => $jenisListrik,
+            'kamar_mandi' => $kamarMandi,
+            'penghasilan_bulanan' => $penghasilanBulanan,
+            'kepemilikan_usaha' => $kepemilikanUsaha,
+            'kepemilikan_hewan_ternak' => $kepemilikanHewanTernak,
+            'kepemilikan_kendaraan_elektronik' => $kepemilikanKendaraanElektronik,
+            'kepemilikan_shml' => $kepemilikanShml,
+            'kepemilikan_tanah_bidang' => $kepemilikanTanahBidang,
+            'kepemilikan_tanah_sawah' => $kepemilikanTanahSawah,
+            'tanaman' => $tanaman,
         ];
     }
 

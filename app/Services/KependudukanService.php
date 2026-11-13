@@ -51,6 +51,18 @@ class KependudukanService
                     'rw' => $data['rw'],
                     'alamat' => $data['alamat'] ?? null,
                     'status_kesejahteraan' => $statusKesejahteraan,
+                    'status_kepemilikan_rumah' => $data['status_kepemilikan_rumah'] ?? $existing->status_kepemilikan_rumah,
+                    'kondisi_rumah' => $data['kondisi_rumah'] ?? $existing->kondisi_rumah,
+                    'jenis_listrik' => $data['jenis_listrik'] ?? $existing->jenis_listrik,
+                    'kamar_mandi' => $data['kamar_mandi'] ?? $existing->kamar_mandi,
+                    'penghasilan_bulanan' => $data['penghasilan_bulanan'] ?? $existing->penghasilan_bulanan,
+                    'kepemilikan_usaha' => $data['kepemilikan_usaha'] ?? $existing->kepemilikan_usaha,
+                    'kepemilikan_hewan_ternak' => $data['kepemilikan_hewan_ternak'] ?? $existing->kepemilikan_hewan_ternak,
+                    'kepemilikan_kendaraan_elektronik' => $data['kepemilikan_kendaraan_elektronik'] ?? $existing->kepemilikan_kendaraan_elektronik,
+                    'kepemilikan_shml' => $data['kepemilikan_shml'] ?? $existing->kepemilikan_shml,
+                    'kepemilikan_tanah_bidang' => $data['kepemilikan_tanah_bidang'] ?? $existing->kepemilikan_tanah_bidang,
+                    'kepemilikan_tanah_sawah' => $data['kepemilikan_tanah_sawah'] ?? $existing->kepemilikan_tanah_sawah,
+                    'tanaman' => $data['tanaman'] ?? $existing->tanaman,
                 ]);
 
                 $existing->penduduk()->withTrashed()->update([
@@ -80,6 +92,18 @@ class KependudukanService
                 'rw' => $data['rw'],
                 'alamat' => $data['alamat'] ?? null,
                 'status_kesejahteraan' => $statusKesejahteraan,
+                'status_kepemilikan_rumah' => $data['status_kepemilikan_rumah'] ?? null,
+                'kondisi_rumah' => $data['kondisi_rumah'] ?? null,
+                'jenis_listrik' => $data['jenis_listrik'] ?? null,
+                'kamar_mandi' => $data['kamar_mandi'] ?? null,
+                'penghasilan_bulanan' => $data['penghasilan_bulanan'] ?? null,
+                'kepemilikan_usaha' => $data['kepemilikan_usaha'] ?? null,
+                'kepemilikan_hewan_ternak' => $data['kepemilikan_hewan_ternak'] ?? null,
+                'kepemilikan_kendaraan_elektronik' => $data['kepemilikan_kendaraan_elektronik'] ?? null,
+                'kepemilikan_shml' => $data['kepemilikan_shml'] ?? null,
+                'kepemilikan_tanah_bidang' => $data['kepemilikan_tanah_bidang'] ?? null,
+                'kepemilikan_tanah_sawah' => $data['kepemilikan_tanah_sawah'] ?? null,
+                'tanaman' => $data['tanaman'] ?? null,
             ]);
 
             if (! empty($data['anggota']) && is_array($data['anggota'])) {
@@ -126,6 +150,18 @@ class KependudukanService
                 'rw' => $data['rw'] ?? $kk->rw,
                 'alamat' => array_key_exists('alamat', $data) ? $data['alamat'] : $kk->alamat,
                 'status_kesejahteraan' => $statusKesejahteraan,
+                'status_kepemilikan_rumah' => array_key_exists('status_kepemilikan_rumah', $data) ? $data['status_kepemilikan_rumah'] : $kk->status_kepemilikan_rumah,
+                'kondisi_rumah' => array_key_exists('kondisi_rumah', $data) ? $data['kondisi_rumah'] : $kk->kondisi_rumah,
+                'jenis_listrik' => array_key_exists('jenis_listrik', $data) ? $data['jenis_listrik'] : $kk->jenis_listrik,
+                'kamar_mandi' => array_key_exists('kamar_mandi', $data) ? $data['kamar_mandi'] : $kk->kamar_mandi,
+                'penghasilan_bulanan' => array_key_exists('penghasilan_bulanan', $data) ? $data['penghasilan_bulanan'] : $kk->penghasilan_bulanan,
+                'kepemilikan_usaha' => array_key_exists('kepemilikan_usaha', $data) ? $data['kepemilikan_usaha'] : $kk->kepemilikan_usaha,
+                'kepemilikan_hewan_ternak' => array_key_exists('kepemilikan_hewan_ternak', $data) ? $data['kepemilikan_hewan_ternak'] : $kk->kepemilikan_hewan_ternak,
+                'kepemilikan_kendaraan_elektronik' => array_key_exists('kepemilikan_kendaraan_elektronik', $data) ? $data['kepemilikan_kendaraan_elektronik'] : $kk->kepemilikan_kendaraan_elektronik,
+                'kepemilikan_shml' => array_key_exists('kepemilikan_shml', $data) ? $data['kepemilikan_shml'] : $kk->kepemilikan_shml,
+                'kepemilikan_tanah_bidang' => array_key_exists('kepemilikan_tanah_bidang', $data) ? $data['kepemilikan_tanah_bidang'] : $kk->kepemilikan_tanah_bidang,
+                'kepemilikan_tanah_sawah' => array_key_exists('kepemilikan_tanah_sawah', $data) ? $data['kepemilikan_tanah_sawah'] : $kk->kepemilikan_tanah_sawah,
+                'tanaman' => array_key_exists('tanaman', $data) ? $data['tanaman'] : $kk->tanaman,
             ]);
 
             // Sinkronkan status_kesejahteraan ke seluruh anggota keluarga pada KK ini (1 KK = 1 Status Kesejahteraan)
@@ -183,11 +219,16 @@ class KependudukanService
                 'tanggal_lahir' => $data['tanggal_lahir'],
                 'jenis_kelamin' => $data['jenis_kelamin'],
                 'agama' => $data['agama'],
+                'suku' => $data['suku'] ?? null,
+                'kewarganegaraan' => ! empty($data['kewarganegaraan']) ? $data['kewarganegaraan'] : 'WNI',
                 'pendidikan' => $data['pendidikan'] ?? null,
+                'peserta_kip_pip' => $data['peserta_kip_pip'] ?? null,
+                'kelas_sekolah' => $data['kelas_sekolah'] ?? null,
                 'pekerjaan' => $data['pekerjaan'] ?? null,
                 'status_perkawinan' => $data['status_perkawinan'],
                 'hubungan_keluarga' => $data['hubungan_keluarga'],
                 'status_kesejahteraan' => $statusKesejahteraan,
+                'jenis_bpjs' => $data['jenis_bpjs'] ?? null,
                 'status_kependudukan' => $statusKependudukan,
                 'tanggal_mutasi' => $statusKependudukan === StatusKependudukan::Aktif->value
                     ? null
@@ -280,11 +321,18 @@ class KependudukanService
                 'tanggal_lahir' => $data['tanggal_lahir'] ?? $penduduk->tanggal_lahir,
                 'jenis_kelamin' => $data['jenis_kelamin'] ?? $penduduk->jenis_kelamin,
                 'agama' => $data['agama'] ?? $penduduk->agama,
+                'suku' => array_key_exists('suku', $data) ? $data['suku'] : $penduduk->suku,
+                'kewarganegaraan' => array_key_exists('kewarganegaraan', $data) && ! empty($data['kewarganegaraan'])
+                    ? $data['kewarganegaraan']
+                    : ($penduduk->kewarganegaraan ?: 'WNI'),
                 'pendidikan' => array_key_exists('pendidikan', $data) ? $data['pendidikan'] : $penduduk->pendidikan,
+                'peserta_kip_pip' => array_key_exists('peserta_kip_pip', $data) ? $data['peserta_kip_pip'] : $penduduk->peserta_kip_pip,
+                'kelas_sekolah' => array_key_exists('kelas_sekolah', $data) ? $data['kelas_sekolah'] : $penduduk->kelas_sekolah,
                 'pekerjaan' => array_key_exists('pekerjaan', $data) ? $data['pekerjaan'] : $penduduk->pekerjaan,
                 'status_perkawinan' => $data['status_perkawinan'] ?? $penduduk->status_perkawinan,
                 'hubungan_keluarga' => $data['hubungan_keluarga'] ?? $penduduk->hubungan_keluarga,
                 'status_kesejahteraan' => $statusKesejahteraan,
+                'jenis_bpjs' => array_key_exists('jenis_bpjs', $data) ? $data['jenis_bpjs'] : $penduduk->jenis_bpjs,
             ];
 
             if ($oldStatus === $newStatus) {

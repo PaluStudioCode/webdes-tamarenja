@@ -74,6 +74,30 @@ class BansosService
                 : (string) $data['status_kepesertaan'])
             : StatusPesertaBansos::Aktif->value;
 
+        if ($penduduk->kartu_keluarga_id && $statusKepesertaan === StatusPesertaBansos::Aktif->value) {
+            $duplicate = PenerimaBansos::query()
+                ->whereHas('penduduk', function (Builder $q) use ($penduduk) {
+                    $q->where('kartu_keluarga_id', $penduduk->kartu_keluarga_id)
+                        ->where('id', '!=', $penduduk->id);
+                })
+                ->where('jenis_bantuan', $jenisBantuan)
+                ->where('tahun_anggaran', $tahunAnggaran)
+                ->where('status_kepesertaan', StatusPesertaBansos::Aktif->value)
+                ->with('penduduk')
+                ->first();
+
+            if ($duplicate) {
+                $namaAnggota = $duplicate->penduduk?->nama_lengkap ?? 'Anggota keluarga lain';
+                $labelProgram = $duplicate->jenis_bantuan instanceof JenisBansos
+                    ? $duplicate->jenis_bantuan->label()
+                    : (string) $duplicate->jenis_bantuan;
+
+                throw ValidationException::withMessages([
+                    'penduduk_id' => "Bantuan ganda dalam 1 KK dilarang: Anggota keluarga lain atas nama {$namaAnggota} sudah terdaftar aktif menerima {$labelProgram} pada tahun anggaran {$tahunAnggaran}.",
+                ]);
+            }
+        }
+
         return DB::transaction(function () use (
             $penduduk,
             $jenisBantuan,
@@ -180,6 +204,33 @@ class BansosService
         $jenisBantuan = isset($data['jenis_bantuan'])
             ? ($data['jenis_bantuan'] instanceof JenisBansos ? $data['jenis_bantuan']->value : (string) $data['jenis_bantuan'])
             : ($penerimaBansos->jenis_bantuan instanceof JenisBansos ? $penerimaBansos->jenis_bantuan->value : (string) $penerimaBansos->jenis_bantuan);
+
+        $tahunAnggaran = isset($data['tahun_anggaran']) ? (int) $data['tahun_anggaran'] : (int) $penerimaBansos->tahun_anggaran;
+
+        if ($penduduk->kartu_keluarga_id && $statusKepesertaan === StatusPesertaBansos::Aktif->value) {
+            $duplicate = PenerimaBansos::query()
+                ->where('id', '!=', $penerimaBansos->id)
+                ->whereHas('penduduk', function (Builder $q) use ($penduduk) {
+                    $q->where('kartu_keluarga_id', $penduduk->kartu_keluarga_id)
+                        ->where('id', '!=', $penduduk->id);
+                })
+                ->where('jenis_bantuan', $jenisBantuan)
+                ->where('tahun_anggaran', $tahunAnggaran)
+                ->where('status_kepesertaan', StatusPesertaBansos::Aktif->value)
+                ->with('penduduk')
+                ->first();
+
+            if ($duplicate) {
+                $namaAnggota = $duplicate->penduduk?->nama_lengkap ?? 'Anggota keluarga lain';
+                $labelProgram = $duplicate->jenis_bantuan instanceof JenisBansos
+                    ? $duplicate->jenis_bantuan->label()
+                    : (string) $duplicate->jenis_bantuan;
+
+                throw ValidationException::withMessages([
+                    'penduduk_id' => "Bantuan ganda dalam 1 KK dilarang: Anggota keluarga lain atas nama {$namaAnggota} sudah terdaftar aktif menerima {$labelProgram} pada tahun anggaran {$tahunAnggaran}.",
+                ]);
+            }
+        }
 
         $penerimaBansos->update([
             'penduduk_id' => $penduduk->id,

@@ -46,6 +46,23 @@ class PendudukTemplateExport extends StringValueBinder implements FromArray, Sho
             'Hubungan Keluarga',
             'Kategori DTSEN',
             'Status Warga',
+            'Suku',
+            'Kewarganegaraan',
+            'Peserta KIP/PIP',
+            'Kelas Sekolah',
+            'Jenis BPJS',
+            'Status Kepemilikan Rumah',
+            'Kondisi Rumah',
+            'Jenis Listrik',
+            'Kamar Mandi',
+            'Penghasilan Bulanan',
+            'Kepemilikan Usaha',
+            'Kepemilikan Hewan Ternak',
+            'Kepemilikan Kendaraan/Elektronik',
+            'Kepemilikan SHML',
+            'Kepemilikan Tanah Bidang',
+            'Kepemilikan Tanah Sawah',
+            'Tanaman',
         ];
     }
 
@@ -73,6 +90,23 @@ class PendudukTemplateExport extends StringValueBinder implements FromArray, Sho
                 'Kepala Keluarga',
                 'Desil 2',
                 'Aktif',
+                'Kaili',
+                'WNI',
+                'Tidak',
+                '',
+                'Pemerintah',
+                'Milik Sendiri',
+                'Semi Permanen',
+                'PLS 450 watt',
+                'Ada',
+                'Rp 1.250.000',
+                'Warung Sembako',
+                'Ayam Kampung 15 ekor',
+                'Motor 1, TV 1, HP 1',
+                '1',
+                '2',
+                '',
+                'Kelapa 40 Pohon, Coklat 30 Pohon',
             ],
             [
                 '7203080101260001',
@@ -92,6 +126,23 @@ class PendudukTemplateExport extends StringValueBinder implements FromArray, Sho
                 'Istri',
                 'Desil 2',
                 'Aktif',
+                'Kaili',
+                'WNI',
+                'Tidak',
+                '',
+                'Pemerintah',
+                'Milik Sendiri',
+                'Semi Permanen',
+                'PLS 450 watt',
+                'Ada',
+                'Rp 1.250.000',
+                'Warung Sembako',
+                'Ayam Kampung 15 ekor',
+                'Motor 1, TV 1, HP 1',
+                '1',
+                '2',
+                '',
+                'Kelapa 40 Pohon, Coklat 30 Pohon',
             ],
         ];
     }
@@ -125,11 +176,12 @@ class PendudukTemplateExport extends StringValueBinder implements FromArray, Sho
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
                 $highestRow = max(1, $sheet->getHighestRow());
+                $highestCol = $sheet->getHighestColumn();
 
                 $sheet->getRowDimension(1)->setRowHeight(24);
                 $sheet->freezePane('A2');
 
-                $sheet->getStyle("A1:Q{$highestRow}")->applyFromArray([
+                $sheet->getStyle("A1:{$highestCol}{$highestRow}")->applyFromArray([
                     'borders' => [
                         'allBorders' => [
                             'borderStyle' => Border::BORDER_THIN,

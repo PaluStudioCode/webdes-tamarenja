@@ -81,6 +81,49 @@ class SavePenerimaBansosRequest extends FormRequest
                         'penduduk_id',
                         'Warga yang berstatus Meninggal Dunia atau Pindah Keluar tidak dapat didaftarkan sebagai penerima bantuan sosial aktif.'
                     );
+
+                    return;
+                }
+
+                // Cek larangan bantuan ganda dalam 1 KK pada program & tahun yang sama
+                if ($requestedStatus === StatusPesertaBansos::Aktif->value && $penduduk->kartu_keluarga_id) {
+                    $jenisBantuan = $this->input('jenis_bantuan');
+                    $tahunAnggaran = (int) $this->input('tahun_anggaran');
+
+                    $currentId = null;
+                    $routeBansos = $this->route('bansos');
+                    if ($routeBansos instanceof \App\Models\PenerimaBansos) {
+                        $currentId = $routeBansos->id;
+                    } elseif ($routeBansos) {
+                        $currentId = (int) $routeBansos;
+                    }
+
+                    $duplicateQuery = \App\Models\PenerimaBansos::query()
+                        ->whereHas('penduduk', function ($q) use ($penduduk) {
+                            $q->where('kartu_keluarga_id', $penduduk->kartu_keluarga_id)
+                                ->where('id', '!=', $penduduk->id);
+                        })
+                        ->where('jenis_bantuan', $jenisBantuan)
+                        ->where('tahun_anggaran', $tahunAnggaran)
+                        ->where('status_kepesertaan', StatusPesertaBansos::Aktif->value);
+
+                    if ($currentId) {
+                        $duplicateQuery->where('id', '!=', $currentId);
+                    }
+
+                    $duplicate = $duplicateQuery->with('penduduk')->first();
+
+                    if ($duplicate) {
+                        $namaAnggota = $duplicate->penduduk?->nama_lengkap ?? 'Anggota keluarga lain';
+                        $labelProgram = $duplicate->jenis_bantuan instanceof JenisBansos
+                            ? $duplicate->jenis_bantuan->label()
+                            : (string) $duplicate->jenis_bantuan;
+
+                        $validator->errors()->add(
+                            'penduduk_id',
+                            "Bantuan ganda dalam 1 KK dilarang: Anggota keluarga lain atas nama {$namaAnggota} sudah terdaftar aktif menerima {$labelProgram} pada tahun anggaran {$tahunAnggaran}."
+                        );
+                    }
                 }
             },
         ];

@@ -323,6 +323,25 @@ function getKkRowActions(row) {
 // --- Modal Form Kartu Keluarga (Tambah KK Sekaligus Anggota / Edit KK) ---
 const isKkModalOpen = ref(false);
 const editingKk = ref(null);
+const isKkAssetsOpen = ref(false);
+
+function hasKkHousingOrAssets(row) {
+    if (!row) return false;
+    return Boolean(
+        row.status_kepemilikan_rumah ||
+            row.kondisi_rumah ||
+            row.jenis_listrik ||
+            row.kamar_mandi ||
+            row.penghasilan_bulanan ||
+            row.kepemilikan_usaha ||
+            row.kepemilikan_hewan_ternak ||
+            row.kepemilikan_kendaraan_elektronik ||
+            row.kepemilikan_shml ||
+            row.kepemilikan_tanah_bidang ||
+            row.kepemilikan_tanah_sawah ||
+            row.tanaman,
+    );
+}
 
 function createEmptyKkMember(hubungan = 'kepala_keluarga') {
     return {
@@ -333,9 +352,14 @@ function createEmptyKkMember(hubungan = 'kepala_keluarga') {
         tempat_lahir: '',
         tanggal_lahir: '',
         agama: 'Islam',
+        suku: '',
+        kewarganegaraan: 'WNI',
         status_perkawinan: hubungan === 'anak' ? 'belum_kawin' : 'kawin',
         pendidikan: '',
+        peserta_kip_pip: '',
+        kelas_sekolah: '',
         pekerjaan: '',
+        jenis_bpjs: '',
     };
 }
 
@@ -346,11 +370,24 @@ const kkForm = useForm({
     rw: '001',
     alamat: '',
     status_kesejahteraan: 'non_prioritas',
+    status_kepemilikan_rumah: '',
+    kondisi_rumah: '',
+    jenis_listrik: '',
+    kamar_mandi: '',
+    penghasilan_bulanan: '',
+    kepemilikan_usaha: '',
+    kepemilikan_hewan_ternak: '',
+    kepemilikan_kendaraan_elektronik: '',
+    kepemilikan_shml: '',
+    kepemilikan_tanah_bidang: '',
+    kepemilikan_tanah_sawah: '',
+    tanaman: '',
     anggota: [createEmptyKkMember('kepala_keluarga')],
 });
 
 function openCreateKkModal() {
     editingKk.value = null;
+    isKkAssetsOpen.value = false;
     kkForm.reset();
     kkForm.clearErrors();
     kkForm.nomor_kk = '';
@@ -359,6 +396,18 @@ function openCreateKkModal() {
     kkForm.rw = '001';
     kkForm.alamat = '';
     kkForm.status_kesejahteraan = 'non_prioritas';
+    kkForm.status_kepemilikan_rumah = '';
+    kkForm.kondisi_rumah = '';
+    kkForm.jenis_listrik = '';
+    kkForm.kamar_mandi = '';
+    kkForm.penghasilan_bulanan = '';
+    kkForm.kepemilikan_usaha = '';
+    kkForm.kepemilikan_hewan_ternak = '';
+    kkForm.kepemilikan_kendaraan_elektronik = '';
+    kkForm.kepemilikan_shml = '';
+    kkForm.kepemilikan_tanah_bidang = '';
+    kkForm.kepemilikan_tanah_sawah = '';
+    kkForm.tanaman = '';
     kkForm.anggota = [createEmptyKkMember('kepala_keluarga')];
     isKkModalOpen.value = true;
 }
@@ -378,6 +427,7 @@ function removeKkMemberRow(index) {
 
 function openEditKkModal(kkRow) {
     editingKk.value = kkRow;
+    isKkAssetsOpen.value = hasKkHousingOrAssets(kkRow);
     kkForm.clearErrors();
     kkForm.nomor_kk = kkRow.nomor_kk || '';
     kkForm.dusun = kkRow.dusun || '';
@@ -385,6 +435,19 @@ function openEditKkModal(kkRow) {
     kkForm.rw = kkRow.rw || '001';
     kkForm.alamat = kkRow.alamat || '';
     kkForm.status_kesejahteraan = kkRow.status_kesejahteraan || 'non_prioritas';
+    kkForm.status_kepemilikan_rumah = kkRow.status_kepemilikan_rumah || '';
+    kkForm.kondisi_rumah = kkRow.kondisi_rumah || '';
+    kkForm.jenis_listrik = kkRow.jenis_listrik || '';
+    kkForm.kamar_mandi = kkRow.kamar_mandi || '';
+    kkForm.penghasilan_bulanan = kkRow.penghasilan_bulanan || '';
+    kkForm.kepemilikan_usaha = kkRow.kepemilikan_usaha || '';
+    kkForm.kepemilikan_hewan_ternak = kkRow.kepemilikan_hewan_ternak || '';
+    kkForm.kepemilikan_kendaraan_elektronik =
+        kkRow.kepemilikan_kendaraan_elektronik || '';
+    kkForm.kepemilikan_shml = kkRow.kepemilikan_shml || '';
+    kkForm.kepemilikan_tanah_bidang = kkRow.kepemilikan_tanah_bidang || '';
+    kkForm.kepemilikan_tanah_sawah = kkRow.kepemilikan_tanah_sawah || '';
+    kkForm.tanaman = kkRow.tanaman || '';
     kkForm.anggota = [];
     isKkModalOpen.value = true;
 }
@@ -457,10 +520,15 @@ const pendudukForm = useForm({
     tanggal_lahir: '',
     jenis_kelamin: 'L',
     agama: 'Islam',
+    suku: '',
+    kewarganegaraan: 'WNI',
     pendidikan: '',
+    peserta_kip_pip: '',
+    kelas_sekolah: '',
     pekerjaan: '',
     status_perkawinan: 'kawin',
     hubungan_keluarga: 'anak',
+    jenis_bpjs: '',
     status_kependudukan: 'aktif',
 });
 
@@ -491,6 +559,11 @@ function openCreatePendudukModal(kkRowOrId = null) {
     pendudukForm.kartu_keluarga_id = initialKkId;
     pendudukForm.jenis_kelamin = 'L';
     pendudukForm.agama = 'Islam';
+    pendudukForm.suku = '';
+    pendudukForm.kewarganegaraan = 'WNI';
+    pendudukForm.peserta_kip_pip = '';
+    pendudukForm.kelas_sekolah = '';
+    pendudukForm.jenis_bpjs = '';
     pendudukForm.status_perkawinan = 'belum_kawin';
     pendudukForm.hubungan_keluarga = kkObj?.kepala_keluarga
         ? 'anak'
@@ -510,10 +583,15 @@ function openEditPendudukModal(row) {
     pendudukForm.tanggal_lahir = row.tanggal_lahir || '';
     pendudukForm.jenis_kelamin = row.jenis_kelamin || 'L';
     pendudukForm.agama = row.agama || 'Islam';
+    pendudukForm.suku = row.suku || '';
+    pendudukForm.kewarganegaraan = row.kewarganegaraan || 'WNI';
     pendudukForm.pendidikan = row.pendidikan || '';
+    pendudukForm.peserta_kip_pip = row.peserta_kip_pip || '';
+    pendudukForm.kelas_sekolah = row.kelas_sekolah || '';
     pendudukForm.pekerjaan = row.pekerjaan || '';
     pendudukForm.status_perkawinan = row.status_perkawinan || 'kawin';
     pendudukForm.hubungan_keluarga = row.hubungan_keluarga || 'lainnya';
+    pendudukForm.jenis_bpjs = row.jenis_bpjs || '';
     pendudukForm.status_kependudukan = row.status_kependudukan || 'aktif';
     isPendudukModalOpen.value = true;
 }
@@ -1036,6 +1114,103 @@ onUnmounted(() => {
                             :data-testid="`subtable-anggota-kk-${row.id}`"
                             class="rounded-lg border border-slate-200 bg-white shadow-xs"
                         >
+                            <!-- Ringkasan Profil Hunian, Sosial-Ekonomi & Aset KK -->
+                            <div
+                                v-if="hasKkHousingOrAssets(row)"
+                                :data-testid="`kk-assets-summary-${row.id}`"
+                                class="grid grid-cols-1 gap-3 border-b border-slate-200 bg-slate-50/50 px-3.5 py-3 text-xs sm:grid-cols-2 lg:grid-cols-4"
+                            >
+                                <div class="space-y-0.5">
+                                    <p
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                                    >
+                                        Hunian &amp; Sanitasi
+                                    </p>
+                                    <p class="font-medium text-slate-800">
+                                        {{
+                                            row.status_kepemilikan_rumah ||
+                                            '-'
+                                        }}
+                                        <span
+                                            v-if="row.kondisi_rumah"
+                                            class="text-slate-500"
+                                        >
+                                            ({{ row.kondisi_rumah }})
+                                        </span>
+                                    </p>
+                                    <p class="text-slate-600">
+                                        Listrik:
+                                        {{ row.jenis_listrik || '-' }} &bull;
+                                        KM: {{ row.kamar_mandi || '-' }}
+                                    </p>
+                                </div>
+
+                                <div class="space-y-0.5">
+                                    <p
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                                    >
+                                        Ekonomi &amp; Usaha
+                                    </p>
+                                    <p class="font-medium text-slate-800">
+                                        Penghasilan:
+                                        {{ row.penghasilan_bulanan || '-' }}
+                                    </p>
+                                    <p class="text-slate-600">
+                                        Usaha:
+                                        {{
+                                            row.kepemilikan_usaha ||
+                                            'Tidak ada'
+                                        }}
+                                    </p>
+                                </div>
+
+                                <div class="space-y-0.5">
+                                    <p
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                                    >
+                                        Ternak &amp; Kendaraan
+                                    </p>
+                                    <p class="font-medium text-slate-800">
+                                        {{
+                                            row.kepemilikan_hewan_ternak || '-'
+                                        }}
+                                    </p>
+                                    <p class="text-slate-600">
+                                        {{
+                                            row.kepemilikan_kendaraan_elektronik ||
+                                            '-'
+                                        }}
+                                    </p>
+                                </div>
+
+                                <div class="space-y-0.5">
+                                    <p
+                                        class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                                    >
+                                        Lahan &amp; Tanaman
+                                    </p>
+                                    <p class="font-medium text-slate-800">
+                                        SHML: {{ row.kepemilikan_shml || '0' }}
+                                        &bull; Bidang:
+                                        {{
+                                            row.kepemilikan_tanah_bidang || '0'
+                                        }}
+                                        <span
+                                            v-if="row.kepemilikan_tanah_sawah"
+                                        >
+                                            &bull; Sawah:
+                                            {{ row.kepemilikan_tanah_sawah }}
+                                        </span>
+                                    </p>
+                                    <p
+                                        class="text-slate-600 line-clamp-2"
+                                        :title="row.tanaman || ''"
+                                    >
+                                        {{ row.tanaman || '-' }}
+                                    </p>
+                                </div>
+                            </div>
+
                             <div
                                 class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3.5 py-2"
                             >
@@ -1165,6 +1340,21 @@ onUnmounted(() => {
                                                         &bull;
                                                         {{ member.agama }}
                                                     </span>
+                                                    <span v-if="member.suku">
+                                                        &bull;
+                                                        {{ member.suku }}
+                                                    </span>
+                                                    <span
+                                                        v-if="
+                                                            member.kewarganegaraan &&
+                                                            member.kewarganegaraan !==
+                                                                'WNI'
+                                                        "
+                                                    >
+                                                        ({{
+                                                            member.kewarganegaraan
+                                                        }})
+                                                    </span>
                                                 </p>
                                             </td>
 
@@ -1197,7 +1387,46 @@ onUnmounted(() => {
                                                     {{
                                                         member.pendidikan || '-'
                                                     }}
+                                                    <span
+                                                        v-if="
+                                                            member.kelas_sekolah
+                                                        "
+                                                    >
+                                                        (Kelas
+                                                        {{
+                                                            member.kelas_sekolah
+                                                        }})
+                                                    </span>
                                                 </p>
+                                                <div
+                                                    v-if="
+                                                        (member.peserta_kip_pip &&
+                                                            member.peserta_kip_pip !==
+                                                                'Tidak') ||
+                                                        member.jenis_bpjs
+                                                    "
+                                                    class="mt-1 flex flex-wrap items-center gap-1"
+                                                >
+                                                    <span
+                                                        v-if="
+                                                            member.peserta_kip_pip &&
+                                                            member.peserta_kip_pip !==
+                                                                'Tidak'
+                                                        "
+                                                        class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700"
+                                                    >
+                                                        {{
+                                                            member.peserta_kip_pip
+                                                        }}
+                                                    </span>
+                                                    <span
+                                                        v-if="member.jenis_bpjs"
+                                                        class="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+                                                    >
+                                                        BPJS:
+                                                        {{ member.jenis_bpjs }}
+                                                    </span>
+                                                </div>
                                             </td>
 
                                             <td class="px-3.5 py-2.5">
@@ -1362,7 +1591,7 @@ onUnmounted(() => {
                     ? 'Ubah Data Kartu Keluarga'
                     : 'Tambah Kartu Keluarga Baru'
             "
-            :max-width="editingKk ? 'lg' : '4xl'"
+            :max-width="editingKk ? '2xl' : '4xl'"
             @close="closeKkModal"
         >
             <form
@@ -1520,6 +1749,243 @@ onUnmounted(() => {
                         >
                             {{ kkForm.errors.alamat }}
                         </p>
+                    </div>
+                </div>
+
+                <!-- Bagian 1B: Kondisi Hunian, Sosial-Ekonomi & Aset Keluarga (Collapsible) -->
+                <div class="rounded-lg border border-slate-200 bg-slate-50/50">
+                    <button
+                        type="button"
+                        data-testid="toggle-kk-assets-section"
+                        class="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100/70"
+                        @click="isKkAssetsOpen = !isKkAssetsOpen"
+                    >
+                        <div>
+                            <span>
+                                Kondisi Hunian, Sosial-Ekonomi &amp; Aset
+                                Keluarga
+                            </span>
+                            <span
+                                class="ml-1.5 text-xs font-normal text-slate-500"
+                            >
+                                (Opsional)
+                            </span>
+                        </div>
+                        <ChevronDown
+                            v-if="isKkAssetsOpen"
+                            class="h-4 w-4 text-slate-500"
+                        />
+                        <ChevronRight
+                            v-else
+                            class="h-4 w-4 text-slate-500"
+                        />
+                    </button>
+
+                    <div
+                        v-if="isKkAssetsOpen"
+                        data-testid="kk-assets-fields"
+                        class="grid grid-cols-1 gap-4 border-t border-slate-200 p-4 sm:grid-cols-2"
+                    >
+                        <div class="space-y-1.5">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Status Kepemilikan Rumah
+                            </label>
+                            <select
+                                v-model="kkForm.status_kepemilikan_rumah"
+                                data-testid="select-kk-status-rumah"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            >
+                                <option value="">-- Pilih Status Rumah --</option>
+                                <option value="Milik Sendiri">
+                                    Milik Sendiri
+                                </option>
+                                <option value="Menumpang">Menumpang</option>
+                                <option value="Sewa/Kontrak">
+                                    Sewa/Kontrak
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Kondisi Bangunan Rumah
+                            </label>
+                            <select
+                                v-model="kkForm.kondisi_rumah"
+                                data-testid="select-kk-kondisi-rumah"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            >
+                                <option value="">
+                                    -- Pilih Kondisi Bangunan --
+                                </option>
+                                <option value="Permanen">Permanen</option>
+                                <option value="Semi Permanen">
+                                    Semi Permanen
+                                </option>
+                                <option value="Rumah Panggung">
+                                    Rumah Panggung
+                                </option>
+                                <option value="Rumah Kayu">Rumah Kayu</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Jenis Listrik yang Digunakan
+                            </label>
+                            <input
+                                v-model="kkForm.jenis_listrik"
+                                type="text"
+                                data-testid="input-kk-jenis-listrik"
+                                placeholder="Contoh: PLS 450 watt / Manual 900 Watt / Nyalur"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            />
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Ketersediaan Kamar Mandi
+                            </label>
+                            <select
+                                v-model="kkForm.kamar_mandi"
+                                data-testid="select-kk-kamar-mandi"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            >
+                                <option value="">-- Pilih --</option>
+                                <option value="Ada">Ada</option>
+                                <option value="Tidak Ada">Tidak Ada</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Penghasilan Rata-rata / Bulan
+                            </label>
+                            <input
+                                v-model="kkForm.penghasilan_bulanan"
+                                type="text"
+                                data-testid="input-kk-penghasilan"
+                                placeholder="Contoh: Rp 1.500.000"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            />
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Kepemilikan Usaha
+                            </label>
+                            <input
+                                v-model="kkForm.kepemilikan_usaha"
+                                type="text"
+                                data-testid="input-kk-usaha"
+                                placeholder="Contoh: Warung Sembako, Jual Kue"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            />
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Kepemilikan Hewan Ternak
+                            </label>
+                            <input
+                                v-model="kkForm.kepemilikan_hewan_ternak"
+                                type="text"
+                                data-testid="input-kk-ternak"
+                                placeholder="Contoh: Sapi Milik Sendiri (2), Ayam Kampung 15 ekor"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            />
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Kepemilikan Kendaraan &amp; Elektronik
+                            </label>
+                            <input
+                                v-model="kkForm.kepemilikan_kendaraan_elektronik"
+                                type="text"
+                                data-testid="input-kk-kendaraan"
+                                placeholder="Contoh: Motor 1, TV 1, HP 2, Kulkas 1"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            />
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-3 sm:col-span-2">
+                            <div class="space-y-1.5">
+                                <label
+                                    class="block text-xs font-medium text-slate-700"
+                                >
+                                    Jumlah SHML (Sertifikat)
+                                </label>
+                                <input
+                                    v-model="kkForm.kepemilikan_shml"
+                                    type="text"
+                                    data-testid="input-kk-shml"
+                                    placeholder="Contoh: 1"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                />
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <label
+                                    class="block text-xs font-medium text-slate-700"
+                                >
+                                    Jumlah Tanah Bidang
+                                </label>
+                                <input
+                                    v-model="kkForm.kepemilikan_tanah_bidang"
+                                    type="text"
+                                    data-testid="input-kk-tanah-bidang"
+                                    placeholder="Contoh: 2"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                />
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <label
+                                    class="block text-xs font-medium text-slate-700"
+                                >
+                                    Kepemilikan Tanah Sawah
+                                </label>
+                                <input
+                                    v-model="kkForm.kepemilikan_tanah_sawah"
+                                    type="text"
+                                    data-testid="input-kk-tanah-sawah"
+                                    placeholder="Contoh: 1 Bidang"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5 sm:col-span-2">
+                            <label
+                                class="block text-xs font-medium text-slate-700"
+                            >
+                                Komoditas Tanaman Perkebunan
+                            </label>
+                            <input
+                                v-model="kkForm.tanaman"
+                                type="text"
+                                data-testid="input-kk-tanaman"
+                                placeholder="Contoh: Kelapa 50 Pohon, Salak 200 Pohon, Coklat 40 Pohon, Pisang 15 Pohon"
+                                class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -1786,7 +2252,7 @@ onUnmounted(() => {
                                     </select>
                                 </div>
 
-                                <div class="space-y-1 sm:col-span-2">
+                                <div class="space-y-1">
                                     <label
                                         class="block text-xs font-medium text-slate-700"
                                     >
@@ -1800,7 +2266,7 @@ onUnmounted(() => {
                                     />
                                 </div>
 
-                                <div class="space-y-1 sm:col-span-2">
+                                <div class="space-y-1">
                                     <label
                                         class="block text-xs font-medium text-slate-700"
                                     >
@@ -1810,6 +2276,92 @@ onUnmounted(() => {
                                         v-model="member.pekerjaan"
                                         type="text"
                                         placeholder="Contoh: Petani/Pekebun"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Suku Bangsa
+                                    </label>
+                                    <input
+                                        v-model="member.suku"
+                                        type="text"
+                                        :data-testid="`input-kk-member-suku-${idx}`"
+                                        placeholder="Contoh: Kaili / Bugis"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    />
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Kewarganegaraan
+                                    </label>
+                                    <select
+                                        v-model="member.kewarganegaraan"
+                                        :data-testid="`select-kk-member-wn-${idx}`"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    >
+                                        <option value="WNI">WNI</option>
+                                        <option value="WNA">WNA</option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Kepesertaan BPJS
+                                    </label>
+                                    <select
+                                        v-model="member.jenis_bpjs"
+                                        :data-testid="`select-kk-member-bpjs-${idx}`"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    >
+                                        <option value="">-- Pilih BPJS --</option>
+                                        <option value="Pemerintah">
+                                            Pemerintah (PBI)
+                                        </option>
+                                        <option value="Mandiri">Mandiri</option>
+                                        <option value="Tidak Ada">
+                                            Tidak Ada
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Peserta KIP / PIP
+                                    </label>
+                                    <select
+                                        v-model="member.peserta_kip_pip"
+                                        :data-testid="`select-kk-member-kip-${idx}`"
+                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                    >
+                                        <option value="">-- Tidak / Belum --</option>
+                                        <option value="Tidak">Tidak</option>
+                                        <option value="PIP">PIP</option>
+                                        <option value="KIP">KIP</option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label
+                                        class="block text-xs font-medium text-slate-700"
+                                    >
+                                        Kelas Sekolah Saat Ini (Anak Sekolah)
+                                    </label>
+                                    <input
+                                        v-model="member.kelas_sekolah"
+                                        type="text"
+                                        :data-testid="`input-kk-member-kelas-${idx}`"
+                                        placeholder="Contoh: PAUD / TK / 4 SD / 2 SMP / 1 SMA"
                                         class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
                                     />
                                 </div>
@@ -2095,6 +2647,98 @@ onUnmounted(() => {
                         v-model="pendudukForm.pekerjaan"
                         type="text"
                         placeholder="Contoh: Petani/Pekebun"
+                        class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                    />
+                </div>
+
+                <div class="space-y-1.5">
+                    <label
+                        for="input-suku"
+                        class="block text-sm font-medium text-slate-700"
+                    >
+                        Suku Bangsa
+                    </label>
+                    <input
+                        id="input-suku"
+                        v-model="pendudukForm.suku"
+                        type="text"
+                        data-testid="input-suku"
+                        placeholder="Contoh: Kaili / Bugis"
+                        class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                    />
+                </div>
+
+                <div class="space-y-1.5">
+                    <label
+                        for="select-kewarganegaraan"
+                        class="block text-sm font-medium text-slate-700"
+                    >
+                        Kewarganegaraan
+                    </label>
+                    <select
+                        id="select-kewarganegaraan"
+                        v-model="pendudukForm.kewarganegaraan"
+                        data-testid="select-kewarganegaraan"
+                        class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                    >
+                        <option value="WNI">WNI</option>
+                        <option value="WNA">WNA</option>
+                    </select>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label
+                        for="select-jenis-bpjs"
+                        class="block text-sm font-medium text-slate-700"
+                    >
+                        Kepesertaan BPJS Kesehatan
+                    </label>
+                    <select
+                        id="select-jenis-bpjs"
+                        v-model="pendudukForm.jenis_bpjs"
+                        data-testid="select-jenis-bpjs"
+                        class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                    >
+                        <option value="">-- Pilih Jenis BPJS --</option>
+                        <option value="Pemerintah">Pemerintah (PBI)</option>
+                        <option value="Mandiri">Mandiri</option>
+                        <option value="Tidak Ada">Tidak Ada</option>
+                    </select>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label
+                        for="select-peserta-kip-pip"
+                        class="block text-sm font-medium text-slate-700"
+                    >
+                        Peserta Bantuan Pendidikan (KIP/PIP)
+                    </label>
+                    <select
+                        id="select-peserta-kip-pip"
+                        v-model="pendudukForm.peserta_kip_pip"
+                        data-testid="select-peserta-kip-pip"
+                        class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                    >
+                        <option value="">-- Tidak / Belum --</option>
+                        <option value="Tidak">Tidak</option>
+                        <option value="PIP">PIP</option>
+                        <option value="KIP">KIP</option>
+                    </select>
+                </div>
+
+                <div class="space-y-1.5 sm:col-span-2">
+                    <label
+                        for="input-kelas-sekolah"
+                        class="block text-sm font-medium text-slate-700"
+                    >
+                        Kelas Sekolah Saat Ini (Khusus Anak Sekolah)
+                    </label>
+                    <input
+                        id="input-kelas-sekolah"
+                        v-model="pendudukForm.kelas_sekolah"
+                        type="text"
+                        data-testid="input-kelas-sekolah"
+                        placeholder="Contoh: PAUD / TK / 4 SD / 2 SMP / 1 SMA"
                         class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
                     />
                 </div>

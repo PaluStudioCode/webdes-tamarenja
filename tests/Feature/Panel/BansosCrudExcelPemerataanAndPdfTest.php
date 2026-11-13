@@ -395,4 +395,69 @@ class BansosCrudExcelPemerataanAndPdfTest extends TestCase
             ->get('/panel/sosial/bansos/export-excel')
             ->assertForbidden();
     }
+
+    #[Test]
+    public function menolak_bantuan_ganda_sejenis_dalam_satu_kk_pada_tahun_anggaran_yang_sama(): void
+    {
+        $kk = KartuKeluarga::factory()->create(['nomor_kk' => '7203080101990001', 'dusun' => 'Dusun I']);
+
+        $suami = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk->id,
+            'nama_lengkap' => 'Budi Suami',
+            'hubungan_keluarga' => 'kepala_keluarga',
+            'status_kependudukan' => StatusKependudukan::Aktif,
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil1,
+        ]);
+
+        $istri = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk->id,
+            'nama_lengkap' => 'Siti Istri',
+            'hubungan_keluarga' => 'istri',
+            'status_kependudukan' => StatusKependudukan::Aktif,
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil1,
+        ]);
+
+        // 1. Daftarkan suami untuk BLT-DD 2026 -> Berhasil
+        $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_id' => $suami->id,
+                'jenis_bantuan' => JenisBansos::BltDd->value,
+                'bentuk_nominal' => 'Rp 300.000 / Bulan',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        // 2. Coba daftarkan istri untuk BLT-DD 2026 (program sama, 1 KK) -> DITOLAK
+        $responseDuplicate = $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_id' => $istri->id,
+                'jenis_bantuan' => JenisBansos::BltDd->value,
+                'bentuk_nominal' => 'Rp 300.000 / Bulan',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap II',
+            ]);
+
+        $responseDuplicate->assertSessionHasErrors('penduduk_id');
+        $errorMessage = session('errors')->first('penduduk_id');
+        $this->assertStringContainsString('Bantuan ganda dalam 1 KK dilarang', $errorMessage);
+        $this->assertStringContainsString('Budi Suami', $errorMessage);
+
+        // 3. Edit data suami sendiri untuk ganti nominal -> Harus berhasil (bukan duplikasi diri sendiri)
+        $bansosSuami = PenerimaBansos::query()->where('penduduk_id', $suami->id)->firstOrFail();
+        $this->actingAs($this->operator)
+            ->put("/panel/sosial/bansos/{$bansosSuami->id}", [
+                'penduduk_id' => $suami->id,
+                'jenis_bantuan' => JenisBansos::BltDd->value,
+                'bentuk_nominal' => 'Rp 600.000 / 2 Bulan',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+                'status_kepesertaan' => StatusPesertaBansos::Aktif->value,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Rp 600.000 / 2 Bulan', $bansosSuami->fresh()->bentuk_nominal);
+    }
 }

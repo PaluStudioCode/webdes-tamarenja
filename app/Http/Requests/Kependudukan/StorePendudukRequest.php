@@ -23,6 +23,10 @@ class StorePendudukRequest extends FormRequest
             $this->merge(['nik' => $cleaned]);
         }
 
+        if (! $this->filled('kewarganegaraan')) {
+            $this->merge(['kewarganegaraan' => 'WNI']);
+        }
+
         if (! $this->filled('status_kependudukan')) {
             $this->merge(['status_kependudukan' => StatusKependudukan::Aktif->value]);
         }
@@ -69,7 +73,11 @@ class StorePendudukRequest extends FormRequest
             'tanggal_lahir' => ['required', 'date', 'before_or_equal:today'],
             'jenis_kelamin' => ['required', 'string', Rule::in(['L', 'P'])],
             'agama' => ['required', 'string', 'max:30'],
+            'suku' => ['nullable', 'string', 'max:50'],
+            'kewarganegaraan' => ['nullable', 'string', Rule::in(['WNI', 'WNA'])],
             'pendidikan' => ['nullable', 'string', 'max:50'],
+            'peserta_kip_pip' => ['nullable', 'string', 'max:50'],
+            'kelas_sekolah' => ['nullable', 'string', 'max:50'],
             'pekerjaan' => ['nullable', 'string', 'max:100'],
             'status_perkawinan' => [
                 'required',
@@ -82,6 +90,7 @@ class StorePendudukRequest extends FormRequest
                 Rule::in(['kepala_keluarga', 'istri', 'anak', 'lainnya']),
             ],
             'status_kesejahteraan' => ['nullable', Rule::enum(StatusKesejahteraan::class)],
+            'jenis_bpjs' => ['nullable', 'string', 'max:50'],
             'status_kependudukan' => ['required', Rule::enum(StatusKependudukan::class)],
             'tanggal_mutasi' => ['nullable', 'date', 'before_or_equal:today'],
             'catatan_mutasi' => ['nullable', 'string', 'max:255'],

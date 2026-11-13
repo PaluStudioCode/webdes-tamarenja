@@ -122,7 +122,7 @@ onUnmounted(() => {
 
         <!-- Dropdown Filter Satu Baris -->
         <div
-            v-if="filters.length > 0 || $slots.default"
+            v-if="filters.length > 0 || $slots.default || $slots.filters"
             class="flex flex-wrap items-center gap-2.5"
         >
             <select
@@ -146,6 +146,7 @@ onUnmounted(() => {
                 </option>
             </select>
 
+            <slot name="filters" />
             <slot />
         </div>
 

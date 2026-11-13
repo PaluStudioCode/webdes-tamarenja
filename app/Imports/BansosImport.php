@@ -120,6 +120,33 @@ class BansosImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
+            if ($cleaned['status_kepesertaan'] === StatusPesertaBansos::Aktif->value && $penduduk->kartu_keluarga_id) {
+                $duplicateKk = PenerimaBansos::query()
+                    ->whereHas('penduduk', function ($q) use ($penduduk) {
+                        $q->where('kartu_keluarga_id', $penduduk->kartu_keluarga_id)
+                            ->where('id', '!=', $penduduk->id);
+                    })
+                    ->where('jenis_bantuan', $cleaned['jenis_bantuan'])
+                    ->where('tahun_anggaran', (int) $cleaned['tahun_anggaran'])
+                    ->where('status_kepesertaan', StatusPesertaBansos::Aktif->value)
+                    ->with('penduduk')
+                    ->first();
+
+                if ($duplicateKk) {
+                    $namaAnggota = $duplicateKk->penduduk?->nama_lengkap ?? 'Anggota keluarga lain';
+                    $msg = "Bantuan ganda dalam 1 KK dilarang: Anggota keluarga lain atas nama {$namaAnggota} sudah terdaftar aktif menerima bantuan sejenis pada tahun {$cleaned['tahun_anggaran']}.";
+                    $this->failedRows[] = [
+                        'baris' => $rowNumber,
+                        'nik' => $cleaned['nik'],
+                        'nama_lengkap' => $penduduk->nama_lengkap,
+                        'errors' => [$msg],
+                        'pesan' => $msg,
+                    ];
+
+                    continue;
+                }
+            }
+
             $snapshotEkonomi = $penduduk->status_kesejahteraan instanceof StatusKesejahteraan
                 ? $penduduk->status_kesejahteraan->value
                 : (string) ($penduduk->status_kesejahteraan ?: StatusKesejahteraan::NonPrioritas->value);

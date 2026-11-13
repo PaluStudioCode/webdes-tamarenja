@@ -128,15 +128,20 @@ class SchemaFoundationTest extends TestCase
         ]));
 
         $this->assertTrue(Schema::hasColumns('kartu_keluarga', [
-            'id', 'nomor_kk', 'dusun', 'rt', 'rw', 'alamat',
+            'id', 'nomor_kk', 'dusun', 'rt', 'rw', 'alamat', 'status_kesejahteraan',
+            'status_kepemilikan_rumah', 'kondisi_rumah', 'jenis_listrik', 'kamar_mandi',
+            'penghasilan_bulanan', 'kepemilikan_usaha', 'kepemilikan_hewan_ternak',
+            'kepemilikan_kendaraan_elektronik', 'kepemilikan_shml',
+            'kepemilikan_tanah_bidang', 'kepemilikan_tanah_sawah', 'tanaman',
             'created_at', 'updated_at', 'deleted_at',
         ]));
 
         $this->assertTrue(Schema::hasColumns('penduduk', [
             'id', 'kartu_keluarga_id', 'nik', 'nama_lengkap', 'tempat_lahir',
-            'tanggal_lahir', 'jenis_kelamin', 'agama', 'pendidikan', 'pekerjaan',
+            'tanggal_lahir', 'jenis_kelamin', 'agama', 'suku', 'kewarganegaraan',
+            'pendidikan', 'peserta_kip_pip', 'kelas_sekolah', 'pekerjaan',
             'status_perkawinan', 'hubungan_keluarga', 'status_kesejahteraan',
-            'status_kependudukan', 'tanggal_mutasi', 'catatan_mutasi',
+            'jenis_bpjs', 'status_kependudukan', 'tanggal_mutasi', 'catatan_mutasi',
             'created_at', 'updated_at', 'deleted_at',
         ]));
     }

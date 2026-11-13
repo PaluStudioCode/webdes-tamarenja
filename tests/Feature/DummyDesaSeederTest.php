@@ -100,6 +100,13 @@ class DummyDesaSeederTest extends TestCase
         $this->assertGreaterThan(0, Penduduk::where('status_kependudukan', StatusKependudukan::MeninggalDunia)->count());
         $this->assertGreaterThan(0, Penduduk::where('status_kependudukan', StatusKependudukan::PindahKeluar)->count());
 
+        // Verifikasi field tambahan KK (hunian, ekonomi, aset) dan Penduduk (suku, kewarganegaraan, KIP/PIP, BPJS)
+        $this->assertGreaterThan(0, KartuKeluarga::whereNotNull('status_kepemilikan_rumah')->whereNotNull('kondisi_rumah')->count());
+        $this->assertGreaterThan(0, KartuKeluarga::whereNotNull('jenis_listrik')->whereNotNull('tanaman')->count());
+        $this->assertGreaterThan(0, Penduduk::whereNotNull('suku')->where('kewarganegaraan', 'WNI')->count());
+        $this->assertGreaterThan(0, Penduduk::whereIn('peserta_kip_pip', ['PIP', 'KIP'])->whereNotNull('kelas_sekolah')->count());
+        $this->assertGreaterThan(0, Penduduk::whereIn('jenis_bpjs', ['Pemerintah', 'Mandiri'])->count());
+
         // Verifikasi 5 kelompok usia baku terwakili pada penduduk aktif
         $aktifList = Penduduk::aktif()->get();
         $this->assertTrue($aktifList->contains(fn (Penduduk $p) => $p->tanggal_lahir->age <= 4));

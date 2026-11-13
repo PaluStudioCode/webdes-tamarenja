@@ -319,6 +319,18 @@ class KependudukanExcelImportExportTest extends TestCase
             'rw' => '001',
             'alamat' => 'Jl. Trans Sulawesi No. 99',
             'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil1,
+            'status_kepemilikan_rumah' => 'Milik Sendiri',
+            'kondisi_rumah' => 'Semi Permanen',
+            'jenis_listrik' => 'PLS 450 watt',
+            'kamar_mandi' => 'Ada',
+            'penghasilan_bulanan' => 'Rp 1.000.000',
+            'kepemilikan_usaha' => 'Warung',
+            'kepemilikan_hewan_ternak' => 'Ayam Kampung 10 ekor',
+            'kepemilikan_kendaraan_elektronik' => 'Motor 1, HP 1',
+            'kepemilikan_shml' => '1',
+            'kepemilikan_tanah_bidang' => '2',
+            'kepemilikan_tanah_sawah' => '1 Bidang',
+            'tanaman' => 'Kelapa 50 Pohon, Salak 100 Pohon',
         ]);
 
         // Buat Anak terlebih dahulu dengan nama berawalan huruf 'A'
@@ -326,6 +338,11 @@ class KependudukanExcelImportExportTest extends TestCase
             'kartu_keluarga_id' => $kk->id,
             'nik' => '7203081001100993',
             'nama_lengkap' => 'Ahmad Putra',
+            'suku' => 'Kaili',
+            'kewarganegaraan' => 'WNI',
+            'peserta_kip_pip' => 'PIP',
+            'kelas_sekolah' => '4 SD',
+            'jenis_bpjs' => 'Pemerintah',
             'hubungan_keluarga' => 'anak',
             'status_perkawinan' => 'belum_kawin',
             'tanggal_lahir' => '2010-01-10',
@@ -338,6 +355,11 @@ class KependudukanExcelImportExportTest extends TestCase
             'kartu_keluarga_id' => $kk->id,
             'nik' => '7203081001800991',
             'nama_lengkap' => 'Zulkifli Kepala',
+            'suku' => 'Kaili',
+            'kewarganegaraan' => 'WNI',
+            'peserta_kip_pip' => 'Tidak',
+            'kelas_sekolah' => null,
+            'jenis_bpjs' => 'Pemerintah',
             'hubungan_keluarga' => 'kepala_keluarga',
             'status_perkawinan' => 'kawin',
             'tanggal_lahir' => '1980-01-10',
@@ -353,6 +375,15 @@ class KependudukanExcelImportExportTest extends TestCase
         $this->assertContains('Hubungan Keluarga', $headings);
         $this->assertContains('Kategori DTSEN', $headings);
         $this->assertContains('Status Warga', $headings);
+        $this->assertContains('Suku', $headings);
+        $this->assertContains('Kewarganegaraan', $headings);
+        $this->assertContains('Peserta KIP/PIP', $headings);
+        $this->assertContains('Kelas Sekolah', $headings);
+        $this->assertContains('Jenis BPJS', $headings);
+        $this->assertContains('Status Kepemilikan Rumah', $headings);
+        $this->assertContains('Kondisi Rumah', $headings);
+        $this->assertContains('Jenis Listrik', $headings);
+        $this->assertContains('Tanaman', $headings);
 
         $collection = $export->collection()->values();
         $this->assertCount(2, $collection);
@@ -372,6 +403,15 @@ class KependudukanExcelImportExportTest extends TestCase
         $this->assertSame('Anak', $secondMapped[14]);
         $this->assertSame('Desil 1', $secondMapped[15]);
         $this->assertSame('Aktif', $secondMapped[16]);
+        $this->assertSame('Kaili', $secondMapped[17]);
+        $this->assertSame('WNI', $secondMapped[18]);
+        $this->assertSame('PIP', $secondMapped[19]);
+        $this->assertSame('4 SD', $secondMapped[20]);
+        $this->assertSame('Pemerintah', $secondMapped[21]);
+        $this->assertSame('Milik Sendiri', $secondMapped[22]);
+        $this->assertSame('Semi Permanen', $secondMapped[23]);
+        $this->assertSame('PLS 450 watt', $secondMapped[24]);
+        $this->assertSame('Kelapa 50 Pohon, Salak 100 Pohon', $secondMapped[33]);
 
         // Uji Round-Trip: Hasil Export di-import kembali ke sistem
         $roundTripFile = $this->createUploadedXlsx(

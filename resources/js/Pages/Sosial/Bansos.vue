@@ -1,20 +1,25 @@
 <script setup>
-import { computed, reactive, ref } from 'vue';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { computed, reactive, ref, watch } from 'vue';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
+    CheckCircle2,
     Download,
     FileSpreadsheet,
+    HeartHandshake,
     Pencil,
     Plus,
     Printer,
     Trash2,
+    TrendingUp,
     Upload,
-    Users,
     UserCheck,
+    Users,
+    X,
 } from 'lucide-vue-next';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import PageHeader from '@/Components/PageHeader.vue';
+import StatCard from '@/Components/StatCard.vue';
 import UnifiedFilterBar from '@/Components/UnifiedFilterBar.vue';
 import DataTable from '@/Components/DataTable.vue';
 import StatusBadge from '@/Components/StatusBadge.vue';
@@ -112,6 +117,7 @@ const selectedJenis = ref(props.filters?.jenis_bantuan || '');
 const selectedTahap = ref(props.filters?.tahap_penyaluran || '');
 const selectedStatus = ref(props.filters?.status_kepesertaan || '');
 const selectedDusun = ref(props.filters?.dusun || '');
+const selectedDesil = ref(props.filters?.status_kesejahteraan || '');
 
 const hasActiveFilters = computed(() =>
     Boolean(
@@ -119,7 +125,8 @@ const hasActiveFilters = computed(() =>
             selectedJenis.value ||
             selectedTahap.value ||
             selectedStatus.value ||
-            selectedDusun.value,
+            selectedDusun.value ||
+            selectedDesil.value,
     ),
 );
 
@@ -129,7 +136,81 @@ function resetFilters() {
     selectedTahap.value = '';
     selectedStatus.value = '';
     selectedDusun.value = '';
+    selectedDesil.value = '';
 }
+
+// Active Filter Chips (Pills)
+const activeFilterChips = computed(() => {
+    const chips = [];
+
+    if (searchQuery.value.trim()) {
+        chips.push({
+            id: 'search',
+            label: `Pencarian: "${searchQuery.value.trim()}"`,
+            clear: () => {
+                searchQuery.value = '';
+            },
+        });
+    }
+
+    if (selectedDusun.value) {
+        chips.push({
+            id: 'dusun',
+            label: `Dusun: ${selectedDusun.value}`,
+            clear: () => {
+                selectedDusun.value = '';
+            },
+        });
+    }
+
+    if (activeTab.value === 'penerima') {
+        if (selectedJenis.value) {
+            const found = props.opsi_jenis_bantuan.find(
+                (o) => o.value === selectedJenis.value,
+            );
+            chips.push({
+                id: 'jenis',
+                label: `Program: ${found?.label || selectedJenis.value}`,
+                clear: () => {
+                    selectedJenis.value = '';
+                },
+            });
+        }
+        if (selectedTahap.value) {
+            chips.push({
+                id: 'tahap',
+                label: `Tahap: ${selectedTahap.value}`,
+                clear: () => {
+                    selectedTahap.value = '';
+                },
+            });
+        }
+        if (selectedStatus.value) {
+            const found = props.opsi_status_kepesertaan.find(
+                (o) => o.value === selectedStatus.value,
+            );
+            chips.push({
+                id: 'status',
+                label: `Status: ${found?.label || selectedStatus.value}`,
+                clear: () => {
+                    selectedStatus.value = '';
+                },
+            });
+        }
+    } else {
+        if (selectedDesil.value) {
+            chips.push({
+                id: 'desil',
+                label: `Desil: ${selectedDesil.value}`,
+                clear: () => {
+                    selectedDesil.value = '';
+                },
+            });
+        }
+    }
+
+    return chips;
+});
 
 const filteredPenerima = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
@@ -182,6 +263,12 @@ const filteredPemerataanKk = computed(() => {
         if (selectedDusun.value && item.dusun !== selectedDusun.value) {
             return false;
         }
+        if (
+            selectedDesil.value &&
+            item.status_kesejahteraan !== selectedDesil.value
+        ) {
+            return false;
+        }
         return true;
     });
 });
@@ -202,6 +289,12 @@ const filteredPemerataanIndividu = computed(() => {
         if (selectedDusun.value && item.dusun !== selectedDusun.value) {
             return false;
         }
+        if (
+            selectedDesil.value &&
+            item.status_kesejahteraan !== selectedDesil.value
+        ) {
+            return false;
+        }
         return true;
     });
 });
@@ -211,7 +304,7 @@ const penerimaColumns = [
     { key: 'dusun', label: 'Wilayah Dusun' },
     { key: 'program', label: 'Program & Tahap' },
     { key: 'nominal', label: 'Bentuk / Nominal' },
-    { key: 'ekonomi', label: 'Snapshot Ekonomi DTSEN' },
+    { key: 'ekonomi', label: 'Prioritas DTSEN' },
     { key: 'status', label: 'Status' },
     { key: 'actions', label: 'Aksi', align: 'right' },
 ];
@@ -227,7 +320,7 @@ const pemerataanKkColumns = [
 const pemerataanIndividuColumns = [
     { key: 'warga', label: 'Nama Warga & NIK' },
     { key: 'kk_dusun', label: 'Nomor KK & Dusun' },
-    { key: 'desil', label: 'Kategori Ekonomi DTSEN' },
+    { key: 'desil', label: 'Prioritas DTSEN' },
     { key: 'pekerjaan', label: 'Hubungan & Pekerjaan' },
     { key: 'actions', label: 'Tindak Lanjut', align: 'right' },
 ];
@@ -277,6 +370,11 @@ const editingId = ref(null);
 const isSubmitting = ref(false);
 const initialResidentForForm = ref(null);
 const kkHistoryInfo = ref(null);
+const formErrors = ref({});
+
+const STANDARD_TAHAP = ['Tahap I', 'Tahap II', 'Tahap III', 'Tahap IV'];
+const selectedTahapOption = ref('Tahap I');
+const customTahapInput = ref('');
 
 const form = reactive({
     penduduk_id: null,
@@ -288,9 +386,64 @@ const form = reactive({
     keterangan: '',
 });
 
+// Pengecekan Bantuan Ganda dalam 1 KK (Aturan: DILARANG)
+const duplicateBansosInKk = computed(() => {
+    if (!kkHistoryInfo.value || !Array.isArray(kkHistoryInfo.value.riwayat_bansos)) {
+        return null;
+    }
+
+    const currentYear = Number(form.tahun_anggaran);
+    const currentJenis = form.jenis_bantuan;
+    const currentPendudukId = Number(form.penduduk_id);
+
+    return (
+        kkHistoryInfo.value.riwayat_bansos.find((item) => {
+            if (Number(item.penduduk_id) === currentPendudukId) {
+                return false;
+            }
+            if (Number(item.tahun_anggaran) !== currentYear) {
+                return false;
+            }
+            if (item.jenis_bantuan !== currentJenis) {
+                return false;
+            }
+            return item.status_kepesertaan === 'aktif';
+        }) || null
+    );
+});
+
+const isBlockedByDuplicate = computed(() => {
+    return Boolean(duplicateBansosInKk.value);
+});
+
+const otherActiveBansosInKk = computed(() => {
+    if (!kkHistoryInfo.value || !Array.isArray(kkHistoryInfo.value.riwayat_bansos)) {
+        return [];
+    }
+
+    const currentYear = Number(form.tahun_anggaran);
+    const currentJenis = form.jenis_bantuan;
+    const currentPendudukId = Number(form.penduduk_id);
+
+    return kkHistoryInfo.value.riwayat_bansos.filter((item) => {
+        if (Number(item.penduduk_id) === currentPendudukId) {
+            return false;
+        }
+        if (Number(item.tahun_anggaran) !== currentYear) {
+            return false;
+        }
+        if (item.jenis_bantuan === currentJenis) {
+            return false;
+        }
+        return item.status_kepesertaan === 'aktif';
+    });
+});
+
 function openCreateModal(prefillResident = null) {
     isEditing.value = false;
     editingId.value = null;
+    formErrors.value = {};
+
     form.penduduk_id = prefillResident?.id || null;
     form.jenis_bantuan = 'blt_dd';
     form.bentuk_nominal = 'Rp 300.000 / Bulan';
@@ -298,6 +451,10 @@ function openCreateModal(prefillResident = null) {
     form.tahap_penyaluran = 'Tahap I';
     form.status_kepesertaan = 'aktif';
     form.keterangan = '';
+
+    selectedTahapOption.value = 'Tahap I';
+    customTahapInput.value = '';
+
     initialResidentForForm.value = prefillResident || null;
     kkHistoryInfo.value = null;
     showFormModal.value = true;
@@ -310,6 +467,8 @@ function openCreateModal(prefillResident = null) {
 function openEditModal(item) {
     isEditing.value = true;
     editingId.value = item.id;
+    formErrors.value = {};
+
     form.penduduk_id = item.penduduk_id;
     form.jenis_bantuan = item.jenis_bantuan || 'blt_dd';
     form.bentuk_nominal = item.bentuk_nominal || '';
@@ -317,6 +476,15 @@ function openEditModal(item) {
     form.tahap_penyaluran = item.tahap_penyaluran || 'Tahap I';
     form.status_kepesertaan = item.status_kepesertaan || 'aktif';
     form.keterangan = item.keterangan || '';
+
+    if (STANDARD_TAHAP.includes(item.tahap_penyaluran)) {
+        selectedTahapOption.value = item.tahap_penyaluran;
+        customTahapInput.value = '';
+    } else {
+        selectedTahapOption.value = 'custom';
+        customTahapInput.value = item.tahap_penyaluran || '';
+    }
+
     initialResidentForForm.value = {
         id: item.penduduk_id,
         nik: item.nik,
@@ -326,6 +494,7 @@ function openEditModal(item) {
     };
     kkHistoryInfo.value = null;
     showFormModal.value = true;
+    loadKkHistory(item.penduduk_id);
 }
 
 async function loadKkHistory(pendudukId) {
@@ -343,6 +512,7 @@ async function loadKkHistory(pendudukId) {
 
 function handleSelectResident(resident) {
     form.penduduk_id = resident?.id || null;
+    formErrors.value = {};
     if (resident?.id) {
         loadKkHistory(resident.id);
     } else {
@@ -351,10 +521,17 @@ function handleSelectResident(resident) {
 }
 
 function submitBansosForm() {
-    if (isSubmitting.value) {
+    if (isSubmitting.value || isBlockedByDuplicate.value) {
         return;
     }
 
+    const finalTahap =
+        selectedTahapOption.value === 'custom'
+            ? customTahapInput.value.trim() || 'Tahap I'
+            : selectedTahapOption.value;
+
+    form.tahap_penyaluran = finalTahap;
+    formErrors.value = {};
     isSubmitting.value = true;
 
     const payload = {
@@ -362,7 +539,7 @@ function submitBansosForm() {
         jenis_bantuan: form.jenis_bantuan,
         bentuk_nominal: form.bentuk_nominal,
         tahun_anggaran: form.tahun_anggaran,
-        tahap_penyaluran: form.tahap_penyaluran,
+        tahap_penyaluran: finalTahap,
         status_kepesertaan: form.status_kepesertaan,
         keterangan: form.keterangan || null,
     };
@@ -372,6 +549,9 @@ function submitBansosForm() {
             preserveScroll: true,
             onSuccess: () => {
                 showFormModal.value = false;
+            },
+            onError: (errs) => {
+                formErrors.value = errs || {};
             },
             onFinish: () => {
                 isSubmitting.value = false;
@@ -384,6 +564,9 @@ function submitBansosForm() {
         preserveScroll: true,
         onSuccess: () => {
             showFormModal.value = false;
+        },
+        onError: (errs) => {
+            formErrors.value = errs || {};
         },
         onFinish: () => {
             isSubmitting.value = false;
@@ -449,9 +632,10 @@ function submitImportExcel() {
 
     <AppLayout>
         <div class="space-y-6">
+            <!-- Header Halaman dengan PageHeader -->
             <PageHeader
                 title="Data Sosial (Bansos) & Pemerataan Bantuan"
-                :subtitle="`Pengelolaan penyaluran bantuan sosial dan saringan keluarga prioritas DTSEN Desil 1–4 Tahun Anggaran ${tahun_anggaran}.`"
+                :description="`Pengelolaan penyaluran bantuan sosial dan saringan keluarga prioritas DTSEN Desil 1–4 Tahun Anggaran ${tahun_anggaran}.`"
             >
                 <template #actions>
                     <a
@@ -493,6 +677,38 @@ function submitImportExcel() {
                     </template>
                 </template>
             </PageHeader>
+
+            <!-- 4 StatCard Ringkasan -->
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard
+                    label="Total Penerima Bansos"
+                    :value="ringkasan?.total_penerima ?? penerima_bansos.length"
+                    :subtext="`Tercatat di TA ${tahun_anggaran}`"
+                    tone="blue"
+                    :icon="Users"
+                />
+                <StatCard
+                    label="KPM Bantuan Aktif"
+                    :value="ringkasan?.total_aktif ?? 0"
+                    subtext="Status penyaluran aktif"
+                    tone="emerald"
+                    :icon="CheckCircle2"
+                />
+                <StatCard
+                    label="Graduasi Mandiri"
+                    :value="ringkasan?.total_graduasi ?? 0"
+                    subtext="KPM telah mandiri/lulus"
+                    tone="amber"
+                    :icon="TrendingUp"
+                />
+                <StatCard
+                    label="Keluarga Belum Menerima"
+                    :value="modePemerataan === 'per_kk' ? (ringkasan?.jumlah_kk_belum_terima ?? pemerataan_kk.length) : (ringkasan?.jumlah_individu_belum_terima ?? pemerataan_individu.length)"
+                    subtext="Sasaran prioritas DTSEN"
+                    tone="neutral"
+                    :icon="HeartHandshake"
+                />
+            </div>
 
             <!-- 2 Tab Kontekstual: Daftar Penerima Bansos vs Pemerataan Bantuan -->
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-3">
@@ -578,83 +794,128 @@ function submitImportExcel() {
                 </div>
             </div>
 
-            <!-- Filter Bar -->
-            <UnifiedFilterBar
-                v-model="searchQuery"
-                search-placeholder="Cari nama warga, NIK, atau Nomor KK..."
-                :has-active-filters="hasActiveFilters"
-                @reset="resetFilters"
-            >
-                <template #filters>
-                    <select
-                        v-model="selectedDusun"
-                        aria-label="Filter Dusun"
-                        data-testid="filter-dusun-bansos"
-                        class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
-                    >
-                        <option value="">Semua Dusun</option>
-                        <option
-                            v-for="d in daftar_dusun"
-                            :key="d"
-                            :value="d"
-                        >
-                            {{ d }}
-                        </option>
-                    </select>
-
-                    <template v-if="activeTab === 'penerima'">
+            <!-- UnifiedFilterBar dengan Template #filters & Active Filter Chips -->
+            <div class="space-y-2">
+                <UnifiedFilterBar
+                    v-model="searchQuery"
+                    search-placeholder="Cari nama warga, NIK, atau Nomor KK..."
+                    :has-custom-active-filter="hasActiveFilters"
+                    @reset="resetFilters"
+                >
+                    <template #filters>
                         <select
-                            v-model="selectedJenis"
-                            aria-label="Filter Jenis Bantuan"
-                            data-testid="filter-jenis-bansos"
+                            v-model="selectedDusun"
+                            aria-label="Filter Dusun"
+                            data-testid="filter-dusun-bansos"
                             class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
                         >
-                            <option value="">Semua Program Bantuan</option>
+                            <option value="">Semua Dusun</option>
                             <option
-                                v-for="opt in opsi_jenis_bantuan"
-                                :key="opt.value"
-                                :value="opt.value"
+                                v-for="d in daftar_dusun"
+                                :key="d"
+                                :value="d"
                             >
-                                {{ opt.label }}
+                                {{ d }}
                             </option>
                         </select>
 
-                        <select
-                            v-model="selectedTahap"
-                            aria-label="Filter Tahap Penyaluran"
-                            data-testid="filter-tahap-bansos"
-                            class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
-                        >
-                            <option value="">Semua Tahap</option>
-                            <option
-                                v-for="thp in opsi_tahap"
-                                :key="thp"
-                                :value="thp"
+                        <template v-if="activeTab === 'penerima'">
+                            <select
+                                v-model="selectedJenis"
+                                aria-label="Filter Jenis Bantuan"
+                                data-testid="filter-jenis-bansos"
+                                class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
                             >
-                                {{ thp }}
-                            </option>
-                        </select>
+                                <option value="">Semua Program Bantuan</option>
+                                <option
+                                    v-for="opt in opsi_jenis_bantuan"
+                                    :key="opt.value"
+                                    :value="opt.value"
+                                >
+                                    {{ opt.label }}
+                                </option>
+                            </select>
 
-                        <select
-                            v-model="selectedStatus"
-                            aria-label="Filter Status Kepesertaan"
-                            data-testid="filter-status-bansos"
-                            class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
-                        >
-                            <option value="">Semua Status</option>
-                            <option
-                                v-for="st in opsi_status_kepesertaan"
-                                :key="st.value"
-                                :value="st.value"
+                            <select
+                                v-model="selectedTahap"
+                                aria-label="Filter Tahap Penyaluran"
+                                data-testid="filter-tahap-bansos"
+                                class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
                             >
-                                {{ st.label }}
-                            </option>
-                        </select>
+                                <option value="">Semua Tahap</option>
+                                <option
+                                    v-for="thp in opsi_tahap"
+                                    :key="thp"
+                                    :value="thp"
+                                >
+                                    {{ thp }}
+                                </option>
+                            </select>
+
+                            <select
+                                v-model="selectedStatus"
+                                aria-label="Filter Status Kepesertaan"
+                                data-testid="filter-status-bansos"
+                                class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                            >
+                                <option value="">Semua Status</option>
+                                <option
+                                    v-for="st in opsi_status_kepesertaan"
+                                    :key="st.value"
+                                    :value="st.value"
+                                >
+                                    {{ st.label }}
+                                </option>
+                            </select>
+                        </template>
+
+                        <template v-else>
+                            <select
+                                v-model="selectedDesil"
+                                aria-label="Filter Prioritas DTSEN"
+                                data-testid="filter-desil-bansos"
+                                class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                            >
+                                <option value="">Semua Prioritas DTSEN</option>
+                                <option value="dtsen_desil_1">Desil 1 (Sangat Miskin)</option>
+                                <option value="dtsen_desil_2">Desil 2 (Miskin)</option>
+                                <option value="dtsen_desil_3_4">Desil 3–4 (Hampir / Rentan Miskin)</option>
+                            </select>
+                        </template>
                     </template>
-                </template>
-            </UnifiedFilterBar>
+                </UnifiedFilterBar>
 
-            <!-- TAB 1: Daftar Penerima Bansos -->
+                <!-- Active Filter Chips (Pills) -->
+                <div
+                    v-if="activeFilterChips.length > 0"
+                    class="flex flex-wrap items-center gap-2 pt-1"
+                >
+                    <span class="text-xs font-medium text-slate-500">Filter Aktif:</span>
+                    <span
+                        v-for="chip in activeFilterChips"
+                        :key="chip.id"
+                        class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-200"
+                    >
+                        <span>{{ chip.label }}</span>
+                        <button
+                            type="button"
+                            class="rounded-full p-0.5 text-blue-600 hover:bg-blue-100 hover:text-blue-900"
+                            @click="chip.clear()"
+                        >
+                            <X class="h-3 w-3" />
+                        </button>
+                    </span>
+                    <button
+                        type="button"
+                        class="text-xs font-medium text-slate-500 hover:text-red-700 underline underline-offset-2 ml-1"
+                        @click="resetFilters"
+                    >
+                        Reset Semua
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 1: Daftar Penerima Bansos (DataTable) -->
             <div v-if="activeTab === 'penerima'" data-testid="section-daftar-penerima">
                 <DataTable
                     :columns="penerimaColumns"
@@ -742,7 +1003,7 @@ function submitImportExcel() {
                 </DataTable>
             </div>
 
-            <!-- TAB 2: Pemerataan Bantuan -->
+            <!-- TAB 2: Pemerataan Bantuan (DataTable) -->
             <div v-else data-testid="section-pemerataan-bantuan" class="space-y-4">
                 <BaseCallout
                     variant="info"
@@ -810,6 +1071,7 @@ function submitImportExcel() {
                                     openCreateModal({
                                         id: row.penduduk_id,
                                         nik: row.nik_kepala_keluarga,
+                                        nomor_kk: row.nomor_kk,
                                         nama_lengkap: row.nama_kepala_keluarga,
                                         dusun: row.dusun,
                                         status_kesejahteraan: row.status_kesejahteraan,
@@ -879,6 +1141,7 @@ function submitImportExcel() {
                                     openCreateModal({
                                         id: row.penduduk_id,
                                         nik: row.nik,
+                                        nomor_kk: row.nomor_kk,
                                         nama_lengkap: row.nama_lengkap,
                                         dusun: row.dusun,
                                         status_kesejahteraan: row.status_kesejahteraan,
@@ -895,7 +1158,7 @@ function submitImportExcel() {
             </div>
         </div>
 
-        <!-- Modal Tambah / Edit Penerima Bansos -->
+        <!-- Modal Tambah / Edit Penerima Bansos (BaseModal) -->
         <BaseModal
             :show="showFormModal"
             :title="
@@ -917,11 +1180,34 @@ function submitImportExcel() {
                     :items="residents"
                     label="Cari Warga Penerima (NIK / Nama Lengkap)"
                     required
+                    :error="formErrors.penduduk_id"
                     @select="handleSelectResident"
                 />
 
+                <!-- Ringkasan Warga & KK menggunakan BaseCallout -->
                 <BaseCallout
-                    v-if="kkHistoryInfo"
+                    v-if="isBlockedByDuplicate"
+                    variant="danger"
+                    title="DILARANG: Bantuan Ganda dalam 1 Kartu Keluarga"
+                >
+                    Anggota keluarga dalam 1 KK atas nama
+                    <strong>{{ duplicateBansosInKk?.nama_penerima }}</strong> ({{ duplicateBansosInKk?.hubungan_keluarga || 'Anggota KK' }})
+                    sudah terdaftar sebagai penerima aktif <strong>{{ duplicateBansosInKk?.jenis_bantuan_label }}</strong> pada Tahun Anggaran {{ form.tahun_anggaran }}.
+                    Sesuai kebijakan desa, bantuan ganda sejenis dalam 1 KK dilarang keras. Tombol simpan dinonaktifkan.
+                </BaseCallout>
+
+                <BaseCallout
+                    v-else-if="otherActiveBansosInKk.length > 0"
+                    variant="info"
+                    title="Catatan Bantuan Keluarga Lain"
+                >
+                    Nomor KK: <strong>{{ kkHistoryInfo?.nomor_kk }}</strong> &bull;
+                    Anggota KK lain telah menerima:
+                    <strong>{{ otherActiveBansosInKk.map(o => `${o.nama_penerima} (${o.jenis_bantuan_label})`).join(', ') }}</strong>.
+                </BaseCallout>
+
+                <BaseCallout
+                    v-else-if="kkHistoryInfo"
                     variant="info"
                     title="Ringkasan Kepesertaan Bansos 1 KK"
                 >
@@ -979,14 +1265,37 @@ function submitImportExcel() {
 
                     <div class="space-y-1.5">
                         <label class="block text-sm font-medium text-slate-700">
-                            Tahap / Periode Penyaluran <span class="text-red-600">*</span>
+                            Tahap Penyaluran <span class="text-red-600">*</span>
+                        </label>
+                        <select
+                            v-model="selectedTahapOption"
+                            data-testid="select-tahap-penyaluran"
+                            class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
+                        >
+                            <option
+                                v-for="thp in STANDARD_TAHAP"
+                                :key="thp"
+                                :value="thp"
+                            >
+                                {{ thp }}
+                            </option>
+                            <option value="custom">Lainnya... (Kustom)</option>
+                        </select>
+                    </div>
+
+                    <div
+                        v-if="selectedTahapOption === 'custom'"
+                        class="space-y-1.5 sm:col-span-2"
+                    >
+                        <label class="block text-sm font-medium text-slate-700">
+                            Nama Tahap Penyaluran Kustom <span class="text-red-600">*</span>
                         </label>
                         <input
-                            v-model="form.tahap_penyaluran"
+                            v-model="customTahapInput"
                             type="text"
                             required
                             data-testid="input-tahap-bansos"
-                            placeholder="Contoh: Tahap I / Triwulan 1"
+                            placeholder="Contoh: Bulan Ramadhan, Triwulan IV, dll."
                             class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
                         />
                     </div>
@@ -1035,6 +1344,7 @@ function submitImportExcel() {
                         variant="primary"
                         type="submit"
                         :loading="isSubmitting"
+                        :disabled="isBlockedByDuplicate || isSubmitting"
                         data-testid="btn-submit-bansos"
                     >
                         {{ isEditing ? 'Simpan Perubahan' : 'Simpan Penerima' }}
@@ -1043,7 +1353,7 @@ function submitImportExcel() {
             </form>
         </BaseModal>
 
-        <!-- Modal Import Excel Bansos -->
+        <!-- Modal Import Excel Bansos (BaseModal & FileDropzone) -->
         <BaseModal
             :show="showImportModal"
             title="Import Data Penerima Bansos dari Excel"

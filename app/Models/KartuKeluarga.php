@@ -25,6 +25,18 @@ class KartuKeluarga extends Model
         'rw',
         'alamat',
         'status_kesejahteraan',
+        'status_kepemilikan_rumah',
+        'kondisi_rumah',
+        'jenis_listrik',
+        'kamar_mandi',
+        'penghasilan_bulanan',
+        'kepemilikan_usaha',
+        'kepemilikan_hewan_ternak',
+        'kepemilikan_kendaraan_elektronik',
+        'kepemilikan_shml',
+        'kepemilikan_tanah_bidang',
+        'kepemilikan_tanah_sawah',
+        'tanaman',
     ];
 
     protected function casts(): array
