@@ -352,7 +352,7 @@ async function confirmDeleteProyek(proyekItem) {
                         <button
                             type="button"
                             :data-testid="`btn-detail-proyek-${row.id}`"
-                            class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                            class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 text-xs font-medium text-blue-700 shadow-xs transition-colors hover:bg-blue-100 hover:text-blue-800"
                             @click="openDetailModal(row)"
                         >
                             <Eye class="h-3.5 w-3.5" />
@@ -363,20 +363,21 @@ async function confirmDeleteProyek(proyekItem) {
                             <button
                                 type="button"
                                 :data-testid="`btn-edit-proyek-${row.id}`"
-                                class="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
                                 @click="openEditModal(row)"
                             >
-                                <Pencil class="mr-1 h-3.5 w-3.5" />
+                                <Pencil class="h-3.5 w-3.5" />
                                 <span>Edit</span>
                             </button>
 
                             <button
                                 type="button"
                                 :data-testid="`btn-delete-proyek-${row.id}`"
-                                class="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-red-600 hover:border-red-200 hover:bg-red-50"
+                                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 shadow-xs transition-colors hover:bg-red-50 hover:text-red-700"
                                 @click="confirmDeleteProyek(row)"
                             >
                                 <Trash2 class="h-3.5 w-3.5" />
+                                <span>Hapus</span>
                             </button>
                         </template>
                     </div>

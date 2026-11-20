@@ -51,11 +51,30 @@ class KartuKeluargaFactory extends Factory
         ]);
     }
 
-    public function desil34(): static
+    public function desil3(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil34,
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil3,
         ]);
+    }
+
+    public function desil4(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil4,
+        ]);
+    }
+
+    public function desil5(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil5,
+        ]);
+    }
+
+    public function desil34(): static
+    {
+        return $this->desil3();
     }
 
     public function nonPrioritas(): static

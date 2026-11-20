@@ -50,6 +50,7 @@ class PenerimaBansosController extends Controller
         }
 
         $search = trim((string) $request->input('search', ''));
+        $kategoriFilter = trim((string) $request->input('kategori_bantuan', ''));
         $jenisFilter = trim((string) $request->input('jenis_bantuan', ''));
         $tahapFilter = trim((string) $request->input('tahap_penyaluran', ''));
         $statusFilter = trim((string) $request->input('status_kepesertaan', ''));
@@ -59,8 +60,16 @@ class PenerimaBansosController extends Controller
 
         $query = PenerimaBansos::query()
             ->with(['penduduk.kartuKeluarga'])
-            ->where('tahun_anggaran', $tahunAnggaran)
+            ->orderByDesc('tahun_anggaran')
             ->orderByDesc('id');
+
+        if ($request->filled('tahun_anggaran')) {
+            $query->where('tahun_anggaran', (int) $request->input('tahun_anggaran'));
+        }
+
+        if ($kategoriFilter !== '') {
+            $query->where('kategori_bantuan', $kategoriFilter);
+        }
 
         if ($jenisFilter !== '') {
             $query->where('jenis_bantuan', $jenisFilter);
@@ -79,10 +88,13 @@ class PenerimaBansosController extends Controller
         }
 
         if ($search !== '') {
-            $query->whereHas('penduduk', function (Builder $pq) use ($search) {
-                $pq->where('nik', 'like', "%{$search}%")
-                    ->orWhere('nama_lengkap', 'like', "%{$search}%")
-                    ->orWhereHas('kartuKeluarga', fn (Builder $kkQ) => $kkQ->where('nomor_kk', 'like', "%{$search}%"));
+            $query->where(function (Builder $sub) use ($search) {
+                $sub->where('nama_kelompok', 'like', "%{$search}%")
+                    ->orWhereHas('penduduk', function (Builder $pq) use ($search) {
+                        $pq->where('nik', 'like', "%{$search}%")
+                            ->orWhere('nama_lengkap', 'like', "%{$search}%")
+                            ->orWhereHas('kartuKeluarga', fn (Builder $kkQ) => $kkQ->where('nomor_kk', 'like', "%{$search}%"));
+                    });
             });
         }
 
@@ -98,7 +110,6 @@ class PenerimaBansosController extends Controller
         $pemerataanIndividu = $this->bansosService->getPemerataanPerIndividu($tahunAnggaran, $pemerataanFilters);
 
         $opsiTahap = PenerimaBansos::query()
-            ->where('tahun_anggaran', $tahunAnggaran)
             ->select('tahap_penyaluran')
             ->distinct()
             ->orderBy('tahap_penyaluran')
@@ -110,6 +121,19 @@ class PenerimaBansosController extends Controller
             $opsiTahap = ['Tahap I', 'Tahap II', 'Tahap III', 'Tahap IV'];
         }
 
+        $dbTahun = PenerimaBansos::query()
+            ->select('tahun_anggaran')
+            ->distinct()
+            ->pluck('tahun_anggaran')
+            ->map(fn ($t) => (int) $t)
+            ->all();
+
+        $opsiTahun = collect([$tahunAnggaran - 1, $tahunAnggaran, $tahunAnggaran + 1, ...$dbTahun])
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
+
         return Inertia::render('Sosial/Bansos', [
             'tahun_anggaran' => $tahunAnggaran,
             'penerima_bansos' => $penerimaList,
@@ -118,6 +142,9 @@ class PenerimaBansosController extends Controller
             'mode_pemerataan' => $modePemerataan,
             'ringkasan' => [
                 'total_penerima' => $penerimaList->count(),
+                'total_per_kk' => $penerimaList->where('kategori_bantuan', 'per_kk')->count(),
+                'total_perorangan' => $penerimaList->where('kategori_bantuan', 'perorangan')->count(),
+                'total_kelompok' => $penerimaList->where('kategori_bantuan', 'kelompok')->count(),
                 'total_aktif' => $penerimaList->where('status_kepesertaan', StatusPesertaBansos::Aktif->value)->count(),
                 'total_graduasi' => $penerimaList->where('status_kepesertaan', StatusPesertaBansos::Graduasi->value)->count(),
                 'jumlah_kk_belum_terima' => $pemerataanKk->count(),
@@ -125,6 +152,7 @@ class PenerimaBansosController extends Controller
             ],
             'filters' => [
                 'search' => $search,
+                'kategori_bantuan' => $kategoriFilter,
                 'jenis_bantuan' => $jenisFilter,
                 'tahap_penyaluran' => $tahapFilter,
                 'status_kepesertaan' => $statusFilter,
@@ -136,28 +164,52 @@ class PenerimaBansosController extends Controller
             'opsi_jenis_bantuan' => collect(JenisBansos::cases())->map(fn (JenisBansos $c) => [
                 'value' => $c->value,
                 'label' => $c->label(),
+                'kategori' => $c->kategori(),
+                'kategori_label' => $c->kategoriLabel(),
+                'default_nominal' => $c->defaultNominal(),
             ])->values()->all(),
             'opsi_status_kepesertaan' => collect(StatusPesertaBansos::cases())->map(fn (StatusPesertaBansos $c) => [
                 'value' => $c->value,
                 'label' => $c->label(),
             ])->values()->all(),
             'opsi_tahap' => $opsiTahap,
+            'opsi_tahun' => $opsiTahun,
         ]);
     }
 
     /**
-     * Tambah atau pulihkan penerima Bansos baru dengan snapshot `kategori_ekonomi`.
+     * Tambah atau pulihkan penerima Bansos baru (mendukung input banyak penerima sekaligus) dengan snapshot `kategori_ekonomi`.
      */
     public function store(SavePenerimaBansosRequest $request): RedirectResponse
     {
-        $result = $this->bansosService->storeOrRestore(
-            $request->validated(),
-            $request->user()?->id
-        );
+        $validated = $request->validated();
+        $pendudukIds = $validated['penduduk_ids'] ?? [(int) $validated['penduduk_id']];
+        $userId = $request->user()?->id;
 
-        $msg = $result['restored']
-            ? 'Data penerima bantuan lama berhasil dipulihkan dan diperbarui.'
-            : 'Data penerima bantuan sosial baru berhasil ditambahkan.';
+        $count = 0;
+        $anyRestored = false;
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($pendudukIds, $validated, $userId, &$count, &$anyRestored) {
+            foreach ($pendudukIds as $pid) {
+                $rowPayload = [
+                    ...$validated,
+                    'penduduk_id' => (int) $pid,
+                ];
+                $result = $this->bansosService->storeOrRestore($rowPayload, $userId);
+                $count++;
+                if ($result['restored']) {
+                    $anyRestored = true;
+                }
+            }
+        });
+
+        if ($count > 1) {
+            $msg = sprintf('Berhasil menambahkan %d data penerima bantuan sosial baru.', $count);
+        } else {
+            $msg = $anyRestored
+                ? 'Data penerima bantuan lama berhasil dipulihkan dan diperbarui.'
+                : 'Data penerima bantuan sosial baru berhasil ditambahkan.';
+        }
 
         return back()->with('notification', [
             'type' => 'success',
@@ -224,6 +276,7 @@ class PenerimaBansosController extends Controller
 
         $filters = [
             'tahun_anggaran' => $tahun,
+            'kategori_bantuan' => $request->input('kategori_bantuan', ''),
             'jenis_bantuan' => $request->input('jenis_bantuan', ''),
             'tahap_penyaluran' => $request->input('tahap_penyaluran', ''),
             'status_kepesertaan' => $request->input('status_kepesertaan', ''),
@@ -323,6 +376,7 @@ class PenerimaBansosController extends Controller
         $tahun = (int) ($request->input('tahun')
             ?? ($request->hasSession() ? $request->session()->get('filter_tahun', $defaultTahun) : $defaultTahun));
 
+        $kategori = trim((string) $request->input('kategori_bantuan', ''));
         $jenis = trim((string) $request->input('jenis_bantuan', ''));
         $tahap = trim((string) $request->input('tahap_penyaluran', ''));
         $status = trim((string) $request->input('status_kepesertaan', ''));
@@ -331,6 +385,10 @@ class PenerimaBansosController extends Controller
         $query = PenerimaBansos::query()
             ->with(['penduduk.kartuKeluarga'])
             ->where('tahun_anggaran', $tahun);
+
+        if ($kategori !== '') {
+            $query->where('kategori_bantuan', $kategori);
+        }
 
         if ($jenis !== '') {
             $query->where('jenis_bantuan', $jenis);
@@ -353,10 +411,37 @@ class PenerimaBansosController extends Controller
 
         $bansosList = $query->orderBy('jenis_bantuan')->orderBy('id')->get();
 
+        $filterLabelKategori = match ($kategori) {
+            'per_kk' => 'Bantuan Sosial Per KK',
+            'perorangan' => 'Bantuan Sosial Perorangan',
+            'kelompok' => 'Bantuan Kelompok Masyarakat',
+            default => null,
+        };
+
         $filterLabelJenis = null;
         if ($jenis !== '') {
             $enumJenis = JenisBansos::tryFrom($jenis);
             $filterLabelJenis = $enumJenis ? $enumJenis->label() : $jenis;
+            if (! $filterLabelKategori && $enumJenis) {
+                $filterLabelKategori = $enumJenis->kategoriLabel();
+            }
+        } elseif ($bansosList->isNotEmpty()) {
+            $uniqueJenis = $bansosList->map(fn (PenerimaBansos $r) => $r->jenis_bantuan instanceof JenisBansos ? $r->jenis_bantuan->value : (string) $r->jenis_bantuan)->unique();
+            if ($uniqueJenis->count() === 1) {
+                $enumJenis = JenisBansos::tryFrom((string) $uniqueJenis->first());
+                $filterLabelJenis = $enumJenis ? $enumJenis->label() : (string) $uniqueJenis->first();
+                if (! $filterLabelKategori && $enumJenis) {
+                    $filterLabelKategori = $enumJenis->kategoriLabel();
+                }
+            }
+        }
+
+        $resolvedTahap = $tahap !== '' ? $tahap : null;
+        if (! $resolvedTahap && $bansosList->isNotEmpty()) {
+            $uniqueTahap = $bansosList->pluck('tahap_penyaluran')->filter()->unique();
+            if ($uniqueTahap->count() === 1) {
+                $resolvedTahap = (string) $uniqueTahap->first();
+            }
         }
 
         $logoBase64 = $this->resolveLogoBase64($profilDesa);
@@ -367,8 +452,10 @@ class PenerimaBansosController extends Controller
             'bansosList' => $bansosList,
             'profilDesa' => $profilDesa,
             'logoBase64' => $logoBase64,
+            'filterLabelKategori' => $filterLabelKategori,
             'filterLabelJenis' => $filterLabelJenis,
-            'filterTahap' => $tahap !== '' ? $tahap : null,
+            'filterTahap' => $resolvedTahap,
+            'filterDusun' => $dusun !== '' ? $dusun : null,
         ], 'landscape');
 
         return $pdf->download($filename);
@@ -382,12 +469,14 @@ class PenerimaBansosController extends Controller
         $penduduk = $b->penduduk;
         $kk = $penduduk?->kartuKeluarga;
 
-        $jenisVal = $b->jenis_bantuan instanceof JenisBansos
-            ? $b->jenis_bantuan->value
-            : (string) $b->jenis_bantuan;
-        $jenisLabel = $b->jenis_bantuan instanceof JenisBansos
-            ? $b->jenis_bantuan->label()
-            : $jenisVal;
+        $enumJenis = $b->jenis_bantuan instanceof JenisBansos
+            ? $b->jenis_bantuan
+            : JenisBansos::tryFrom((string) $b->jenis_bantuan);
+
+        $jenisVal = $enumJenis ? $enumJenis->value : (string) $b->jenis_bantuan;
+        $jenisLabel = $enumJenis ? $enumJenis->label() : $jenisVal;
+        $kategoriVal = $enumJenis ? $enumJenis->kategori() : ($b->kategori_bantuan ?: 'per_kk');
+        $kategoriLabel = $enumJenis ? $enumJenis->kategoriLabel() : 'Bantuan Sosial Per KK';
 
         $ekonomiVal = $b->kategori_ekonomi instanceof StatusKesejahteraan
             ? $b->kategori_ekonomi->value
@@ -412,6 +501,9 @@ class PenerimaBansosController extends Controller
             'dusun' => $kk?->dusun,
             'rt' => $kk?->rt,
             'rw' => $kk?->rw,
+            'kategori_bantuan' => $kategoriVal,
+            'kategori_bantuan_label' => $kategoriLabel,
+            'nama_kelompok' => $b->nama_kelompok,
             'jenis_bantuan' => $jenisVal,
             'jenis_bantuan_label' => $jenisLabel,
             'bentuk_nominal' => $b->bentuk_nominal,

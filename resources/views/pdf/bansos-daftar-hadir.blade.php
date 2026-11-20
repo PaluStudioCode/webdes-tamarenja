@@ -153,11 +153,17 @@
         <h3>DAFTAR HADIR &amp; TANDA TERIMA PENYALURAN BANTUAN SOSIAL (BANSOS)</h3>
         <p>
             TAHUN ANGGARAN {{ $tahun }}
+            @if(!empty($filterLabelKategori))
+                &bull; KATEGORI: {{ strtoupper($filterLabelKategori) }}
+            @endif
             @if(!empty($filterLabelJenis))
                 &bull; PROGRAM: {{ strtoupper($filterLabelJenis) }}
             @endif
             @if(!empty($filterTahap))
                 &bull; PERIODE: {{ strtoupper($filterTahap) }}
+            @endif
+            @if(!empty($filterDusun))
+                &bull; DUSUN: {{ strtoupper($filterDusun) }}
             @endif
         </p>
     </div>
@@ -166,13 +172,12 @@
         <thead>
             <tr>
                 <th style="width: 4%;">No</th>
-                <th style="width: 13%;">NIK Penerima</th>
-                <th style="width: 13%;">Nomor KK</th>
-                <th style="width: 18%;">Nama Lengkap Warga</th>
-                <th style="width: 11%;">Dusun / RT-RW</th>
-                <th style="width: 14%;">Program &amp; Tahap</th>
-                <th style="width: 13%;">Bentuk / Nominal Bantuan</th>
-                <th style="width: 14%;">Tanda Tangan / Cap Jempol Warga</th>
+                <th style="width: 15%;">NIK Penerima</th>
+                <th style="width: 15%;">Nomor KK</th>
+                <th style="width: 24%;">Nama Lengkap Penerima</th>
+                <th style="width: 13%;">Dusun / RT-RW</th>
+                <th style="width: 14%;">Bentuk / Nominal Bantuan</th>
+                <th style="width: 15%;">Tanda Tangan</th>
             </tr>
         </thead>
         <tbody>
@@ -181,33 +186,29 @@
                     $nomor = $index + 1;
                     $penduduk = $row->penduduk;
                     $kk = $penduduk?->kartuKeluarga;
-                    $jenisLabel = $row->jenis_bantuan instanceof \App\Enums\JenisBansos
-                        ? $row->jenis_bantuan->label()
-                        : strtoupper((string) $row->jenis_bantuan);
                 @endphp
                 <tr>
                     <td class="text-center">{{ $nomor }}</td>
                     <td class="text-center">{{ $penduduk?->nik ?? '-' }}</td>
                     <td class="text-center">{{ $kk?->nomor_kk ?? '-' }}</td>
-                    <td><strong>{{ $penduduk?->nama_lengkap ?? '-' }}</strong></td>
+                    <td>
+                        <strong>{{ $penduduk?->nama_lengkap ?? '-' }}</strong>
+                        @if(!empty($row->nama_kelompok))
+                            <br><small>Kelompok/Usaha: <strong>{{ $row->nama_kelompok }}</strong></small>
+                        @endif
+                    </td>
                     <td class="text-center">
                         {{ $kk?->dusun ?? '-' }}
                         @if($kk?->rt || $kk?->rw)
                             <br><small>RT {{ $kk?->rt ?? '001' }}/RW {{ $kk?->rw ?? '001' }}</small>
                         @endif
                     </td>
-                    <td>
-                        {{ $jenisLabel }}<br>
-                        <small>{{ $row->tahap_penyaluran }}</small>
-                    </td>
                     <td><strong>{{ $row->bentuk_nominal }}</strong></td>
-                    <td class="ttd-cell" style="text-align: {{ $nomor % 2 === 1 ? 'left' : 'center' }};">
-                        {{ $nomor }}. ....................
-                    </td>
+                    <td class="ttd-cell"></td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="text-center" style="padding: 16px;">
+                    <td colspan="7" class="text-center" style="padding: 16px;">
                         Tidak terdapat data penerima bantuan sosial pada kriteria tahun/program ini.
                     </td>
                 </tr>

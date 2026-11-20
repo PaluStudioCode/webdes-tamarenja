@@ -1,16 +1,20 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     AlertTriangle,
     ChevronDown,
     ChevronRight,
     Download,
+    Eye,
     FileSpreadsheet,
+    Loader2,
     MoreHorizontal,
     Pencil,
     Plus,
     RefreshCw,
+    Search,
     Trash2,
     Upload,
     UserPlus,
@@ -66,66 +70,278 @@ const confirm = useConfirm();
 
 const isOperator = computed(() => page.props?.auth?.user?.role === 'operator');
 
-// --- State Filter & Expandable Baris KK ---
+// --- State Filter & Modal Detail KK ---
 const searchQuery = ref(props.filters?.search || '');
 const selectedDusun = ref(props.filters?.dusun || '');
-const selectedStatusKependudukan = ref(props.filters?.status_kependudukan || '');
 const selectedStatusKesejahteraan = ref(
     props.filters?.status_kesejahteraan || '',
 );
 
-const expandedKkIds = ref(new Set());
-const collapsedByUserIds = ref(new Set());
+const isDetailKkModalOpen = ref(false);
+const detailKkSnapshot = ref(null);
+const highlightedMemberId = ref(null);
 
-const hasActiveMemberFilter = computed(
-    () =>
-        Boolean(searchQuery.value && searchQuery.value.trim() !== '') ||
-        Boolean(selectedStatusKependudukan.value),
-);
+const activeDetailKk = computed(() => {
+    if (!detailKkSnapshot.value) return null;
+    const rows = Array.isArray(props.kartu_keluarga?.data)
+        ? props.kartu_keluarga.data
+        : [];
+    const fresh = rows.find((r) => r.id === detailKkSnapshot.value.id);
+    return fresh || detailKkSnapshot.value;
+});
 
-function isKkExpanded(row) {
-    if (!row?.id) return false;
-    if (expandedKkIds.value.has(row.id)) {
-        return true;
-    }
-    if (
-        hasActiveMemberFilter.value &&
-        !collapsedByUserIds.value.has(row.id)
-    ) {
-        return true;
-    }
-    return false;
+function openDetailKkModal(row, focusMemberId = null) {
+    if (!row) return;
+    highlightedMemberId.value = focusMemberId;
+    detailKkSnapshot.value = row;
+    isDetailKkModalOpen.value = true;
 }
 
-function toggleExpandKk(row) {
-    if (!row?.id) return;
-    const nextExpanded = new Set(expandedKkIds.value);
-    const nextCollapsed = new Set(collapsedByUserIds.value);
+function closeDetailKkModal() {
+    isDetailKkModalOpen.value = false;
+    highlightedMemberId.value = null;
+}
 
-    if (isKkExpanded(row)) {
-        nextExpanded.delete(row.id);
-        nextCollapsed.add(row.id);
-    } else {
-        nextExpanded.add(row.id);
-        nextCollapsed.delete(row.id);
+// --- State & Logika Pencarian Per Individu (Realtime + Filter Options) ---
+const isSearchIndividuModalOpen = ref(false);
+const individuSearchQuery = ref('');
+const individuFilterDusun = ref('');
+const individuFilterStatus = ref('');
+const individuFilterJk = ref('');
+const individuFilterDtsen = ref('');
+const individuFilterHubungan = ref('');
+const individuSearchResults = ref([]);
+const isSearchingIndividu = ref(false);
+let individuSearchTimer = null;
+
+const hasActiveIndividuFilter = computed(() =>
+    Boolean(
+        individuFilterDusun.value ||
+            individuFilterStatus.value ||
+            individuFilterJk.value ||
+            individuFilterDtsen.value ||
+            individuFilterHubungan.value,
+    ),
+);
+
+const canRunIndividuSearch = computed(
+    () =>
+        individuSearchQuery.value.trim().length >= 2 ||
+        hasActiveIndividuFilter.value,
+);
+
+function collectLocalMatchingMembers(rawQuery = individuSearchQuery.value) {
+    const qLower = String(rawQuery || '')
+        .trim()
+        .toLowerCase();
+    const filterDusun = individuFilterDusun.value;
+    const filterStatus = individuFilterStatus.value;
+    const filterJk = individuFilterJk.value;
+    const filterDtsen = individuFilterDtsen.value;
+    const filterHubungan = individuFilterHubungan.value;
+
+    if (qLower.length < 2 && !hasActiveIndividuFilter.value) {
+        return [];
     }
 
-    expandedKkIds.value = nextExpanded;
-    collapsedByUserIds.value = nextCollapsed;
+    const kkRows = Array.isArray(props.kartu_keluarga?.data)
+        ? props.kartu_keluarga.data
+        : [];
+    const matched = [];
+    for (const kk of kkRows) {
+        for (const m of kk.anggota || []) {
+            const memberDusun = m.dusun || kk.dusun || '';
+            const memberStatus = m.status_kependudukan || 'aktif';
+            const memberJk = m.jenis_kelamin || '';
+            const memberDtsen =
+                m.status_kesejahteraan ||
+                kk.status_kesejahteraan ||
+                'non_prioritas';
+            const memberHubungan = m.hubungan_keluarga || '';
+
+            if (filterDusun && memberDusun !== filterDusun) continue;
+            if (filterStatus && memberStatus !== filterStatus) continue;
+            if (filterJk && memberJk !== filterJk) continue;
+            if (filterDtsen && memberDtsen !== filterDtsen) continue;
+            if (filterHubungan && memberHubungan !== filterHubungan) continue;
+
+            if (qLower !== '') {
+                const matchName = (m.nama_lengkap || '')
+                    .toLowerCase()
+                    .includes(qLower);
+                const matchNik = String(m.nik || '')
+                    .toLowerCase()
+                    .includes(qLower);
+                const matchKk = String(kk.nomor_kk || '')
+                    .toLowerCase()
+                    .includes(qLower);
+                if (!matchName && !matchNik && !matchKk) continue;
+            }
+
+            matched.push({
+                ...m,
+                nomor_kk: m.nomor_kk || kk.nomor_kk,
+                dusun: memberDusun,
+                rt: m.rt || kk.rt,
+                rw: m.rw || kk.rw,
+                alamat: m.alamat || kk.alamat,
+                status_kesejahteraan: memberDtsen,
+                kartu_keluarga: kk,
+            });
+        }
+    }
+    return matched;
+}
+
+async function runIndividuSearch(rawQuery = individuSearchQuery.value) {
+    const trimmed = String(rawQuery || '').trim();
+    if (trimmed.length < 2 && !hasActiveIndividuFilter.value) {
+        individuSearchResults.value = [];
+        isSearchingIndividu.value = false;
+        return;
+    }
+
+    const localMatches = collectLocalMatchingMembers(trimmed);
+    individuSearchResults.value = localMatches;
+    isSearchingIndividu.value = true;
+
+    try {
+        const params = {
+            all_status: 1,
+        };
+        if (trimmed !== '') params.q = trimmed;
+        if (individuFilterDusun.value) params.dusun = individuFilterDusun.value;
+        if (individuFilterStatus.value)
+            params.status_kependudukan = individuFilterStatus.value;
+        if (individuFilterJk.value)
+            params.jenis_kelamin = individuFilterJk.value;
+        if (individuFilterDtsen.value)
+            params.status_kesejahteraan = individuFilterDtsen.value;
+        if (individuFilterHubungan.value)
+            params.hubungan_keluarga = individuFilterHubungan.value;
+
+        const response = await axios.get(
+            resolveRoute(
+                'panel.kependudukan.cari-nik',
+                undefined,
+                '/panel/kependudukan/cari-nik',
+            ),
+            { params },
+        );
+        const remoteData = Array.isArray(response?.data?.data)
+            ? response.data.data
+            : [];
+        if (remoteData.length > 0) {
+            individuSearchResults.value = remoteData;
+        }
+    } catch {
+        // Tetap gunakan hasil pencocokan lokal apabila request gagal
+    } finally {
+        isSearchingIndividu.value = false;
+    }
+}
+
+function scheduleIndividuSearch(rawQuery = individuSearchQuery.value) {
+    if (individuSearchTimer) {
+        clearTimeout(individuSearchTimer);
+    }
+
+    const trimmed = String(rawQuery || '').trim();
+    if (trimmed.length < 2 && !hasActiveIndividuFilter.value) {
+        individuSearchResults.value = [];
+        isSearchingIndividu.value = false;
+        return;
+    }
+
+    individuSearchResults.value = collectLocalMatchingMembers(trimmed);
+
+    individuSearchTimer = setTimeout(() => {
+        runIndividuSearch(trimmed);
+    }, 250);
+}
+
+function handleIndividuSearchInput(event) {
+    const val = event.target.value;
+    individuSearchQuery.value = val;
+    scheduleIndividuSearch(val);
+}
+
+function handleIndividuFilterChange() {
+    scheduleIndividuSearch(individuSearchQuery.value);
+}
+
+function resetIndividuSearchFilters() {
+    individuSearchQuery.value = '';
+    individuFilterDusun.value = '';
+    individuFilterStatus.value = '';
+    individuFilterJk.value = '';
+    individuFilterDtsen.value = '';
+    individuFilterHubungan.value = '';
+    individuSearchResults.value = [];
+    isSearchingIndividu.value = false;
+    if (individuSearchTimer) {
+        clearTimeout(individuSearchTimer);
+        individuSearchTimer = null;
+    }
+}
+
+function openSearchIndividuModal() {
+    resetIndividuSearchFilters();
+    isSearchIndividuModalOpen.value = true;
+}
+
+function closeSearchIndividuModal() {
+    if (individuSearchTimer) {
+        clearTimeout(individuSearchTimer);
+        individuSearchTimer = null;
+    }
+    isSearchIndividuModalOpen.value = false;
+}
+
+async function handleShowKkFromIndividu(person) {
+    if (!person) return;
+    const memberId = person.id || null;
+    closeSearchIndividuModal();
+
+    const kkRows = Array.isArray(props.kartu_keluarga?.data)
+        ? props.kartu_keluarga.data
+        : [];
+    const targetKkId = person.kartu_keluarga_id || person.kartu_keluarga?.id;
+    const existingKk = kkRows.find(
+        (r) =>
+            (targetKkId && r.id === targetKkId) ||
+            (person.nomor_kk && r.nomor_kk === person.nomor_kk),
+    );
+
+    if (existingKk) {
+        openDetailKkModal(existingKk, memberId);
+        return;
+    }
+
+    if (
+        person.kartu_keluarga &&
+        Array.isArray(person.kartu_keluarga.anggota)
+    ) {
+        openDetailKkModal(person.kartu_keluarga, memberId);
+        return;
+    }
+
+    if (targetKkId) {
+        try {
+            const res = await axios.get(`/panel/kependudukan/kk/${targetKkId}`);
+            if (res?.data?.data) {
+                openDetailKkModal(res.data.data, memberId);
+            }
+        } catch {
+            // Abaikan apabila gagal memuat detail KK
+        }
+    }
 }
 
 function isMemberMatchingFilter(member) {
-    const q = (searchQuery.value || '').trim().toLowerCase();
-    const statusFilter = selectedStatusKependudukan.value || '';
-
-    const matchSearch =
-        q !== '' &&
-        ((member.nama_lengkap || '').toLowerCase().includes(q) ||
-            (member.nik || '').toLowerCase().includes(q));
-    const matchStatus =
-        statusFilter !== '' && member.status_kependudukan === statusFilter;
-
-    return matchSearch || matchStatus;
+    return Boolean(
+        highlightedMemberId.value && member?.id === highlightedMemberId.value,
+    );
 }
 
 const filterBarConfig = computed(() => [
@@ -140,17 +356,6 @@ const filterBarConfig = computed(() => [
         })),
     },
     {
-        key: 'status_kependudukan',
-        label: 'Status Warga',
-        allLabel: 'Semua Status Warga',
-        value: selectedStatusKependudukan.value,
-        options: [
-            { value: 'aktif', label: 'Aktif' },
-            { value: 'pindah_keluar', label: 'Pindah Keluar' },
-            { value: 'meninggal_dunia', label: 'Meninggal Dunia' },
-        ],
-    },
-    {
         key: 'status_kesejahteraan',
         label: 'Kategori DTSEN',
         allLabel: 'Semua Desil DTSEN',
@@ -158,8 +363,10 @@ const filterBarConfig = computed(() => [
         options: [
             { value: 'dtsen_desil_1', label: 'Desil 1' },
             { value: 'dtsen_desil_2', label: 'Desil 2' },
-            { value: 'dtsen_desil_3_4', label: 'Desil 3–4' },
-            { value: 'non_prioritas', label: 'Non-Prioritas' },
+            { value: 'dtsen_desil_3', label: 'Desil 3' },
+            { value: 'dtsen_desil_4', label: 'Desil 4' },
+            { value: 'dtsen_desil_5', label: 'Desil 5' },
+            { value: 'non_prioritas', label: 'Desil 6-10' },
         ],
     },
 ]);
@@ -177,9 +384,6 @@ const exportExcelUrl = computed(() => {
     const params = new URLSearchParams();
     if (searchQuery.value) params.set('search', searchQuery.value);
     if (selectedDusun.value) params.set('dusun', selectedDusun.value);
-    if (selectedStatusKependudukan.value) {
-        params.set('status_kependudukan', selectedStatusKependudukan.value);
-    }
     if (selectedStatusKesejahteraan.value) {
         params.set('status_kesejahteraan', selectedStatusKesejahteraan.value);
     }
@@ -199,7 +403,6 @@ function applyFilters(overrides = {}) {
     const payload = {
         search: searchQuery.value || undefined,
         dusun: selectedDusun.value || undefined,
-        status_kependudukan: selectedStatusKependudukan.value || undefined,
         status_kesejahteraan: selectedStatusKesejahteraan.value || undefined,
         ...overrides,
     };
@@ -223,38 +426,49 @@ function applyFilters(overrides = {}) {
 
 function handleSearch(val) {
     searchQuery.value = val;
-    collapsedByUserIds.value = new Set();
     applyFilters({ search: val || undefined });
 }
 
 function handleFilterUpdate({ key, value }) {
     if (key === 'dusun') selectedDusun.value = value;
-    if (key === 'status_kependudukan') selectedStatusKependudukan.value = value;
     if (key === 'status_kesejahteraan')
         selectedStatusKesejahteraan.value = value;
-    collapsedByUserIds.value = new Set();
     applyFilters();
 }
 
 function handleResetFilters() {
     searchQuery.value = '';
     selectedDusun.value = '';
-    selectedStatusKependudukan.value = '';
     selectedStatusKesejahteraan.value = '';
-    collapsedByUserIds.value = new Set();
     applyFilters({
         search: undefined,
         dusun: undefined,
-        status_kependudukan: undefined,
         status_kesejahteraan: undefined,
     });
 }
+
+const HUBUNGAN_OPTIONS = [
+    { value: 'kepala_keluarga', label: 'Kepala Keluarga' },
+    { value: 'istri', label: 'Istri' },
+    { value: 'anak', label: 'Anak' },
+    { value: 'cucu', label: 'Cucu' },
+    { value: 'orang_tua', label: 'Orang Tua' },
+    { value: 'kakek', label: 'Kakek' },
+    { value: 'nenek', label: 'Nenek' },
+    { value: 'famili_lain', label: 'Famili Lain' },
+    { value: 'lainnya', label: 'Lainnya' },
+];
 
 const HUBUNGAN_LABELS = {
     kepala_keluarga: 'Kepala Keluarga',
     istri: 'Istri',
     anak: 'Anak',
-    lainnya: 'Famili Lain',
+    cucu: 'Cucu',
+    orang_tua: 'Orang Tua',
+    kakek: 'Kakek',
+    nenek: 'Nenek',
+    famili_lain: 'Famili Lain',
+    lainnya: 'Lainnya',
 };
 
 const PERKAWINAN_LABELS = {
@@ -264,11 +478,24 @@ const PERKAWINAN_LABELS = {
     cerai_mati: 'Cerai Mati',
 };
 
+const DTSEN_OPTIONS = [
+    { value: 'dtsen_desil_1', label: 'Desil 1' },
+    { value: 'dtsen_desil_2', label: 'Desil 2' },
+    { value: 'dtsen_desil_3', label: 'Desil 3' },
+    { value: 'dtsen_desil_4', label: 'Desil 4' },
+    { value: 'dtsen_desil_5', label: 'Desil 5' },
+    { value: 'non_prioritas', label: 'Desil 6-10' },
+];
+
 const DTSEN_TABLE_LABELS = {
     dtsen_desil_1: 'Desil 1',
     dtsen_desil_2: 'Desil 2',
-    dtsen_desil_3_4: 'Desil 3-4',
-    non_prioritas: 'Non-Prioritas',
+    dtsen_desil_3: 'Desil 3',
+    dtsen_desil_3_4: 'Desil 3',
+    dtsen_desil_4: 'Desil 4',
+    dtsen_desil_5: 'Desil 5',
+    non_prioritas: 'Desil 6-10',
+    dtsen_desil_6_10: 'Desil 6-10',
 };
 
 function formatDtsenTableLabel(val) {
@@ -284,6 +511,49 @@ function formatPerkawinan(val) {
     return PERKAWINAN_LABELS[val] || val || '-';
 }
 
+function calculateAge(tanggalLahir) {
+    if (!tanggalLahir) return null;
+    const raw = String(tanggalLahir).trim();
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+
+    let birthYear;
+    let birthMonth;
+    let birthDay;
+    if (match) {
+        birthYear = parseInt(match[1], 10);
+        birthMonth = parseInt(match[2], 10);
+        birthDay = parseInt(match[3], 10);
+    } else {
+        const parsed = new Date(raw);
+        if (isNaN(parsed.getTime())) return null;
+        birthYear = parsed.getFullYear();
+        birthMonth = parsed.getMonth() + 1;
+        birthDay = parsed.getDate();
+    }
+
+    const today = new Date();
+    const curYear = today.getFullYear();
+    const curMonth = today.getMonth() + 1;
+    const curDay = today.getDate();
+
+    let years = curYear - birthYear;
+    const mDiff = curMonth - birthMonth;
+    if (mDiff < 0 || (mDiff === 0 && curDay < birthDay)) {
+        years--;
+    }
+
+    if (years < 0) return null;
+    if (years === 0) {
+        let months = (curYear - birthYear) * 12 + (curMonth - birthMonth);
+        if (curDay < birthDay) {
+            months--;
+        }
+        return months > 0 ? `${months} Bulan` : '< 1 Bulan';
+    }
+
+    return `${years} Tahun`;
+}
+
 // --- Kolom & Aksi Tabel Terpadu Kartu Keluarga (5 Kolom Ramping + Expandable Anggota) ---
 const kkColumns = [
     { key: 'nomor_kk', label: 'Nomor KK' },
@@ -296,18 +566,11 @@ const kkColumns = [
 function getKkRowActions(row) {
     return [
         {
-            key: 'tambah_anggota',
-            label: '+ Anggota',
-            icon: UserPlus,
-            operatorOnly: true,
-            onClick: () => openCreatePendudukModal(row),
-        },
-        {
-            key: 'edit',
-            label: 'Ubah KK',
-            icon: Pencil,
-            operatorOnly: true,
-            onClick: () => openEditKkModal(row),
+            key: 'detail',
+            label: 'Detail',
+            icon: Eye,
+            operatorOnly: false,
+            onClick: () => openDetailKkModal(row),
         },
         {
             key: 'hapus',
@@ -343,18 +606,92 @@ function hasKkHousingOrAssets(row) {
     );
 }
 
+const SCHOOL_ELIGIBLE_HUBUNGAN = ['anak', 'cucu', 'famili_lain', 'lainnya'];
+
+function isAnakBelumKawin(target) {
+    return (
+        SCHOOL_ELIGIBLE_HUBUNGAN.includes(target?.hubungan_keluarga) &&
+        target?.status_perkawinan === 'belum_kawin'
+    );
+}
+
+function hasActiveKelasSekolah(target) {
+    return (
+        isAnakBelumKawin(target) &&
+        Boolean(
+            target?.kelas_sekolah &&
+                String(target.kelas_sekolah).trim() !== '',
+        )
+    );
+}
+
+function derivePendidikanFromKelas(kelasRaw) {
+    const val = String(kelasRaw || '').trim().toUpperCase();
+    if (!val) return '';
+    if (val.includes('PAUD') || val.includes('TK') || val.includes('BELUM')) {
+        return 'Tidak/Belum Sekolah';
+    }
+    if (val.includes('SD') || val.includes('MI')) {
+        return 'Belum Tamat SD/Sederajat';
+    }
+    if (val.includes('SMP') || val.includes('MTS') || val.includes('SLTP')) {
+        return 'Tamat SD/Sederajat';
+    }
+    if (
+        val.includes('SMA') ||
+        val.includes('SMK') ||
+        val.includes('MA') ||
+        val.includes('SLTA')
+    ) {
+        return 'SLTP/Sederajat';
+    }
+    return '';
+}
+
+function normalizeMemberEducationFields(target) {
+    if (!target) return;
+    if (!isAnakBelumKawin(target)) {
+        target.peserta_kip_pip = '';
+        target.kelas_sekolah = '';
+        return;
+    }
+
+    const derived = derivePendidikanFromKelas(target.kelas_sekolah);
+    if (derived) {
+        target.pendidikan = derived;
+    }
+}
+
+function handleHubunganKeluargaChange(target) {
+    if (!target) return;
+    if (SCHOOL_ELIGIBLE_HUBUNGAN.includes(target.hubungan_keluarga)) {
+        target.status_perkawinan = 'belum_kawin';
+    } else if (target.hubungan_keluarga === 'istri') {
+        target.jenis_kelamin = 'P';
+        target.status_perkawinan = 'kawin';
+    } else if (target.hubungan_keluarga === 'nenek') {
+        target.jenis_kelamin = 'P';
+    } else if (target.hubungan_keluarga === 'kakek') {
+        target.jenis_kelamin = 'L';
+    }
+    normalizeMemberEducationFields(target);
+}
+
 function createEmptyKkMember(hubungan = 'kepala_keluarga') {
     return {
         nik: '',
         nama_lengkap: '',
         hubungan_keluarga: hubungan,
-        jenis_kelamin: hubungan === 'istri' ? 'P' : 'L',
+        jenis_kelamin:
+            hubungan === 'istri' || hubungan === 'nenek' ? 'P' : 'L',
         tempat_lahir: '',
         tanggal_lahir: '',
         agama: 'Islam',
         suku: '',
         kewarganegaraan: 'WNI',
-        status_perkawinan: hubungan === 'anak' ? 'belum_kawin' : 'kawin',
+        status_perkawinan: SCHOOL_ELIGIBLE_HUBUNGAN.includes(hubungan)
+            ? 'belum_kawin'
+            : 'kawin',
         pendidikan: '',
         peserta_kip_pip: '',
         kelas_sekolah: '',
@@ -458,6 +795,9 @@ function closeKkModal() {
 }
 
 function submitKkForm() {
+    if (!editingKk.value && Array.isArray(kkForm.anggota)) {
+        kkForm.anggota.forEach((m) => normalizeMemberEducationFields(m));
+    }
     if (editingKk.value) {
         kkForm.put(
             resolveRoute(
@@ -602,6 +942,7 @@ function closePendudukModal() {
 }
 
 function submitPendudukForm() {
+    normalizeMemberEducationFields(pendudukForm);
     if (editingPenduduk.value) {
         pendudukForm.put(
             resolveRoute(
@@ -950,12 +1291,16 @@ onUnmounted(() => {
                     :subtext="`${formatNumber(ringkasan?.total_mutasi ?? 0)} warga berstatus mutasi non-aktif`"
                 />
                 <StatCard
-                    label="Kartu Keluarga Aktif"
-                    :value="ringkasan?.total_kk_aktif ?? 0"
-                    :subtext="`Dari total ${formatNumber(ringkasan?.total_kk ?? 0)} KK terdaftar`"
+                    label="Total Kartu Keluarga"
+                    :value="ringkasan?.total_kk ?? ringkasan?.total_kk_aktif ?? 0"
+                    :subtext="
+                        (ringkasan?.total_kk_nonaktif ?? ((ringkasan?.total_kk ?? 0) - (ringkasan?.total_kk_aktif ?? 0))) > 0
+                            ? `${formatNumber(ringkasan?.total_kk_aktif ?? 0)} KK aktif • ${formatNumber(ringkasan?.total_kk_nonaktif ?? ((ringkasan?.total_kk ?? 0) - (ringkasan?.total_kk_aktif ?? 0)))} KK keluarga mutasi`
+                            : 'Seluruh KK berdomisili aktif di desa'
+                    "
                 />
                 <StatCard
-                    label="Prioritas DTSEN (Desil 1–4)"
+                    label="Prioritas DTSEN (Desil 1–5)"
                     :value="ringkasan?.total_prioritas_dtsen_aktif ?? 0"
                     subtext="Warga aktif sasaran prioritas bantuan"
                 />
@@ -984,63 +1329,55 @@ onUnmounted(() => {
                 </p>
             </BaseCallout>
 
-            <!-- Filter Satu Baris (UnifiedFilterBar) -->
+            <!-- Filter Satu Baris (UnifiedFilterBar) + Aksi Cari Individu -->
             <UnifiedFilterBar
                 :model-value="searchQuery"
-                search-placeholder="Cari NIK, Nama Lengkap, atau Nomor KK..."
+                search-placeholder="Cari Nomor KK, Kepala Keluarga, atau Wilayah..."
                 :filters="filterBarConfig"
                 @search="handleSearch"
                 @update:filter="handleFilterUpdate"
                 @reset="handleResetFilters"
-            />
+            >
+                <BaseButton
+                    type="button"
+                    variant="secondary"
+                    data-testid="btn-open-search-individu"
+                    @click="openSearchIndividuModal"
+                >
+                    <Search class="h-4 w-4 text-slate-500" />
+                    <span>Cari Individu</span>
+                </BaseButton>
+            </UnifiedFilterBar>
 
-            <!-- TABEL TERPADU KARTU KELUARGA & RINCIAN ANGGOTA KELUARGA (Master-Detail Expandable) -->
+            <!-- TABEL KARTU KELUARGA (5 Kolom Bersih + Modal Detail KK) -->
             <div data-testid="table-kk-terpadu">
                 <DataTable
                     :columns="kkColumns"
                     :rows="kartu_keluarga"
                     :row-actions="getKkRowActions"
                     :responsive-actions="true"
-                    :is-row-expanded="isKkExpanded"
                     empty-text="Belum ada data Kartu Keluarga atau Penduduk yang sesuai dengan pencarian/filter."
                     :empty-action-label="isOperator ? '+ Tambah KK' : ''"
                     @empty-action="openCreateKkModal"
                 >
                     <template #cell-nomor_kk="{ row }">
-                        <div class="flex items-start gap-2">
+                        <div class="space-y-1">
                             <button
                                 type="button"
-                                :data-testid="`toggle-expand-kk-${row.id}`"
-                                :aria-expanded="isKkExpanded(row)"
-                                aria-label="Buka atau tutup rincian anggota keluarga"
-                                class="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                                @click="toggleExpandKk(row)"
+                                :data-testid="`btn-detail-kk-${row.id}`"
+                                class="text-left font-semibold tabular-nums text-slate-900 transition-colors hover:text-blue-700 hover:underline"
+                                @click="openDetailKkModal(row)"
                             >
-                                <ChevronDown
-                                    v-if="isKkExpanded(row)"
-                                    class="h-3.5 w-3.5 text-blue-700"
-                                />
-                                <ChevronRight
-                                    v-else
-                                    class="h-3.5 w-3.5"
-                                />
+                                {{ row.nomor_kk }}
                             </button>
-
-                            <div class="space-y-1">
+                            <div v-if="row.perlu_update_kepala_keluarga">
                                 <span
-                                    class="font-semibold tabular-nums text-slate-900"
+                                    data-testid="badge-kk-warning"
+                                    class="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800"
                                 >
-                                    {{ row.nomor_kk }}
+                                    <AlertTriangle class="h-3 w-3" />
+                                    <span>Perlu Update Kepala KK</span>
                                 </span>
-                                <div v-if="row.perlu_update_kepala_keluarga">
-                                    <span
-                                        data-testid="badge-kk-warning"
-                                        class="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800"
-                                    >
-                                        <AlertTriangle class="h-3 w-3" />
-                                        <span>Perlu Update Kepala KK</span>
-                                    </span>
-                                </div>
                             </div>
                         </div>
                     </template>
@@ -1098,7 +1435,7 @@ onUnmounted(() => {
                     </template>
 
                     <template #cell-jumlah_anggota="{ row }">
-                        <div class="space-y-0.5 tabular-nums">
+                        <div class="tabular-nums">
                             <span class="font-semibold text-slate-900">
                                 {{ row.jumlah_anggota_aktif ?? 0 }} Aktif
                             </span>
@@ -1107,481 +1444,1011 @@ onUnmounted(() => {
                             </span>
                         </div>
                     </template>
-
-                    <!-- SUB-TABEL EXPANDABLE ANGGOTA KELUARGA DI DALAM 1 KK -->
-                    <template #expanded-row="{ row }">
-                        <div
-                            :data-testid="`subtable-anggota-kk-${row.id}`"
-                            class="rounded-lg border border-slate-200 bg-white shadow-xs"
-                        >
-                            <!-- Ringkasan Profil Hunian, Sosial-Ekonomi & Aset KK -->
-                            <div
-                                v-if="hasKkHousingOrAssets(row)"
-                                :data-testid="`kk-assets-summary-${row.id}`"
-                                class="grid grid-cols-1 gap-3 border-b border-slate-200 bg-slate-50/50 px-3.5 py-3 text-xs sm:grid-cols-2 lg:grid-cols-4"
-                            >
-                                <div class="space-y-0.5">
-                                    <p
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                                    >
-                                        Hunian &amp; Sanitasi
-                                    </p>
-                                    <p class="font-medium text-slate-800">
-                                        {{
-                                            row.status_kepemilikan_rumah ||
-                                            '-'
-                                        }}
-                                        <span
-                                            v-if="row.kondisi_rumah"
-                                            class="text-slate-500"
-                                        >
-                                            ({{ row.kondisi_rumah }})
-                                        </span>
-                                    </p>
-                                    <p class="text-slate-600">
-                                        Listrik:
-                                        {{ row.jenis_listrik || '-' }} &bull;
-                                        KM: {{ row.kamar_mandi || '-' }}
-                                    </p>
-                                </div>
-
-                                <div class="space-y-0.5">
-                                    <p
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                                    >
-                                        Ekonomi &amp; Usaha
-                                    </p>
-                                    <p class="font-medium text-slate-800">
-                                        Penghasilan:
-                                        {{ row.penghasilan_bulanan || '-' }}
-                                    </p>
-                                    <p class="text-slate-600">
-                                        Usaha:
-                                        {{
-                                            row.kepemilikan_usaha ||
-                                            'Tidak ada'
-                                        }}
-                                    </p>
-                                </div>
-
-                                <div class="space-y-0.5">
-                                    <p
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                                    >
-                                        Ternak &amp; Kendaraan
-                                    </p>
-                                    <p class="font-medium text-slate-800">
-                                        {{
-                                            row.kepemilikan_hewan_ternak || '-'
-                                        }}
-                                    </p>
-                                    <p class="text-slate-600">
-                                        {{
-                                            row.kepemilikan_kendaraan_elektronik ||
-                                            '-'
-                                        }}
-                                    </p>
-                                </div>
-
-                                <div class="space-y-0.5">
-                                    <p
-                                        class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
-                                    >
-                                        Lahan &amp; Tanaman
-                                    </p>
-                                    <p class="font-medium text-slate-800">
-                                        SHML: {{ row.kepemilikan_shml || '0' }}
-                                        &bull; Bidang:
-                                        {{
-                                            row.kepemilikan_tanah_bidang || '0'
-                                        }}
-                                        <span
-                                            v-if="row.kepemilikan_tanah_sawah"
-                                        >
-                                            &bull; Sawah:
-                                            {{ row.kepemilikan_tanah_sawah }}
-                                        </span>
-                                    </p>
-                                    <p
-                                        class="text-slate-600 line-clamp-2"
-                                        :title="row.tanaman || ''"
-                                    >
-                                        {{ row.tanaman || '-' }}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div
-                                class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3.5 py-2"
-                            >
-                                <div class="flex items-center gap-2 text-xs">
-                                    <Users class="h-3.5 w-3.5 text-slate-500" />
-                                    <span class="font-semibold text-slate-800">
-                                        Daftar Anggota Keluarga
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div
-                                v-if="(row.anggota || []).length > 0"
-                                class="overflow-x-auto"
-                            >
-                                <table
-                                    class="min-w-full divide-y divide-slate-200 text-xs"
-                                >
-                                    <thead class="bg-slate-50/50">
-                                        <tr>
-                                            <th
-                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
-                                            >
-                                                Warga &amp; NIK
-                                            </th>
-                                            <th
-                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
-                                            >
-                                                Hubungan &amp; Status Kawin
-                                            </th>
-                                            <th
-                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
-                                            >
-                                                Tempat, Tanggal Lahir
-                                            </th>
-                                            <th
-                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
-                                            >
-                                                Pendidikan &amp; Pekerjaan
-                                            </th>
-                                            <th
-                                                class="px-3.5 py-2 text-left font-medium uppercase tracking-wider text-slate-500"
-                                            >
-                                                Status Warga
-                                            </th>
-                                            <th
-                                                v-if="isOperator"
-                                                class="px-3.5 py-2 text-right font-medium uppercase tracking-wider text-slate-500"
-                                            >
-                                                Aksi Anggota
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-100">
-                                        <tr
-                                            v-for="member in row.anggota"
-                                            :key="member.id || member.nik"
-                                            :data-testid="`member-row-${member.id}`"
-                                            :class="[
-                                                'transition-colors',
-                                                isMemberMatchingFilter(member)
-                                                    ? 'bg-amber-50/90 hover:bg-amber-100/80'
-                                                    : 'hover:bg-slate-50/80',
-                                            ]"
-                                        >
-                                            <td
-                                                :class="[
-                                                    'px-3.5 py-2.5',
-                                                    isMemberMatchingFilter(
-                                                        member,
-                                                    )
-                                                        ? 'border-l-4 border-l-amber-500'
-                                                        : '',
-                                                ]"
-                                            >
-                                                <div
-                                                    class="flex flex-wrap items-center gap-1.5"
-                                                >
-                                                    <p
-                                                        class="font-semibold text-slate-900"
-                                                    >
-                                                        {{
-                                                            member.nama_lengkap
-                                                        }}
-                                                    </p>
-                                                    <span
-                                                        v-if="
-                                                            isMemberMatchingFilter(
-                                                                member,
-                                                            )
-                                                        "
-                                                        class="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
-                                                    >
-                                                        Cocok
-                                                    </span>
-                                                </div>
-                                                <p
-                                                    class="tabular-nums text-slate-500"
-                                                >
-                                                    NIK: {{ member.nik }} &bull;
-                                                    {{
-                                                        member.jenis_kelamin ===
-                                                        'P'
-                                                            ? 'Perempuan'
-                                                            : 'Laki-laki'
-                                                    }}
-                                                </p>
-                                            </td>
-
-                                            <td class="px-3.5 py-2.5">
-                                                <p
-                                                    class="font-medium text-slate-800"
-                                                >
-                                                    {{
-                                                        formatHubungan(
-                                                            member.hubungan_keluarga,
-                                                        )
-                                                    }}
-                                                </p>
-                                                <p class="text-slate-500">
-                                                    {{
-                                                        formatPerkawinan(
-                                                            member.status_perkawinan,
-                                                        )
-                                                    }}
-                                                    <span v-if="member.agama">
-                                                        &bull;
-                                                        {{ member.agama }}
-                                                    </span>
-                                                    <span v-if="member.suku">
-                                                        &bull;
-                                                        {{ member.suku }}
-                                                    </span>
-                                                    <span
-                                                        v-if="
-                                                            member.kewarganegaraan &&
-                                                            member.kewarganegaraan !==
-                                                                'WNI'
-                                                        "
-                                                    >
-                                                        ({{
-                                                            member.kewarganegaraan
-                                                        }})
-                                                    </span>
-                                                </p>
-                                            </td>
-
-                                            <td
-                                                class="px-3.5 py-2.5 tabular-nums text-slate-700"
-                                            >
-                                                <p class="font-medium">
-                                                    {{
-                                                        member.tempat_lahir ||
-                                                        '-'
-                                                    }},
-                                                    {{
-                                                        formatDateId(
-                                                            member.tanggal_lahir,
-                                                        )
-                                                    }}
-                                                </p>
-                                            </td>
-
-                                            <td class="px-3.5 py-2.5">
-                                                <p
-                                                    class="font-medium text-slate-800"
-                                                >
-                                                    {{
-                                                        member.pekerjaan ||
-                                                        'Belum bekerja'
-                                                    }}
-                                                </p>
-                                                <p class="text-slate-500">
-                                                    {{
-                                                        member.pendidikan || '-'
-                                                    }}
-                                                    <span
-                                                        v-if="
-                                                            member.kelas_sekolah
-                                                        "
-                                                    >
-                                                        (Kelas
-                                                        {{
-                                                            member.kelas_sekolah
-                                                        }})
-                                                    </span>
-                                                </p>
-                                                <div
-                                                    v-if="
-                                                        (member.peserta_kip_pip &&
-                                                            member.peserta_kip_pip !==
-                                                                'Tidak') ||
-                                                        member.jenis_bpjs
-                                                    "
-                                                    class="mt-1 flex flex-wrap items-center gap-1"
-                                                >
-                                                    <span
-                                                        v-if="
-                                                            member.peserta_kip_pip &&
-                                                            member.peserta_kip_pip !==
-                                                                'Tidak'
-                                                        "
-                                                        class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700"
-                                                    >
-                                                        {{
-                                                            member.peserta_kip_pip
-                                                        }}
-                                                    </span>
-                                                    <span
-                                                        v-if="member.jenis_bpjs"
-                                                        class="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
-                                                    >
-                                                        BPJS:
-                                                        {{ member.jenis_bpjs }}
-                                                    </span>
-                                                </div>
-                                            </td>
-
-                                            <td class="px-3.5 py-2.5">
-                                                <div class="space-y-0.5">
-                                                    <StatusBadge
-                                                        :status="
-                                                            member.status_kependudukan
-                                                        "
-                                                    />
-                                                    <p
-                                                        v-if="
-                                                            member.catatan_mutasi
-                                                        "
-                                                        class="text-[11px] text-slate-500"
-                                                    >
-                                                        {{
-                                                            member.catatan_mutasi
-                                                        }}
-                                                    </p>
-                                                </div>
-                                            </td>
-
-                                            <td
-                                                v-if="isOperator"
-                                                class="px-3.5 py-2.5 text-right whitespace-nowrap"
-                                            >
-                                                <!-- Desktop (>= md): Inline action buttons -->
-                                                <div
-                                                    class="hidden items-center justify-end gap-1 md:inline-flex"
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        :data-testid="`member-action-edit-${member.id}`"
-                                                        class="inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                                                        @click="
-                                                            openEditPendudukModal(
-                                                                member,
-                                                            )
-                                                        "
-                                                    >
-                                                        <Pencil
-                                                            class="h-3.5 w-3.5"
-                                                        />
-                                                        <span>Ubah</span>
-                                                    </button>
-
-                                                    <button
-                                                        type="button"
-                                                        :data-testid="`member-action-mutasi-${member.id}`"
-                                                        class="inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                                                        @click="
-                                                            openMutasiModal(
-                                                                member,
-                                                            )
-                                                        "
-                                                    >
-                                                        <RefreshCw
-                                                            class="h-3.5 w-3.5"
-                                                        />
-                                                        <span>Mutasi</span>
-                                                    </button>
-
-                                                    <button
-                                                        type="button"
-                                                        :data-testid="`member-action-hapus-${member.id}`"
-                                                        class="inline-flex h-7 items-center gap-1 rounded px-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
-                                                        @click="
-                                                            handleDeletePenduduk(
-                                                                member,
-                                                            )
-                                                        "
-                                                    >
-                                                        <Trash2
-                                                            class="h-3.5 w-3.5"
-                                                        />
-                                                        <span>Hapus</span>
-                                                    </button>
-                                                </div>
-
-                                                <!-- Mobile (< md): Titik Tiga (MoreHorizontal) Dropdown -->
-                                                <div
-                                                    :data-testid="`member-more-container-${member.id}`"
-                                                    class="relative inline-block text-left md:hidden"
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        :data-testid="`member-more-btn-${member.id}`"
-                                                        aria-label="Aksi anggota lainnya"
-                                                        class="inline-flex h-7 w-7 items-center justify-center rounded text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
-                                                        @click.stop="toggleMemberMenu(member.id)"
-                                                    >
-                                                        <MoreHorizontal class="h-4 w-4" />
-                                                    </button>
-
-                                                    <div
-                                                        v-if="openMemberMenuId === member.id"
-                                                        :data-testid="`member-more-menu-${member.id}`"
-                                                        class="absolute right-0 z-20 mt-1 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-md"
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            :data-testid="`member-action-menu-edit-${member.id}`"
-                                                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
-                                                            @click="
-                                                                openMemberMenuId = null;
-                                                                openEditPendudukModal(member);
-                                                            "
-                                                        >
-                                                            <Pencil class="h-3.5 w-3.5 text-slate-500" />
-                                                            <span>Ubah</span>
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            :data-testid="`member-action-menu-mutasi-${member.id}`"
-                                                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
-                                                            @click="
-                                                                openMemberMenuId = null;
-                                                                openMutasiModal(member);
-                                                            "
-                                                        >
-                                                            <RefreshCw class="h-3.5 w-3.5 text-slate-500" />
-                                                            <span>Mutasi</span>
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            :data-testid="`member-action-menu-hapus-${member.id}`"
-                                                            class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-red-600 hover:bg-red-50"
-                                                            @click="
-                                                                openMemberMenuId = null;
-                                                                handleDeletePenduduk(member);
-                                                            "
-                                                        >
-                                                            <Trash2 class="h-3.5 w-3.5 text-red-500" />
-                                                            <span>Hapus</span>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div
-                                v-else
-                                class="px-4 py-4 text-center text-xs text-slate-500"
-                            >
-                                Belum ada anggota keluarga terdaftar pada KK
-                                ini.
-                            </div>
-                        </div>
-                    </template>
                 </DataTable>
             </div>
         </div>
+
+        <!-- MODAL PENCARIAN PER INDIVIDU (Realtime Search + Filter Options & Pintasan Lihat KK) -->
+        <BaseModal
+            :show="isSearchIndividuModalOpen"
+            title="Pencarian Cepat Data Individu"
+            subtitle="Cari warga berdasarkan nama, NIK, atau gunakan opsi filter untuk menampilkan data secara realtime dan melihat Kartu Keluarganya."
+            max-width="3xl"
+            @close="closeSearchIndividuModal"
+        >
+            <div data-testid="modal-search-individu" class="space-y-4">
+                <!-- Input Pencarian Realtime -->
+                <div class="relative">
+                    <Search
+                        class="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                        :value="individuSearchQuery"
+                        type="search"
+                        data-testid="input-search-individu"
+                        placeholder="Ketik Nama Lengkap atau NIK warga (minimal 2 karakter)..."
+                        class="h-11 w-full rounded-lg border border-slate-300 bg-white pr-10 pl-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-700 focus:ring-blue-700"
+                        @input="handleIndividuSearchInput"
+                    />
+                    <Loader2
+                        v-if="isSearchingIndividu"
+                        class="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 animate-spin text-blue-600"
+                    />
+                </div>
+
+                <!-- Opsi Filter Pencarian Individu -->
+                <div
+                    data-testid="search-individu-filters"
+                    class="rounded-lg border border-slate-200 bg-slate-50/70 p-3"
+                >
+                    <div
+                        class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3"
+                    >
+                        <select
+                            v-model="individuFilterDusun"
+                            data-testid="search-individu-filter-dusun"
+                            class="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-700 focus:border-blue-700 focus:ring-blue-700"
+                            @change="handleIndividuFilterChange"
+                        >
+                            <option value="">Semua Dusun</option>
+                            <option
+                                v-for="d in daftar_dusun || []"
+                                :key="d"
+                                :value="d"
+                            >
+                                {{ d }}
+                            </option>
+                        </select>
+
+                        <select
+                            v-model="individuFilterStatus"
+                            data-testid="search-individu-filter-status"
+                            class="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-700 focus:border-blue-700 focus:ring-blue-700"
+                            @change="handleIndividuFilterChange"
+                        >
+                            <option value="">Semua Status Warga</option>
+                            <option value="aktif">Aktif</option>
+                            <option value="pindah_keluar">Pindah Keluar</option>
+                            <option value="meninggal_dunia">
+                                Meninggal Dunia
+                            </option>
+                        </select>
+
+                        <select
+                            v-model="individuFilterJk"
+                            data-testid="search-individu-filter-jk"
+                            class="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-700 focus:border-blue-700 focus:ring-blue-700"
+                            @change="handleIndividuFilterChange"
+                        >
+                            <option value="">Semua Jenis Kelamin</option>
+                            <option value="L">Laki-laki</option>
+                            <option value="P">Perempuan</option>
+                        </select>
+
+                        <select
+                            v-model="individuFilterDtsen"
+                            data-testid="search-individu-filter-dtsen"
+                            class="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-700 focus:border-blue-700 focus:ring-blue-700"
+                            @change="handleIndividuFilterChange"
+                        >
+                            <option value="">Semua Kategori DTSEN</option>
+                            <option
+                                v-for="opt in DTSEN_OPTIONS"
+                                :key="opt.value"
+                                :value="opt.value"
+                            >
+                                {{ opt.label }}
+                            </option>
+                        </select>
+
+                        <select
+                            v-model="individuFilterHubungan"
+                            data-testid="search-individu-filter-hubungan"
+                            class="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-700 focus:border-blue-700 focus:ring-blue-700"
+                            @change="handleIndividuFilterChange"
+                        >
+                            <option value="">Semua Hubungan Keluarga</option>
+                            <option
+                                v-for="opt in HUBUNGAN_OPTIONS"
+                                :key="opt.value"
+                                :value="opt.value"
+                            >
+                                {{ opt.label }}
+                            </option>
+                        </select>
+
+                        <div class="flex items-center justify-end">
+                            <button
+                                v-if="
+                                    hasActiveIndividuFilter ||
+                                    individuSearchQuery.trim() !== ''
+                                "
+                                type="button"
+                                data-testid="search-individu-reset-btn"
+                                class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                @click="resetIndividuSearchFilters"
+                            >
+                                Reset Filter
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hasil Pencarian Realtime -->
+                <div
+                    v-if="!canRunIndividuSearch"
+                    class="rounded-lg border border-dashed border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-xs text-slate-500"
+                >
+                    Ketik minimal 2 karakter nama/NIK warga atau pilih salah satu opsi filter di atas untuk menampilkan data individu secara realtime.
+                </div>
+
+                <div
+                    v-else-if="
+                        !isSearchingIndividu &&
+                        individuSearchResults.length === 0
+                    "
+                    data-testid="search-individu-empty"
+                    class="rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-8 text-center text-xs text-slate-500"
+                >
+                    Tidak ditemukan data individu yang sesuai dengan pencarian
+                    atau filter yang dipilih.
+                </div>
+
+                <div
+                    v-else
+                    data-testid="search-individu-results"
+                    class="max-h-[420px] divide-y divide-slate-200 overflow-y-auto rounded-lg border border-slate-200 bg-white"
+                >
+                    <div
+                        v-for="person in individuSearchResults"
+                        :key="person.id || person.nik"
+                        :data-testid="`search-individu-item-${person.id}`"
+                        class="flex flex-col justify-between gap-3 p-3.5 transition-colors hover:bg-slate-50/80 sm:flex-row sm:items-center"
+                    >
+                        <div class="space-y-1 text-xs">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span
+                                    class="text-sm font-semibold text-slate-900"
+                                >
+                                    {{ person.nama_lengkap }}
+                                </span>
+                                <StatusBadge
+                                    :status="
+                                        person.status_kependudukan || 'aktif'
+                                    "
+                                />
+                                <StatusBadge
+                                    :status="
+                                        person.status_kesejahteraan ||
+                                        'non_prioritas'
+                                    "
+                                    :label="
+                                        formatDtsenTableLabel(
+                                            person.status_kesejahteraan,
+                                        )
+                                    "
+                                />
+                            </div>
+
+                            <p class="tabular-nums text-slate-600">
+                                NIK:
+                                <span class="font-medium text-slate-800">
+                                    {{ person.nik }}
+                                </span>
+                                &bull;
+                                {{
+                                    person.jenis_kelamin === 'P'
+                                        ? 'Perempuan'
+                                        : 'Laki-laki'
+                                }}
+                                &bull;
+                                {{ formatHubungan(person.hubungan_keluarga) }}
+                            </p>
+
+                            <p class="text-slate-500">
+                                No. KK:
+                                <span
+                                    class="font-medium tabular-nums text-slate-700"
+                                >
+                                    {{
+                                        person.nomor_kk ||
+                                        person.kartu_keluarga?.nomor_kk ||
+                                        '-'
+                                    }}
+                                </span>
+                                &bull;
+                                {{
+                                    person.dusun ||
+                                    person.kartu_keluarga?.dusun ||
+                                    '-'
+                                }}
+                                (RT
+                                {{
+                                    person.rt ||
+                                    person.kartu_keluarga?.rt ||
+                                    '-'
+                                }}
+                                / RW
+                                {{
+                                    person.rw ||
+                                    person.kartu_keluarga?.rw ||
+                                    '-'
+                                }})
+                            </p>
+                        </div>
+
+                        <div class="flex shrink-0 items-center gap-2">
+                            <BaseButton
+                                type="button"
+                                variant="primary"
+                                size="sm"
+                                :data-testid="`btn-lihat-kk-individu-${person.id}`"
+                                @click="handleShowKkFromIndividu(person)"
+                            >
+                                <Eye class="h-3.5 w-3.5" />
+                                <span>Lihat KK</span>
+                            </BaseButton>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <BaseButton
+                    type="button"
+                    variant="secondary"
+                    @click="closeSearchIndividuModal"
+                >
+                    Tutup
+                </BaseButton>
+            </template>
+        </BaseModal>
+
+        <!-- MODAL DETAIL KARTU KELUARGA (Profil Hunian/Aset 12 Field & Daftar Anggota Keluarga) -->
+        <BaseModal
+            :show="isDetailKkModalOpen"
+            :title="
+                activeDetailKk
+                    ? `Detail Kartu Keluarga — ${activeDetailKk.nomor_kk}`
+                    : 'Detail Kartu Keluarga'
+            "
+            :subtitle="
+                activeDetailKk
+                    ? `${activeDetailKk.dusun || '-'} (RT ${activeDetailKk.rt || '-'} / RW ${activeDetailKk.rw || '-'}) • ${activeDetailKk.alamat || 'Alamat belum diisi'}`
+                    : ''
+            "
+            max-width="6xl"
+            @close="closeDetailKkModal"
+        >
+            <div
+                v-if="activeDetailKk"
+                data-testid="modal-detail-kk"
+                class="space-y-4"
+            >
+                <!-- Peringatan Kepala Keluarga Non-Aktif -->
+                <div
+                    v-if="activeDetailKk.perlu_update_kepala_keluarga"
+                    class="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"
+                >
+                    <AlertTriangle
+                        class="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
+                    />
+                    <div>
+                        <p class="font-semibold">
+                            Perlu Pembaruan Kepala Keluarga
+                        </p>
+                        <p class="mt-0.5 text-amber-800">
+                            {{
+                                activeDetailKk.peringatan_kepala_keluarga ||
+                                'Kepala Keluarga pada KK ini berstatus non-aktif sementara masih terdapat anggota keluarga aktif.'
+                            }}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Baris Ringkasan KK & Pintasan Aksi Operator -->
+                <div
+                    class="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-slate-200 bg-slate-50/70 px-4 py-3"
+                >
+                    <div
+                        class="grid flex-1 grid-cols-1 gap-4 text-xs sm:grid-cols-2 lg:grid-cols-4"
+                    >
+                        <div>
+                            <p class="text-slate-500">Kepala Keluarga</p>
+                            <div
+                                v-if="activeDetailKk.kepala_keluarga"
+                                class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
+                            >
+                                <span class="font-semibold text-slate-900">
+                                    {{
+                                        activeDetailKk.kepala_keluarga
+                                            .nama_lengkap
+                                    }}
+                                </span>
+                                <span class="tabular-nums text-slate-500">
+                                    ({{ activeDetailKk.kepala_keluarga.nik }})
+                                </span>
+                            </div>
+                            <p
+                                v-else
+                                class="mt-0.5 italic text-slate-400"
+                            >
+                                Belum ditentukan
+                            </p>
+                        </div>
+
+                        <div data-testid="kk-summary-domisili">
+                            <p class="text-slate-500">Domisili &amp; Alamat</p>
+                            <p class="mt-0.5 font-semibold text-slate-900">
+                                {{ activeDetailKk.dusun || '-' }}
+                                <span class="font-normal text-slate-600">
+                                    (RT {{ activeDetailKk.rt || '-' }} / RW
+                                    {{ activeDetailKk.rw || '-' }})
+                                </span>
+                            </p>
+                            <p class="text-slate-600">
+                                {{
+                                    activeDetailKk.alamat ||
+                                    'Alamat belum diisi'
+                                }}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p class="text-slate-500">Kategori DTSEN</p>
+                            <div class="mt-0.5">
+                                <StatusBadge
+                                    :status="
+                                        activeDetailKk.status_kesejahteraan ||
+                                        'non_prioritas'
+                                    "
+                                    :label="
+                                        formatDtsenTableLabel(
+                                            activeDetailKk.status_kesejahteraan,
+                                        )
+                                    "
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="text-slate-500">Jumlah Anggota</p>
+                            <p
+                                class="mt-0.5 font-semibold tabular-nums text-slate-900"
+                            >
+                                {{ activeDetailKk.jumlah_anggota_aktif ?? 0 }}
+                                Aktif
+                                <span class="font-normal text-slate-500">
+                                    /
+                                    {{ activeDetailKk.jumlah_anggota ?? 0 }}
+                                    Total
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="isOperator"
+                        class="flex shrink-0 flex-wrap items-center gap-2"
+                    >
+                        <BaseButton
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            data-testid="modal-detail-kk-btn-edit"
+                            :leading-icon="Pencil"
+                            @click="openEditKkModal(activeDetailKk)"
+                        >
+                            Ubah KK
+                        </BaseButton>
+                        <BaseButton
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            data-testid="modal-detail-kk-btn-add-member"
+                            :leading-icon="UserPlus"
+                            @click="openCreatePendudukModal(activeDetailKk)"
+                        >
+                            + Anggota
+                        </BaseButton>
+                    </div>
+                </div>
+
+                <!-- Ringkasan Profil Hunian, Sosial-Ekonomi & Aset KK (12 Field) -->
+                <div
+                    :data-testid="`kk-assets-summary-${activeDetailKk.id}`"
+                    class="rounded-lg border border-slate-200 bg-white"
+                >
+                    <div
+                        class="border-b border-slate-200 bg-slate-50/80 px-3.5 py-2 text-xs font-semibold text-slate-800"
+                    >
+                        Profil Hunian, Sosial-Ekonomi &amp; Aset Rumah Tangga
+                    </div>
+                    <div
+                        class="grid grid-cols-1 gap-4 p-3.5 text-xs sm:grid-cols-2 lg:grid-cols-4"
+                    >
+                        <div class="space-y-1">
+                            <p
+                                class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                            >
+                                Hunian &amp; Sanitasi
+                            </p>
+                            <p class="text-slate-600">
+                                Kepemilikan Rumah:
+                                <span class="font-medium text-slate-800">
+                                    {{
+                                        activeDetailKk.status_kepemilikan_rumah ||
+                                        '-'
+                                    }}
+                                </span>
+                            </p>
+                            <p class="text-slate-600">
+                                Kondisi Bangunan:
+                                <span class="font-medium text-slate-800">
+                                    {{ activeDetailKk.kondisi_rumah || '-' }}
+                                </span>
+                            </p>
+                            <p class="text-slate-600">
+                                Listrik:
+                                <span class="font-medium text-slate-800">
+                                    {{ activeDetailKk.jenis_listrik || '-' }}
+                                </span>
+                            </p>
+                            <p class="text-slate-600">
+                                Kamar Mandi:
+                                <span class="font-medium text-slate-800">
+                                    {{ activeDetailKk.kamar_mandi || '-' }}
+                                </span>
+                            </p>
+                        </div>
+
+                        <div class="space-y-1">
+                            <p
+                                class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                            >
+                                Ekonomi &amp; Usaha
+                            </p>
+                            <p class="text-slate-600">
+                                Penghasilan / Bulan:
+                                <span class="font-medium text-slate-800">
+                                    {{
+                                        activeDetailKk.penghasilan_bulanan ||
+                                        '-'
+                                    }}
+                                </span>
+                            </p>
+                            <p class="text-slate-600">
+                                Kepemilikan Usaha:
+                                <span class="font-medium text-slate-800">
+                                    {{
+                                        activeDetailKk.kepemilikan_usaha ||
+                                        'Tidak ada'
+                                    }}
+                                </span>
+                            </p>
+                        </div>
+
+                        <div class="space-y-1">
+                            <p
+                                class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                            >
+                                Ternak &amp; Kendaraan / Elektronik
+                            </p>
+                            <p class="text-slate-600">
+                                Hewan Ternak:
+                                <span class="font-medium text-slate-800">
+                                    {{
+                                        activeDetailKk.kepemilikan_hewan_ternak ||
+                                        '-'
+                                    }}
+                                </span>
+                            </p>
+                            <p class="text-slate-600">
+                                Kendaraan / Elektronik:
+                                <span class="font-medium text-slate-800">
+                                    {{
+                                        activeDetailKk.kepemilikan_kendaraan_elektronik ||
+                                        '-'
+                                    }}
+                                </span>
+                            </p>
+                        </div>
+
+                        <div class="space-y-1">
+                            <p
+                                class="text-[11px] font-semibold uppercase tracking-wider text-slate-500"
+                            >
+                                Lahan &amp; Tanaman
+                            </p>
+                            <p class="text-slate-600">
+                                Sertifikat (SHML):
+                                <span class="font-medium text-slate-800">
+                                    {{ activeDetailKk.kepemilikan_shml || '0' }}
+                                </span>
+                                &bull; Tanah Bidang:
+                                <span class="font-medium text-slate-800">
+                                    {{
+                                        activeDetailKk.kepemilikan_tanah_bidang ||
+                                        '0'
+                                    }}
+                                </span>
+                            </p>
+                            <p class="text-slate-600">
+                                Tanah Sawah:
+                                <span class="font-medium text-slate-800">
+                                    {{
+                                        activeDetailKk.kepemilikan_tanah_sawah ||
+                                        '0'
+                                    }}
+                                </span>
+                            </p>
+                            <p
+                                class="line-clamp-2 text-slate-600"
+                                :title="activeDetailKk.tanaman || ''"
+                            >
+                                Tanaman:
+                                <span class="font-medium text-slate-800">
+                                    {{ activeDetailKk.tanaman || '-' }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabel Daftar Anggota Keluarga -->
+                <div
+                    :data-testid="`subtable-anggota-kk-${activeDetailKk.id}`"
+                    class="rounded-lg border border-slate-200 bg-white shadow-xs"
+                >
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3.5 py-2"
+                    >
+                        <div class="flex items-center gap-2 text-xs">
+                            <Users class="h-3.5 w-3.5 text-slate-500" />
+                            <span class="font-semibold text-slate-800">
+                                Daftar Anggota Keluarga
+                            </span>
+                        </div>
+                        <span class="text-[11px] text-slate-500">
+                            Geser tabel ke samping bila layar kecil untuk
+                            melihat seluruh kolom
+                        </span>
+                    </div>
+
+                    <div
+                        v-if="(activeDetailKk.anggota || []).length > 0"
+                        class="overflow-x-auto"
+                    >
+                        <table
+                            class="min-w-full divide-y divide-slate-200 text-xs"
+                        >
+                            <thead class="bg-slate-50/50">
+                                <tr>
+                                    <th
+                                        class="px-3 py-2 text-center font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        No
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        Nama &amp; NIK
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        L/P
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        Hubungan
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        TTL &amp; Usia
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        Status Kawin &amp; Identitas
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        Pendidikan
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        Pekerjaan
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        BPJS &amp; Bantuan
+                                    </th>
+                                    <th
+                                        class="px-3 py-2 text-left font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        Status Warga
+                                    </th>
+                                    <th
+                                        v-if="isOperator"
+                                        class="px-3 py-2 text-right font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap"
+                                    >
+                                        Aksi
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr
+                                    v-for="(
+                                        member, memberIdx
+                                    ) in activeDetailKk.anggota"
+                                    :key="member.id || member.nik"
+                                    :data-testid="`member-row-${member.id}`"
+                                    :class="[
+                                        'align-top transition-colors',
+                                        isMemberMatchingFilter(member)
+                                            ? 'bg-amber-50/90 hover:bg-amber-100/80'
+                                            : 'hover:bg-slate-50/80',
+                                    ]"
+                                >
+                                    <td
+                                        :class="[
+                                            'px-3 py-2.5 text-center tabular-nums text-slate-500',
+                                            isMemberMatchingFilter(member)
+                                                ? 'border-l-4 border-l-amber-500'
+                                                : '',
+                                        ]"
+                                    >
+                                        {{ memberIdx + 1 }}
+                                    </td>
+
+                                    <td class="px-3 py-2.5 min-w-[175px]">
+                                        <div
+                                            class="flex flex-wrap items-center gap-1.5"
+                                        >
+                                            <p
+                                                class="font-semibold text-slate-900"
+                                            >
+                                                {{ member.nama_lengkap }}
+                                            </p>
+                                            <span
+                                                v-if="
+                                                    isMemberMatchingFilter(
+                                                        member,
+                                                    )
+                                                "
+                                                class="inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                                            >
+                                                Cocok
+                                            </span>
+                                        </div>
+                                        <p
+                                            class="mt-0.5 tabular-nums text-slate-500"
+                                        >
+                                            NIK: {{ member.nik }}
+                                        </p>
+                                    </td>
+
+                                    <td
+                                        class="px-3 py-2.5 text-slate-700 whitespace-nowrap"
+                                    >
+                                        {{
+                                            member.jenis_kelamin === 'P'
+                                                ? 'Perempuan'
+                                                : 'Laki-laki'
+                                        }}
+                                    </td>
+
+                                    <td class="px-3 py-2.5 whitespace-nowrap">
+                                        <span
+                                            :class="[
+                                                'inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium',
+                                                member.hubungan_keluarga ===
+                                                'kepala_keluarga'
+                                                    ? 'bg-slate-800 text-white'
+                                                    : 'bg-slate-100 text-slate-700',
+                                            ]"
+                                        >
+                                            {{
+                                                formatHubungan(
+                                                    member.hubungan_keluarga,
+                                                )
+                                            }}
+                                        </span>
+                                    </td>
+
+                                    <td
+                                        class="px-3 py-2.5 tabular-nums text-slate-700 min-w-[155px]"
+                                    >
+                                        <p class="font-medium text-slate-800">
+                                            {{ member.tempat_lahir || '-' }},
+                                            {{
+                                                formatDateId(
+                                                    member.tanggal_lahir,
+                                                    'medium',
+                                                )
+                                            }}
+                                        </p>
+                                        <p
+                                            v-if="
+                                                calculateAge(
+                                                    member.tanggal_lahir,
+                                                )
+                                            "
+                                            class="mt-0.5 text-[11px] text-slate-500"
+                                        >
+                                            Usia:
+                                            {{
+                                                calculateAge(
+                                                    member.tanggal_lahir,
+                                                )
+                                            }}
+                                        </p>
+                                    </td>
+
+                                    <td class="px-3 py-2.5 min-w-[150px]">
+                                        <p class="font-medium text-slate-800">
+                                            {{
+                                                formatPerkawinan(
+                                                    member.status_perkawinan,
+                                                )
+                                            }}
+                                        </p>
+                                        <p class="mt-0.5 text-[11px] text-slate-500">
+                                            {{
+                                                [
+                                                    member.agama,
+                                                    member.suku,
+                                                    member.kewarganegaraan ||
+                                                        'WNI',
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(' • ')
+                                            }}
+                                        </p>
+                                    </td>
+
+                                    <td class="px-3 py-2.5 min-w-[135px]">
+                                        <p class="font-medium text-slate-800">
+                                            {{ member.pendidikan || '-' }}
+                                        </p>
+                                        <span
+                                            v-if="member.kelas_sekolah"
+                                            class="mt-1 inline-flex items-center rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700"
+                                        >
+                                            Kelas {{ member.kelas_sekolah }}
+                                        </span>
+                                    </td>
+
+                                    <td class="px-3 py-2.5 min-w-[120px]">
+                                        <p class="font-medium text-slate-800">
+                                            {{
+                                                member.pekerjaan ||
+                                                'Belum bekerja'
+                                            }}
+                                        </p>
+                                    </td>
+
+                                    <td class="px-3 py-2.5 min-w-[140px]">
+                                        <p class="text-slate-600">
+                                            BPJS:
+                                            <span
+                                                class="font-medium text-slate-800"
+                                            >
+                                                {{ member.jenis_bpjs || '-' }}
+                                            </span>
+                                        </p>
+                                        <p
+                                            v-if="member.peserta_kip_pip"
+                                            class="mt-1 text-[11px] text-slate-600"
+                                        >
+                                            Pendidikan:
+                                            <span
+                                                v-if="
+                                                    member.peserta_kip_pip !==
+                                                    'Tidak'
+                                                "
+                                                class="ml-0.5 inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700"
+                                            >
+                                                {{ member.peserta_kip_pip }}
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="ml-0.5 text-slate-500"
+                                            >
+                                                Tidak
+                                            </span>
+                                        </p>
+                                    </td>
+
+                                    <td class="px-3 py-2.5 min-w-[125px]">
+                                        <div class="space-y-0.5">
+                                            <StatusBadge
+                                                :status="
+                                                    member.status_kependudukan
+                                                "
+                                            />
+                                            <p
+                                                v-if="
+                                                    member.tanggal_mutasi &&
+                                                    member.status_kependudukan !==
+                                                        'aktif'
+                                                "
+                                                class="text-[11px] tabular-nums text-slate-500"
+                                            >
+                                                Tgl:
+                                                {{
+                                                    formatDateId(
+                                                        member.tanggal_mutasi,
+                                                        'medium',
+                                                    )
+                                                }}
+                                            </p>
+                                            <p
+                                                v-if="member.catatan_mutasi"
+                                                class="text-[11px] text-slate-500"
+                                            >
+                                                {{ member.catatan_mutasi }}
+                                            </p>
+                                        </div>
+                                    </td>
+
+                                    <td
+                                        v-if="isOperator"
+                                        class="px-3.5 py-2.5 text-right whitespace-nowrap"
+                                    >
+                                        <!-- Desktop (>= md): Inline action buttons -->
+                                        <div
+                                            class="hidden items-center justify-end gap-1.5 md:inline-flex"
+                                        >
+                                            <button
+                                                type="button"
+                                                :data-testid="`member-action-edit-${member.id}`"
+                                                class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
+                                                @click="
+                                                    openEditPendudukModal(
+                                                        member,
+                                                    )
+                                                "
+                                            >
+                                                <Pencil class="h-3.5 w-3.5" />
+                                                <span>Ubah</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                :data-testid="`member-action-mutasi-${member.id}`"
+                                                class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
+                                                @click="
+                                                    openMutasiModal(member)
+                                                "
+                                            >
+                                                <RefreshCw
+                                                    class="h-3.5 w-3.5"
+                                                />
+                                                <span>Mutasi</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                :data-testid="`member-action-hapus-${member.id}`"
+                                                class="inline-flex h-8 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 shadow-xs transition-colors hover:bg-red-50 hover:text-red-700"
+                                                @click="
+                                                    handleDeletePenduduk(
+                                                        member,
+                                                    )
+                                                "
+                                            >
+                                                <Trash2 class="h-3.5 w-3.5" />
+                                                <span>Hapus</span>
+                                            </button>
+                                        </div>
+
+                                        <!-- Mobile (< md): Titik Tiga (MoreHorizontal) Dropdown -->
+                                        <div
+                                            :data-testid="`member-more-container-${member.id}`"
+                                            class="relative inline-block text-left md:hidden"
+                                        >
+                                            <button
+                                                type="button"
+                                                :data-testid="`member-more-btn-${member.id}`"
+                                                aria-label="Aksi anggota lainnya"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800"
+                                                @click.stop="
+                                                    toggleMemberMenu(member.id)
+                                                "
+                                            >
+                                                <MoreHorizontal
+                                                    class="h-4 w-4"
+                                                />
+                                            </button>
+
+                                            <div
+                                                v-if="
+                                                    openMemberMenuId ===
+                                                    member.id
+                                                "
+                                                :data-testid="`member-more-menu-${member.id}`"
+                                                class="absolute right-0 z-20 mt-1 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-md"
+                                            >
+                                                <button
+                                                    type="button"
+                                                    :data-testid="`member-action-menu-edit-${member.id}`"
+                                                    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                                    @click="
+                                                        openMemberMenuId = null;
+                                                        openEditPendudukModal(
+                                                            member,
+                                                        );
+                                                    "
+                                                >
+                                                    <Pencil
+                                                        class="h-3.5 w-3.5 text-slate-500"
+                                                    />
+                                                    <span>Ubah</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    :data-testid="`member-action-menu-mutasi-${member.id}`"
+                                                    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                                    @click="
+                                                        openMemberMenuId = null;
+                                                        openMutasiModal(member);
+                                                    "
+                                                >
+                                                    <RefreshCw
+                                                        class="h-3.5 w-3.5 text-slate-500"
+                                                    />
+                                                    <span>Mutasi</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    :data-testid="`member-action-menu-hapus-${member.id}`"
+                                                    class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-red-600 hover:bg-red-50"
+                                                    @click="
+                                                        openMemberMenuId = null;
+                                                        handleDeletePenduduk(
+                                                            member,
+                                                        );
+                                                    "
+                                                >
+                                                    <Trash2
+                                                        class="h-3.5 w-3.5 text-red-500"
+                                                    />
+                                                    <span>Hapus</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div
+                        v-else
+                        class="px-4 py-4 text-center text-xs text-slate-500"
+                    >
+                        Belum ada anggota keluarga terdaftar pada KK ini.
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <BaseButton
+                    type="button"
+                    variant="secondary"
+                    @click="closeDetailKkModal"
+                >
+                    Tutup
+                </BaseButton>
+            </template>
+        </BaseModal>
 
         <!-- MODAL FORM KARTU KELUARGA (Tambah KK Sekaligus Anggota / Ubah KK) -->
         <BaseModal
@@ -1702,17 +2569,12 @@ onUnmounted(() => {
                             data-testid="select-kk-dtsen"
                             class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
                         >
-                            <option value="dtsen_desil_1">
-                                Desil 1
-                            </option>
-                            <option value="dtsen_desil_2">
-                                Desil 2
-                            </option>
-                            <option value="dtsen_desil_3_4">
-                                Desil 3–4
-                            </option>
-                            <option value="non_prioritas">
-                                Non-Prioritas
+                            <option
+                                v-for="opt in DTSEN_OPTIONS"
+                                :key="opt.value"
+                                :value="opt.value"
+                            >
+                                {{ opt.label }}
                             </option>
                         </select>
                         <p
@@ -2128,14 +2990,16 @@ onUnmounted(() => {
                                         v-model="member.hubungan_keluarga"
                                         :data-testid="`select-kk-member-hubungan-${idx}`"
                                         class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                        @change="
+                                            handleHubunganKeluargaChange(member)
+                                        "
                                     >
-                                        <option value="kepala_keluarga">
-                                            Kepala Keluarga
-                                        </option>
-                                        <option value="istri">Istri</option>
-                                        <option value="anak">Anak</option>
-                                        <option value="lainnya">
-                                            Lainnya
+                                        <option
+                                            v-for="opt in HUBUNGAN_OPTIONS"
+                                            :key="opt.value"
+                                            :value="opt.value"
+                                        >
+                                            {{ opt.label }}
                                         </option>
                                     </select>
                                 </div>
@@ -2237,7 +3101,13 @@ onUnmounted(() => {
                                     </label>
                                     <select
                                         v-model="member.status_perkawinan"
+                                        :data-testid="`select-kk-member-perkawinan-${idx}`"
                                         class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                        @change="
+                                            normalizeMemberEducationFields(
+                                                member,
+                                            )
+                                        "
                                     >
                                         <option value="belum_kawin">
                                             Belum Kawin
@@ -2252,7 +3122,10 @@ onUnmounted(() => {
                                     </select>
                                 </div>
 
-                                <div class="space-y-1">
+                                <div
+                                    v-if="!hasActiveKelasSekolah(member)"
+                                    class="space-y-1"
+                                >
                                     <label
                                         class="block text-xs font-medium text-slate-700"
                                     >
@@ -2261,6 +3134,7 @@ onUnmounted(() => {
                                     <input
                                         v-model="member.pendidikan"
                                         type="text"
+                                        :data-testid="`input-kk-member-pendidikan-${idx}`"
                                         placeholder="Contoh: SLTA/Sederajat"
                                         class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
                                     />
@@ -2333,38 +3207,64 @@ onUnmounted(() => {
                                     </select>
                                 </div>
 
-                                <div class="space-y-1">
-                                    <label
-                                        class="block text-xs font-medium text-slate-700"
-                                    >
-                                        Peserta KIP / PIP
-                                    </label>
-                                    <select
-                                        v-model="member.peserta_kip_pip"
-                                        :data-testid="`select-kk-member-kip-${idx}`"
-                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
-                                    >
-                                        <option value="">-- Tidak / Belum --</option>
-                                        <option value="Tidak">Tidak</option>
-                                        <option value="PIP">PIP</option>
-                                        <option value="KIP">KIP</option>
-                                    </select>
-                                </div>
+                                <template v-if="isAnakBelumKawin(member)">
+                                    <div class="space-y-1">
+                                        <label
+                                            class="block text-xs font-medium text-slate-700"
+                                        >
+                                            Peserta Bantuan Pendidikan
+                                        </label>
+                                        <select
+                                            v-model="member.peserta_kip_pip"
+                                            :data-testid="`select-kk-member-kip-${idx}`"
+                                            class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                        >
+                                            <option value="">
+                                                -- Tidak / Belum --
+                                            </option>
+                                            <option value="Tidak">Tidak</option>
+                                            <option value="PIP">PIP</option>
+                                            <option value="KIP">KIP</option>
+                                        </select>
+                                    </div>
 
-                                <div class="space-y-1 sm:col-span-2">
-                                    <label
-                                        class="block text-xs font-medium text-slate-700"
-                                    >
-                                        Kelas Sekolah Saat Ini (Anak Sekolah)
-                                    </label>
-                                    <input
-                                        v-model="member.kelas_sekolah"
-                                        type="text"
-                                        :data-testid="`input-kk-member-kelas-${idx}`"
-                                        placeholder="Contoh: PAUD / TK / 4 SD / 2 SMP / 1 SMA"
-                                        class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
-                                    />
-                                </div>
+                                    <div class="space-y-1 sm:col-span-2">
+                                        <label
+                                            class="block text-xs font-medium text-slate-700"
+                                        >
+                                            Kelas Sekolah Saat Ini (Khusus Anak
+                                            Sekolah)
+                                        </label>
+                                        <input
+                                            v-model="member.kelas_sekolah"
+                                            type="text"
+                                            :data-testid="`input-kk-member-kelas-${idx}`"
+                                            placeholder="Contoh: PAUD / TK / 4 SD / 2 SMP / 1 SMA (Kosongkan jika sudah lulus)"
+                                            class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                                            @input="
+                                                normalizeMemberEducationFields(
+                                                    member,
+                                                )
+                                            "
+                                        />
+                                        <p
+                                            v-if="hasActiveKelasSekolah(member)"
+                                            :data-testid="`note-auto-pendidikan-kk-${idx}`"
+                                            class="text-[11px] text-slate-500"
+                                        >
+                                            Pendidikan terakhir otomatis
+                                            tercatat:
+                                            <span
+                                                class="font-medium text-slate-700"
+                                            >
+                                                {{
+                                                    member.pendidikan ||
+                                                    'Sesuai jenjang kelas'
+                                                }}
+                                            </span>
+                                        </p>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -2590,7 +3490,9 @@ onUnmounted(() => {
                     <select
                         id="select-perkawinan"
                         v-model="pendudukForm.status_perkawinan"
+                        data-testid="select-perkawinan"
                         class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                        @change="normalizeMemberEducationFields(pendudukForm)"
                     >
                         <option value="belum_kawin">Belum Kawin</option>
                         <option value="kawin">Kawin</option>
@@ -2610,16 +3512,24 @@ onUnmounted(() => {
                     <select
                         id="select-hubungan"
                         v-model="pendudukForm.hubungan_keluarga"
+                        data-testid="select-hubungan"
                         class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                        @change="handleHubunganKeluargaChange(pendudukForm)"
                     >
-                        <option value="kepala_keluarga">Kepala Keluarga</option>
-                        <option value="istri">Istri</option>
-                        <option value="anak">Anak</option>
-                        <option value="lainnya">Lainnya</option>
+                        <option
+                            v-for="opt in HUBUNGAN_OPTIONS"
+                            :key="opt.value"
+                            :value="opt.value"
+                        >
+                            {{ opt.label }}
+                        </option>
                     </select>
                 </div>
 
-                <div class="space-y-1.5">
+                <div
+                    v-if="!hasActiveKelasSekolah(pendudukForm)"
+                    class="space-y-1.5"
+                >
                     <label
                         for="input-pendidikan"
                         class="block text-sm font-medium text-slate-700"
@@ -2630,6 +3540,7 @@ onUnmounted(() => {
                         id="input-pendidikan"
                         v-model="pendudukForm.pendidikan"
                         type="text"
+                        data-testid="input-pendidikan"
                         placeholder="Contoh: SLTA/Sederajat"
                         class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
                     />
@@ -2706,42 +3617,58 @@ onUnmounted(() => {
                     </select>
                 </div>
 
-                <div class="space-y-1.5">
-                    <label
-                        for="select-peserta-kip-pip"
-                        class="block text-sm font-medium text-slate-700"
-                    >
-                        Peserta Bantuan Pendidikan (KIP/PIP)
-                    </label>
-                    <select
-                        id="select-peserta-kip-pip"
-                        v-model="pendudukForm.peserta_kip_pip"
-                        data-testid="select-peserta-kip-pip"
-                        class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
-                    >
-                        <option value="">-- Tidak / Belum --</option>
-                        <option value="Tidak">Tidak</option>
-                        <option value="PIP">PIP</option>
-                        <option value="KIP">KIP</option>
-                    </select>
-                </div>
+                <template v-if="isAnakBelumKawin(pendudukForm)">
+                    <div class="space-y-1.5">
+                        <label
+                            for="select-peserta-kip-pip"
+                            class="block text-sm font-medium text-slate-700"
+                        >
+                            Peserta Bantuan Pendidikan
+                        </label>
+                        <select
+                            id="select-peserta-kip-pip"
+                            v-model="pendudukForm.peserta_kip_pip"
+                            data-testid="select-peserta-kip-pip"
+                            class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                        >
+                            <option value="">-- Tidak / Belum --</option>
+                            <option value="Tidak">Tidak</option>
+                            <option value="PIP">PIP</option>
+                            <option value="KIP">KIP</option>
+                        </select>
+                    </div>
 
-                <div class="space-y-1.5 sm:col-span-2">
-                    <label
-                        for="input-kelas-sekolah"
-                        class="block text-sm font-medium text-slate-700"
-                    >
-                        Kelas Sekolah Saat Ini (Khusus Anak Sekolah)
-                    </label>
-                    <input
-                        id="input-kelas-sekolah"
-                        v-model="pendudukForm.kelas_sekolah"
-                        type="text"
-                        data-testid="input-kelas-sekolah"
-                        placeholder="Contoh: PAUD / TK / 4 SD / 2 SMP / 1 SMA"
-                        class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
-                    />
-                </div>
+                    <div class="space-y-1.5 sm:col-span-2">
+                        <label
+                            for="input-kelas-sekolah"
+                            class="block text-sm font-medium text-slate-700"
+                        >
+                            Kelas Sekolah Saat Ini (Khusus Anak Sekolah)
+                        </label>
+                        <input
+                            id="input-kelas-sekolah"
+                            v-model="pendudukForm.kelas_sekolah"
+                            type="text"
+                            data-testid="input-kelas-sekolah"
+                            placeholder="Contoh: PAUD / TK / 4 SD / 2 SMP / 1 SMA (Kosongkan jika sudah lulus)"
+                            class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-900 focus:border-blue-700 focus:ring-blue-700"
+                            @input="normalizeMemberEducationFields(pendudukForm)"
+                        />
+                        <p
+                            v-if="hasActiveKelasSekolah(pendudukForm)"
+                            data-testid="note-auto-pendidikan-penduduk"
+                            class="text-xs text-slate-500"
+                        >
+                            Pendidikan terakhir otomatis tercatat:
+                            <span class="font-medium text-slate-700">
+                                {{
+                                    pendudukForm.pendidikan ||
+                                    'Sesuai jenjang kelas'
+                                }}
+                            </span>
+                        </p>
+                    </div>
+                </template>
             </form>
 
             <template #footer>

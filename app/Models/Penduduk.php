@@ -77,7 +77,9 @@ class Penduduk extends Model
         return $query->whereIn('status_kesejahteraan', [
             StatusKesejahteraan::DtsenDesil1,
             StatusKesejahteraan::DtsenDesil2,
-            StatusKesejahteraan::DtsenDesil34,
+            StatusKesejahteraan::DtsenDesil3,
+            StatusKesejahteraan::DtsenDesil4,
+            StatusKesejahteraan::DtsenDesil5,
         ]);
     }
 }

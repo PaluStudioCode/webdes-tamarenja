@@ -104,7 +104,9 @@ class DummyDesaSeeder extends Seeder
             $desil = match (true) {
                 $i <= 6 => StatusKesejahteraan::DtsenDesil1,
                 $i <= 12 => StatusKesejahteraan::DtsenDesil2,
-                $i <= 18 => StatusKesejahteraan::DtsenDesil34,
+                $i <= 15 => StatusKesejahteraan::DtsenDesil3,
+                $i <= 17 => StatusKesejahteraan::DtsenDesil4,
+                $i === 18 => StatusKesejahteraan::DtsenDesil5,
                 default => StatusKesejahteraan::NonPrioritas,
             };
 

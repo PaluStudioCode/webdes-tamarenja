@@ -56,9 +56,18 @@ class BansosKkHistoryService
             $jenisVal = $item->jenis_bantuan instanceof JenisBansos
                 ? $item->jenis_bantuan->value
                 : (string) $item->jenis_bantuan;
-            $jenisLabel = $item->jenis_bantuan instanceof JenisBansos
-                ? $item->jenis_bantuan->label()
+            $enumJenis = $item->jenis_bantuan instanceof JenisBansos
+                ? $item->jenis_bantuan
+                : JenisBansos::tryFrom($jenisVal);
+            $jenisLabel = $enumJenis
+                ? $enumJenis->label()
                 : $jenisVal;
+            $kategoriVal = $enumJenis
+                ? $enumJenis->kategori()
+                : ($item->kategori_bantuan ?: 'per_kk');
+            $kategoriLabel = $enumJenis
+                ? $enumJenis->kategoriLabel()
+                : 'Bantuan Sosial';
 
             $statusVal = $item->status_kepesertaan instanceof StatusPesertaBansos
                 ? $item->status_kepesertaan->value
@@ -75,6 +84,9 @@ class BansosKkHistoryService
                 'hubungan_keluarga' => $item->penduduk?->hubungan_keluarga,
                 'jenis_bantuan' => $jenisVal,
                 'jenis_bantuan_label' => $jenisLabel,
+                'kategori_bantuan' => $kategoriVal,
+                'kategori_bantuan_label' => $kategoriLabel,
+                'nama_kelompok' => $item->nama_kelompok,
                 'bentuk_nominal' => $item->bentuk_nominal,
                 'tahun_anggaran' => (int) $item->tahun_anggaran,
                 'tahap_penyaluran' => $item->tahap_penyaluran,

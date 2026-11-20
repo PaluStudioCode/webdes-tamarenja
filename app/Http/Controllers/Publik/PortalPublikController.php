@@ -2,17 +2,13 @@
 
 namespace App\Http\Controllers\Publik;
 
-use App\Enums\JenisDokumenApbdes;
 use App\Enums\KategoriKegiatan;
-use App\Enums\KelompokPosApbdes;
 use App\Enums\StatusKependudukan;
 use App\Enums\StatusProyek;
 use App\Enums\SumberDanaProyek;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Pengaturan\SaveDokumenPpidRequest;
 use App\Http\Requests\Pengaturan\SavePerangkatDesaRequest;
-use App\Models\Apbdes;
-use App\Models\ApbdesRincian;
 use App\Models\DokumenPpid;
 use App\Models\KartuKeluarga;
 use App\Models\KegiatanDesa;
@@ -20,9 +16,9 @@ use App\Models\Penduduk;
 use App\Models\PerangkatDesa;
 use App\Models\ProfilDesa;
 use App\Models\ProyekPembangunan;
-use App\Services\ApbdesService;
 use App\Services\PdfService;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Storage;
@@ -33,46 +29,20 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PortalPublikController extends Controller
 {
-    public function __construct(
-        private readonly ApbdesService $apbdesService,
-    ) {}
-
     /**
      * 1. Beranda Publik (/)
-     * Sorotan ringkas (sambutan singkat Kades, 3 metrik APBDes tahun aktif,
-     * maksimal 3 proyek terbaru, maksimal 3 kegiatan terbaru, & CTA Layanan Mandiri).
+     * Landing page terpadu: hero, profil desa + demografi + SOTK,
+     * dokumentasi pembangunan desa, sorotan kegiatan terbaru, & layanan mandiri.
      */
     public function beranda(): Response
     {
         $profil = ProfilDesa::singleton();
         $tahunAktif = (int) ($profil?->tahun_anggaran_aktif ?? date('Y'));
 
-        // Ambil APBDes aktif tahun berjalan (prioritas Perubahan > Murni)
-        $apbdesDoc = Apbdes::query()
-            ->with('rincian')
-            ->where('tahun_anggaran', $tahunAktif)
-            ->where('jenis_dokumen', JenisDokumenApbdes::Perubahan)
-            ->first()
-            ?? Apbdes::query()
-                ->with('rincian')
-                ->where('tahun_anggaran', $tahunAktif)
-                ->where('jenis_dokumen', JenisDokumenApbdes::Murni)
-                ->first();
-
-        $summary = $apbdesDoc
-            ? $this->apbdesService->calculateSummaryAndBalance($apbdesDoc)
-            : [
-                'total_pagu_pendapatan' => 0,
-                'total_pagu_belanja' => 0,
-                'total_realisasi_belanja' => 0,
-                'persentase_serapan_belanja' => 0.0,
-            ];
-
-        // Maksimal 3 proyek terbaru
+        // Daftar proyek pembangunan fisik beserta tautan foto progres 0%, 50%, dan 100%
         $proyekSorotan = ProyekPembangunan::query()
             ->orderByDesc('tahun_anggaran')
             ->orderByDesc('id')
-            ->limit(3)
             ->get()
             ->map(fn (ProyekPembangunan $p) => $this->transformProyekPublik($p))
             ->values()
@@ -89,38 +59,6 @@ class PortalPublikController extends Controller
             ->map(fn (KegiatanDesa $k) => $this->transformKegiatanCard($k))
             ->values()
             ->all();
-
-        return Inertia::render('Publik/Beranda', [
-            'tahun_aktif' => $tahunAktif,
-            'sambutan' => [
-                'nama_kepala_desa' => $profil?->nama_kepala_desa ?? 'Kepala Desa Tamarenja',
-                'sambutan_kepala_desa' => $profil?->sambutan_kepala_desa ?? 'Selamat datang di Portal Resmi Pemerintah Desa Tamarenja.',
-                'foto_kepala_desa_url' => $profil?->foto_kepala_desa_path
-                    ? Storage::disk('public')->url($profil->foto_kepala_desa_path)
-                    : null,
-            ],
-            'sorotan_apbdes' => [
-                'tahun_anggaran' => $tahunAktif,
-                'jenis_dokumen' => $apbdesDoc
-                    ? ($apbdesDoc->jenis_dokumen instanceof JenisDokumenApbdes ? $apbdesDoc->jenis_dokumen->value : (string) $apbdesDoc->jenis_dokumen)
-                    : 'murni',
-                'total_pagu_pendapatan' => (int) ($summary['total_pagu_pendapatan'] ?? 0),
-                'total_pagu_belanja' => (int) ($summary['total_pagu_belanja'] ?? 0),
-                'total_realisasi_belanja' => (int) ($summary['total_realisasi_belanja'] ?? 0),
-                'persentase_serapan_belanja' => (float) ($summary['persentase_serapan_belanja'] ?? 0.0),
-            ],
-            'proyek_terbaru' => $proyekSorotan,
-            'kegiatan_terbaru' => $kegiatanSorotan,
-        ]);
-    }
-
-    /**
-     * 2. Profil Desa & Struktur Organisasi SOTK (/profil)
-     * Halaman terpadu bernavigasi seksi/tab untuk Identitas, Visi-Misi, Sejarah, Potensi, dan SOTK + BPD aktif.
-     */
-    public function profil(): Response
-    {
-        $profil = ProfilDesa::singleton();
 
         $perangkatAktif = PerangkatDesa::query()
             ->aktif()
@@ -139,7 +77,37 @@ class PortalPublikController extends Controller
             ])
             ->values();
 
-        return Inertia::render('Publik/Profil', [
+        // Ringkasan Statistik Demografi Kependudukan Agregat (UU PDP)
+        $statistikPenduduk = [
+            'total_penduduk' => Penduduk::query()->aktif()->count(),
+            'total_kk' => KartuKeluarga::query()->aktif()->count(),
+            'laki_laki' => Penduduk::query()->aktif()->where('jenis_kelamin', 'L')->count(),
+            'perempuan' => Penduduk::query()->aktif()->where('jenis_kelamin', 'P')->count(),
+            'pekerjaan_utama' => Penduduk::query()
+                ->aktif()
+                ->selectRaw("COALESCE(NULLIF(TRIM(pekerjaan), ''), 'Lainnya') as label_pekerjaan, COUNT(*) as jumlah")
+                ->groupBy('label_pekerjaan')
+                ->orderByDesc('jumlah')
+                ->limit(5)
+                ->get()
+                ->map(fn ($r) => [
+                    'nama' => (string) $r->label_pekerjaan,
+                    'jumlah' => (int) $r->jumlah,
+                ])
+                ->values()
+                ->all(),
+        ];
+
+        return Inertia::render('Publik/Beranda', [
+            'tahun_aktif' => $tahunAktif,
+            'statistik_penduduk' => $statistikPenduduk,
+            'sambutan' => [
+                'nama_kepala_desa' => $profil?->nama_kepala_desa ?? 'Kepala Desa Tamarenja',
+                'sambutan_kepala_desa' => $profil?->sambutan_kepala_desa ?? 'Selamat datang di Portal Resmi Pemerintah Desa Tamarenja.',
+                'foto_kepala_desa_url' => $profil?->foto_kepala_desa_path
+                    ? Storage::disk('public')->url($profil->foto_kepala_desa_path)
+                    : null,
+            ],
             'profil' => [
                 'nama_desa' => $profil?->nama_desa ?? 'Tamarenja',
                 'kecamatan' => $profil?->kecamatan ?? 'Sindue Tobata',
@@ -152,13 +120,7 @@ class PortalPublikController extends Controller
                 'email_desa' => $profil?->email_desa,
                 'no_wa_pelayanan' => $profil?->no_wa_pelayanan,
                 'nama_kepala_desa' => $profil?->nama_kepala_desa,
-                'nip_kepala_desa' => $profil?->nip_kepala_desa,
-                'foto_kepala_desa_url' => $profil?->foto_kepala_desa_path
-                    ? Storage::disk('public')->url($profil->foto_kepala_desa_path)
-                    : null,
-                'sambutan_kepala_desa' => $profil?->sambutan_kepala_desa,
                 'nama_sekdes' => $profil?->nama_sekdes,
-                'nip_sekdes' => $profil?->nip_sekdes,
                 'visi' => $profil?->visi,
                 'misi' => array_values($profil?->misi ?? []),
                 'sejarah_singkat' => $profil?->sejarah_singkat,
@@ -172,111 +134,33 @@ class PortalPublikController extends Controller
                 ->where('kelompok_sotk', 'bpd')
                 ->values()
                 ->all(),
+            'proyek_terbaru' => $proyekSorotan,
+            'kegiatan_terbaru' => $kegiatanSorotan,
         ]);
     }
 
     /**
-     * 3. Transparansi APBDes Multi-Tahun & Generator Baliho (/transparansi/apbdes)
+     * 2. Rute lama /profil dialihkan ke seksi profil desa di landing page Beranda (#profil).
      */
-    public function transparansiApbdes(Request $request): Response
+    public function profil(): RedirectResponse
     {
-        $profil = ProfilDesa::singleton();
-        $tahunDefault = (int) ($profil?->tahun_anggaran_aktif ?? date('Y'));
-        $tahun = (int) $request->query('tahun', $tahunDefault);
-        $requestedJenis = trim((string) $request->query('jenis', ''));
-
-        $murni = Apbdes::query()
-            ->with('rincian')
-            ->where('tahun_anggaran', $tahun)
-            ->where('jenis_dokumen', JenisDokumenApbdes::Murni)
-            ->first();
-
-        $perubahan = Apbdes::query()
-            ->with('rincian')
-            ->where('tahun_anggaran', $tahun)
-            ->where('jenis_dokumen', JenisDokumenApbdes::Perubahan)
-            ->first();
-
-        if ($requestedJenis === 'murni' && $murni) {
-            $activeDoc = $murni;
-        } elseif ($requestedJenis === 'perubahan' && $perubahan) {
-            $activeDoc = $perubahan;
-        } else {
-            $activeDoc = $perubahan ?? $murni;
-        }
-
-        $transformedMurni = $murni ? $this->transformApbdesDoc($murni) : $this->emptyApbdesDoc($tahun, 'murni');
-        $transformedPerubahan = $perubahan ? $this->transformApbdesDoc($perubahan) : null;
-        $transformedAktif = $activeDoc
-            ? $this->transformApbdesDoc($activeDoc)
-            : $transformedMurni;
-
-        $ringkasan = $activeDoc
-            ? $this->apbdesService->calculateSummaryAndBalance($activeDoc)
-            : $this->emptyApbdesSummary();
-
-        $availableYears = Apbdes::query()
-            ->select('tahun_anggaran')
-            ->distinct()
-            ->orderByDesc('tahun_anggaran')
-            ->pluck('tahun_anggaran')
-            ->map(fn ($y) => (int) $y)
-            ->all();
-
-        $availableYears = array_values(array_unique([$tahunDefault, $tahun, ...$availableYears]));
-        rsort($availableYears);
-
-        return Inertia::render('Publik/TransparansiApbdes', [
-            'tahun_anggaran' => $tahun,
-            'available_tahun' => $availableYears,
-            'has_perubahan' => $perubahan !== null,
-            'dokumen_aktif' => $transformedAktif,
-            'dokumen_murni' => $transformedMurni,
-            'dokumen_perubahan' => $transformedPerubahan,
-            'ringkasan' => $ringkasan,
-        ]);
+        return redirect('/#profil');
     }
 
     /**
-     * 4. Katalog Proyek Pembangunan Fisik Publik (/transparansi/pembangunan)
+     * 3. Rute lama /transparansi/apbdes dialihkan ke beranda karena halaman APBDes publik ditiadakan.
      */
-    public function transparansiPembangunan(Request $request): Response
+    public function transparansiApbdes(): RedirectResponse
     {
-        $profil = ProfilDesa::singleton();
-        $tahunDefault = (int) ($profil?->tahun_anggaran_aktif ?? date('Y'));
-        $tahun = (int) $request->query('tahun', $tahunDefault);
-        $dusunFilter = trim((string) $request->query('dusun', ''));
+        return redirect('/');
+    }
 
-        $proyekList = ProyekPembangunan::query()
-            ->where('tahun_anggaran', $tahun)
-            ->when($dusunFilter !== '', fn ($q) => $q->where('lokasi_dusun', $dusunFilter))
-            ->orderByDesc('progres_fisik')
-            ->orderBy('id')
-            ->get()
-            ->map(fn (ProyekPembangunan $p) => $this->transformProyekPublik($p))
-            ->values()
-            ->all();
-
-        $availableYears = ProyekPembangunan::query()
-            ->select('tahun_anggaran')
-            ->distinct()
-            ->orderByDesc('tahun_anggaran')
-            ->pluck('tahun_anggaran')
-            ->map(fn ($y) => (int) $y)
-            ->all();
-
-        $availableYears = array_values(array_unique([$tahunDefault, $tahun, ...$availableYears]));
-        rsort($availableYears);
-
-        return Inertia::render('Publik/TransparansiPembangunan', [
-            'tahun_anggaran' => $tahun,
-            'available_tahun' => $availableYears,
-            'daftar_dusun' => array_values($profil?->daftar_dusun ?? []),
-            'filters' => [
-                'dusun' => $dusunFilter,
-            ],
-            'proyek' => $proyekList,
-        ]);
+    /**
+     * 4. Rute lama /transparansi/pembangunan dialihkan ke seksi dokumentasi pembangunan di Beranda.
+     */
+    public function transparansiPembangunan(): RedirectResponse
+    {
+        return redirect('/#pembangunan');
     }
 
     /**
@@ -315,113 +199,11 @@ class PortalPublikController extends Controller
     }
 
     /**
-     * 5. Statistik Penduduk Agregat Patuh UU PDP (/transparansi/statistik-penduduk)
-     * 100% tanpa NIK, Nomor KK, Tanggal Lahir, atau nama warga individu.
-     * Menggunakan whereBetween berbasis Carbon agar ramah indeks tanggal_lahir.
+     * 5. Rute lama /transparansi/statistik-penduduk dialihkan ke seksi profil desa di landing page Beranda (#profil).
      */
-    public function statistikPenduduk(): Response
+    public function statistikPenduduk(): RedirectResponse
     {
-        $today = Carbon::today();
-
-        $totalPendudukAktif = Penduduk::query()->aktif()->count();
-        $totalKkAktif = KartuKeluarga::query()->aktif()->count();
-
-        $lakiLakiCount = Penduduk::query()->aktif()->where('jenis_kelamin', 'L')->count();
-        $perempuanCount = Penduduk::query()->aktif()->where('jenis_kelamin', 'P')->count();
-
-        // 5 Kelompok Usia Baku berbasis rentang tanggal lahir (whereBetween / <=) untuk optimalisasi indeks
-        // 1. 0–4 thn (Balita): lahir > today - 5 years
-        $usia0To4 = Penduduk::query()
-            ->aktif()
-            ->whereBetween('tanggal_lahir', [
-                $today->copy()->subYears(5)->addDay()->toDateString(),
-                $today->toDateString(),
-            ])
-            ->count();
-
-        // 2. 5–14 thn (Anak): lahir antara (today - 15 years + 1 day) s/d (today - 5 years)
-        $usia5To14 = Penduduk::query()
-            ->aktif()
-            ->whereBetween('tanggal_lahir', [
-                $today->copy()->subYears(15)->addDay()->toDateString(),
-                $today->copy()->subYears(5)->toDateString(),
-            ])
-            ->count();
-
-        // 3. 15–24 thn (Pemuda): lahir antara (today - 25 years + 1 day) s/d (today - 15 years)
-        $usia15To24 = Penduduk::query()
-            ->aktif()
-            ->whereBetween('tanggal_lahir', [
-                $today->copy()->subYears(25)->addDay()->toDateString(),
-                $today->copy()->subYears(15)->toDateString(),
-            ])
-            ->count();
-
-        // 4. 25–59 thn (Produktif): lahir antara (today - 60 years + 1 day) s/d (today - 25 years)
-        $usia25To59 = Penduduk::query()
-            ->aktif()
-            ->whereBetween('tanggal_lahir', [
-                $today->copy()->subYears(60)->addDay()->toDateString(),
-                $today->copy()->subYears(25)->toDateString(),
-            ])
-            ->count();
-
-        // 5. 60+ thn (Lansia): lahir <= (today - 60 years)
-        $usia60Plus = Penduduk::query()
-            ->aktif()
-            ->whereDate('tanggal_lahir', '<=', $today->copy()->subYears(60)->toDateString())
-            ->count();
-
-        $kelompokUsia = [
-            ['kode' => '0_4', 'label' => '0–4 thn (Balita)', 'jumlah' => $usia0To4],
-            ['kode' => '5_14', 'label' => '5–14 thn (Anak)', 'jumlah' => $usia5To14],
-            ['kode' => '15_24', 'label' => '15–24 thn (Pemuda)', 'jumlah' => $usia15To24],
-            ['kode' => '25_59', 'label' => '25–59 thn (Produktif)', 'jumlah' => $usia25To59],
-            ['kode' => '60_plus', 'label' => '60+ thn (Lansia)', 'jumlah' => $usia60Plus],
-        ];
-
-        // Agregasi Pekerjaan warga aktif
-        $pekerjaanStats = Penduduk::query()
-            ->aktif()
-            ->selectRaw("COALESCE(NULLIF(TRIM(pekerjaan), ''), 'Belum / Tidak Bekerja') as label_pekerjaan, COUNT(*) as jumlah")
-            ->groupBy('label_pekerjaan')
-            ->orderByDesc('jumlah')
-            ->get()
-            ->map(fn ($row) => [
-                'pekerjaan' => (string) $row->label_pekerjaan,
-                'jumlah' => (int) $row->jumlah,
-            ])
-            ->values()
-            ->all();
-
-        // Agregasi Sebaran per Dusun khusus penduduk & KK aktif
-        $dusunPendudukCounts = Penduduk::query()
-            ->where('penduduk.status_kependudukan', StatusKependudukan::Aktif)
-            ->join('kartu_keluarga', 'kartu_keluarga.id', '=', 'penduduk.kartu_keluarga_id')
-            ->whereNull('kartu_keluarga.deleted_at')
-            ->selectRaw('kartu_keluarga.dusun as nama_dusun, COUNT(penduduk.id) as jumlah_jiwa, COUNT(DISTINCT kartu_keluarga.id) as jumlah_kk')
-            ->groupBy('kartu_keluarga.dusun')
-            ->orderBy('kartu_keluarga.dusun')
-            ->get()
-            ->map(fn ($row) => [
-                'dusun' => (string) $row->nama_dusun,
-                'jumlah_jiwa' => (int) $row->jumlah_jiwa,
-                'jumlah_kk' => (int) $row->jumlah_kk,
-            ])
-            ->values()
-            ->all();
-
-        return Inertia::render('Publik/StatistikPenduduk', [
-            'ringkasan' => [
-                'total_penduduk_aktif' => $totalPendudukAktif,
-                'total_kk_aktif' => $totalKkAktif,
-                'laki_laki_count' => $lakiLakiCount,
-                'perempuan_count' => $perempuanCount,
-            ],
-            'kelompok_usia' => $kelompokUsia,
-            'pekerjaan' => $pekerjaanStats,
-            'sebaran_dusun' => $dusunPendudukCounts,
-        ]);
+        return redirect('/#profil');
     }
 
     /**
@@ -663,82 +445,6 @@ class PortalPublikController extends Controller
             'foto_sampul_url' => $firstFoto?->foto_path
                 ? Storage::disk('public')->url($firstFoto->foto_path)
                 : null,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function transformApbdesDoc(Apbdes $doc): array
-    {
-        $doc->loadMissing('rincian');
-        $jenisVal = $doc->jenis_dokumen instanceof JenisDokumenApbdes
-            ? $doc->jenis_dokumen->value
-            : (string) $doc->jenis_dokumen;
-
-        return [
-            'id' => $doc->id,
-            'tahun_anggaran' => (int) $doc->tahun_anggaran,
-            'jenis_dokumen' => $jenisVal,
-            'jenis_label' => $jenisVal === 'perubahan'
-                ? 'APBDes Perubahan (P-APBDes)'
-                : 'APBDes Awal (Murni)',
-            'nomor_perdes' => $doc->nomor_perdes,
-            'tanggal_penetapan' => $doc->tanggal_penetapan?->format('Y-m-d'),
-            'rincian' => $doc->rincian->map(function (ApbdesRincian $r): array {
-                $kelompokVal = $r->kelompok instanceof KelompokPosApbdes
-                    ? $r->kelompok->value
-                    : (string) $r->kelompok;
-                $pagu = (int) $r->pagu_anggaran;
-                $realisasi = (int) $r->total_realisasi;
-                $persentase = $pagu > 0 ? round(($realisasi / $pagu) * 100, 2) : 0.0;
-
-                return [
-                    'kode_pos' => $r->kode_pos,
-                    'nama_pos' => $r->nama_pos,
-                    'kelompok' => $kelompokVal,
-                    'pagu_anggaran' => $pagu,
-                    'total_realisasi' => $realisasi,
-                    'sisa_anggaran' => $pagu - $realisasi,
-                    'persentase' => $persentase,
-                    'urutan' => (int) $r->urutan,
-                ];
-            })->values()->all(),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function emptyApbdesDoc(int $tahun, string $jenis): array
-    {
-        return [
-            'id' => null,
-            'tahun_anggaran' => $tahun,
-            'jenis_dokumen' => $jenis,
-            'jenis_label' => $jenis === 'perubahan' ? 'APBDes Perubahan (P-APBDes)' : 'APBDes Awal (Murni)',
-            'nomor_perdes' => null,
-            'tanggal_penetapan' => null,
-            'rincian' => [],
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function emptyApbdesSummary(): array
-    {
-        return [
-            'total_pagu_pendapatan' => 0,
-            'total_realisasi_pendapatan' => 0,
-            'persentase_realisasi_pendapatan' => 0.0,
-            'total_pagu_belanja' => 0,
-            'total_realisasi_belanja' => 0,
-            'sisa_anggaran_belanja' => 0,
-            'persentase_serapan_belanja' => 0.0,
-            'pembiayaan_netto_pagu' => 0,
-            'pembiayaan_netto_realisasi' => 0,
-            'lima_bidang' => [],
         ];
     }
 }

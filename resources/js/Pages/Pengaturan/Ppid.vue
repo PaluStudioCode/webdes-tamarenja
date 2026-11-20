@@ -307,7 +307,7 @@ async function handleDelete(row) {
                     <button
                         type="button"
                         :data-testid="`toggle-ppid-btn-${row.id}`"
-                        class="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
                         @click="handleTogglePublikasi(row)"
                     >
                         <EyeOff v-if="row.is_publik" class="h-3.5 w-3.5" />
@@ -320,7 +320,7 @@ async function handleDelete(row) {
                     <button
                         type="button"
                         :data-testid="`edit-ppid-btn-${row.id}`"
-                        class="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
                         @click="openEditModal(row)"
                     >
                         <Pencil class="h-3.5 w-3.5" />
@@ -330,7 +330,7 @@ async function handleDelete(row) {
                     <button
                         type="button"
                         :data-testid="`delete-ppid-btn-${row.id}`"
-                        class="inline-flex h-8 items-center gap-1 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                        class="inline-flex h-8 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 shadow-xs transition-colors hover:bg-red-50 hover:text-red-700"
                         @click="handleDelete(row)"
                     >
                         <Trash2 class="h-3.5 w-3.5" />

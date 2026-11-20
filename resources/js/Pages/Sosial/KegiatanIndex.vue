@@ -298,16 +298,16 @@ function closeModal() {
                         <button
                             type="button"
                             :data-testid="`btn-toggle-publikasi-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
                             @click="handleTogglePublikasi(row)"
                         >
                             <RotateCcw
                                 v-if="row.status_publikasi === 'published'"
-                                class="mr-1 h-3.5 w-3.5 text-amber-600"
+                                class="h-3.5 w-3.5 text-amber-600"
                             />
                             <CheckCircle2
                                 v-else
-                                class="mr-1 h-3.5 w-3.5 text-emerald-600"
+                                class="h-3.5 w-3.5 text-emerald-600"
                             />
                             <span>
                                 {{
@@ -321,20 +321,21 @@ function closeModal() {
                         <button
                             type="button"
                             :data-testid="`btn-edit-kegiatan-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
                             @click="openEditModal(row)"
                         >
-                            <Pencil class="mr-1 h-3.5 w-3.5" />
+                            <Pencil class="h-3.5 w-3.5" />
                             <span>Edit</span>
                         </button>
 
                         <button
                             type="button"
                             :data-testid="`btn-delete-kegiatan-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                            class="inline-flex h-8 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 shadow-xs transition-colors hover:bg-red-50 hover:text-red-700"
                             @click="handleDeleteKegiatan(row)"
                         >
                             <Trash2 class="h-3.5 w-3.5" />
+                            <span>Hapus</span>
                         </button>
                     </div>
                     <span v-else class="text-xs text-slate-400">Read-Only</span>

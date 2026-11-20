@@ -87,7 +87,17 @@ class StorePendudukRequest extends FormRequest
             'hubungan_keluarga' => [
                 'required',
                 'string',
-                Rule::in(['kepala_keluarga', 'istri', 'anak', 'lainnya']),
+                Rule::in([
+                    'kepala_keluarga',
+                    'istri',
+                    'anak',
+                    'cucu',
+                    'orang_tua',
+                    'kakek',
+                    'nenek',
+                    'famili_lain',
+                    'lainnya',
+                ]),
             ],
             'status_kesejahteraan' => ['nullable', Rule::enum(StatusKesejahteraan::class)],
             'jenis_bpjs' => ['nullable', 'string', 'max:50'],

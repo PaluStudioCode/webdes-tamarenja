@@ -22,6 +22,8 @@ class PenerimaBansos extends Model
     protected $fillable = [
         'penduduk_id',
         'jenis_bantuan',
+        'kategori_bantuan',
+        'nama_kelompok',
         'bentuk_nominal',
         'tahun_anggaran',
         'tahap_penyaluran',

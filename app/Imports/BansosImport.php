@@ -120,7 +120,10 @@ class BansosImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
-            if ($cleaned['status_kepesertaan'] === StatusPesertaBansos::Aktif->value && $penduduk->kartu_keluarga_id) {
+            $enumJenis = JenisBansos::tryFrom($cleaned['jenis_bantuan']);
+            $isPerKk = $enumJenis ? $enumJenis->isPerKk() : true;
+
+            if ($isPerKk && $cleaned['status_kepesertaan'] === StatusPesertaBansos::Aktif->value && $penduduk->kartu_keluarga_id) {
                 $duplicateKk = PenerimaBansos::query()
                     ->whereHas('penduduk', function ($q) use ($penduduk) {
                         $q->where('kartu_keluarga_id', $penduduk->kartu_keluarga_id)
@@ -150,9 +153,13 @@ class BansosImport implements ToCollection, WithHeadingRow
             $snapshotEkonomi = $penduduk->status_kesejahteraan instanceof StatusKesejahteraan
                 ? $penduduk->status_kesejahteraan->value
                 : (string) ($penduduk->status_kesejahteraan ?: StatusKesejahteraan::NonPrioritas->value);
+            $kategoriBantuan = $enumJenis ? $enumJenis->kategori() : 'per_kk';
+            $namaKelompok = ($enumJenis && $enumJenis->isKelompok() && $cleaned['nama_kelompok'] !== '')
+                ? $cleaned['nama_kelompok']
+                : null;
 
             try {
-                DB::transaction(function () use ($penduduk, $cleaned, $snapshotEkonomi) {
+                DB::transaction(function () use ($penduduk, $cleaned, $snapshotEkonomi, $kategoriBantuan, $namaKelompok) {
                     $existing = PenerimaBansos::withTrashed()
                         ->where('penduduk_id', $penduduk->id)
                         ->where('jenis_bantuan', $cleaned['jenis_bantuan'])
@@ -164,6 +171,8 @@ class BansosImport implements ToCollection, WithHeadingRow
                     $payload = [
                         'penduduk_id' => $penduduk->id,
                         'jenis_bantuan' => $cleaned['jenis_bantuan'],
+                        'kategori_bantuan' => $kategoriBantuan,
+                        'nama_kelompok' => $namaKelompok,
                         'bentuk_nominal' => $cleaned['bentuk_nominal'],
                         'tahun_anggaran' => (int) $cleaned['tahun_anggaran'],
                         'tahap_penyaluran' => $cleaned['tahap_penyaluran'],
@@ -235,12 +244,14 @@ class BansosImport implements ToCollection, WithHeadingRow
 
         $tahapPenyaluran = trim((string) ($row['tahap_penyaluran'] ?? $row['tahap'] ?? ''));
         $statusKepesertaan = $this->normalizeStatusKepesertaan($row['status_kepesertaan'] ?? $row['status'] ?? 'aktif');
+        $namaKelompok = trim((string) ($row['nama_kelompok'] ?? $row['kelompok'] ?? ''));
         $keterangan = trim((string) ($row['keterangan'] ?? ''));
 
         return [
             'nik' => $nik,
             'nama_lengkap' => $namaLengkap,
             'jenis_bantuan' => $jenisBantuan,
+            'nama_kelompok' => $namaKelompok,
             'bentuk_nominal' => $bentukNominal,
             'tahun_anggaran' => $tahunAnggaran,
             'tahap_penyaluran' => $tahapPenyaluran,
@@ -270,9 +281,19 @@ class BansosImport implements ToCollection, WithHeadingRow
             'pkh', 'program_keluarga_harapan' => JenisBansos::Pkh->value,
             'bpnt', 'sembako', 'bantuan_pangan_non_tunai' => JenisBansos::Bpnt->value,
             'blt_dd', 'blt_dana_desa', 'blt' => JenisBansos::BltDd->value,
-            'rtlh', 'bedah_rumah', 'rumah_tidak_layak_huni' => JenisBansos::Rtlh->value,
-            'pbi_jkn', 'kis', 'bpjs_pbi' => JenisBansos::PbiJkn->value,
-            'bantuan_daerah', 'bansos_daerah' => JenisBansos::BantuanDaerah->value,
+            'bantuan_pangan_beras', 'pangan_beras', 'beras', 'beras_10kg' => JenisBansos::BantuanPanganBeras->value,
+            'bantuan_daerah', 'bantuan_pangan_daerah', 'bansos_daerah' => JenisBansos::BantuanDaerah->value,
+            'rtlh', 'bedah_rumah', 'rumah_tidak_layak_huni', 'bantuan_rumah_tidak_layak_huni' => JenisBansos::Rtlh->value,
+            'pip', 'program_indonesia_pintar', 'kip' => JenisBansos::Pip->value,
+            'pbi_jkn', 'pbi_jk', 'kis', 'bpjs_pbi' => JenisBansos::PbiJkn->value,
+            'atensi', 'asistensi_rehabilitasi_sosial' => JenisBansos::Atensi->value,
+            'bantuan_lansia', 'lansia' => JenisBansos::BantuanLansia->value,
+            'bantuan_disabilitas', 'bantuan_penyandang_disabilitas', 'bantuan_peyandang_disabilitas', 'disabilitas' => JenisBansos::BantuanDisabilitas->value,
+            'bantuan_korban_bencana', 'korban_bencana', 'bencana' => JenisBansos::BantuanKorbanBencana->value,
+            'beasiswa_daerah', 'beasiswa' => JenisBansos::BeasiswaDaerah->value,
+            'bantuan_kelompok_tani', 'kelompok_tani', 'poktan' => JenisBansos::BantuanKelompokTani->value,
+            'bantuan_umkm', 'umkm' => JenisBansos::BantuanUmkm->value,
+            'bantuan_sarana_pertanian', 'sarana_pertanian', 'alsintan' => JenisBansos::BantuanSaranaPertanian->value,
             default => $snake,
         };
     }

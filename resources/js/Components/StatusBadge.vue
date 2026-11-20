@@ -47,7 +47,8 @@ const STATUS_CATALOG = {
         label: 'APBDes Murni - Arsip Terkunci',
     },
     murni: { color: 'slate', label: 'APBDes Murni' },
-    non_prioritas: { color: 'slate', label: 'Non-Prioritas' },
+    non_prioritas: { color: 'slate', label: 'Desil 6-10' },
+    dtsen_desil_6_10: { color: 'slate', label: 'Desil 6-10' },
     nonaktif: { color: 'slate', label: 'Nonaktif' },
 
     // Kuning / Amber (amber)
@@ -56,8 +57,11 @@ const STATUS_CATALOG = {
     perubahan: { color: 'amber', label: 'APBDes Perubahan' },
     apbdes_perubahan: { color: 'amber', label: 'APBDes Perubahan' },
     'apbdes perubahan': { color: 'amber', label: 'APBDes Perubahan' },
-    dtsen_desil_2: { color: 'amber', label: 'DTSEN Desil 2' },
-    dtsen_desil_3_4: { color: 'amber', label: 'DTSEN Desil 3-4' },
+    dtsen_desil_2: { color: 'amber', label: 'Desil 2' },
+    dtsen_desil_3: { color: 'amber', label: 'Desil 3' },
+    dtsen_desil_3_4: { color: 'amber', label: 'Desil 3' },
+    dtsen_desil_4: { color: 'amber', label: 'Desil 4' },
+    dtsen_desil_5: { color: 'amber', label: 'Desil 5' },
 
     // Hijau (emerald)
     selesai: { color: 'emerald', label: 'Selesai' },
@@ -74,7 +78,7 @@ const STATUS_CATALOG = {
     meninggal_dunia: { color: 'red', label: 'Meninggal Dunia' },
     tidak_terdaftar: { color: 'red', label: 'Tidak Terdaftar' },
     'tidak terdaftar': { color: 'red', label: 'Tidak Terdaftar' },
-    dtsen_desil_1: { color: 'red', label: 'DTSEN Desil 1' },
+    dtsen_desil_1: { color: 'red', label: 'Desil 1' },
 };
 
 const normalizedKey = computed(() =>

@@ -1,8 +1,7 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import {
-    ChevronDown,
     Clock,
     FileText,
     Landmark,
@@ -24,9 +23,6 @@ defineProps({
 const page = usePage();
 
 const isMobileMenuOpen = ref(false);
-const isTransparansiOpen = ref(false);
-const isMobileTransparansiOpen = ref(false);
-const transparansiRef = ref(null);
 
 const profilDesa = computed(() => page.props?.profil_desa || {});
 const isAuthenticated = computed(() => Boolean(page.props?.auth?.user));
@@ -65,12 +61,6 @@ const currentPath = computed(() => {
     return withoutQuery.length > 1 ? withoutQuery.replace(/\/+$/, '') : '/';
 });
 
-const transparansiItems = [
-    { label: 'APBDes', href: '/transparansi/apbdes' },
-    { label: 'Pembangunan', href: '/transparansi/pembangunan' },
-    { label: 'Statistik Penduduk', href: '/transparansi/statistik-penduduk' },
-];
-
 function isPathActive(prefix, exact = false) {
     if (exact) {
         return currentPath.value === prefix;
@@ -83,17 +73,6 @@ function isPathActive(prefix, exact = false) {
 
 function closeMenus() {
     isMobileMenuOpen.value = false;
-    isTransparansiOpen.value = false;
-}
-
-function handleOutsideClick(event) {
-    if (
-        isTransparansiOpen.value &&
-        transparansiRef.value &&
-        !transparansiRef.value.contains(event.target)
-    ) {
-        isTransparansiOpen.value = false;
-    }
 }
 
 watch(
@@ -102,14 +81,6 @@ watch(
         closeMenus();
     },
 );
-
-onMounted(() => {
-    document.addEventListener('click', handleOutsideClick);
-});
-
-onUnmounted(() => {
-    document.removeEventListener('click', handleOutsideClick);
-});
 </script>
 
 <template>
@@ -175,8 +146,8 @@ onUnmounted(() => {
                     </Link>
 
                     <!-- 2. Profil Desa -->
-                    <Link
-                        href="/profil"
+                    <a
+                        href="/#profil"
                         :class="[
                             'rounded-md px-3 py-2 text-sm font-medium transition-colors',
                             isPathActive('/profil')
@@ -185,53 +156,20 @@ onUnmounted(() => {
                         ]"
                     >
                         Profil Desa
-                    </Link>
+                    </a>
 
-                    <!-- 3. Transparansi (Dropdown Ringkas) -->
-                    <div ref="transparansiRef" class="relative">
-                        <button
-                            type="button"
-                            data-testid="public-transparansi-trigger"
-                            :aria-expanded="isTransparansiOpen"
-                            :class="[
-                                'inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                                isPathActive('/transparansi')
-                                    ? 'bg-blue-50 text-blue-700'
-                                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
-                            ]"
-                            @click.stop="isTransparansiOpen = !isTransparansiOpen"
-                        >
-                            <span>Transparansi</span>
-                            <ChevronDown
-                                :class="[
-                                    'h-4 w-4 transition-transform',
-                                    isTransparansiOpen ? 'rotate-180' : '',
-                                ]"
-                                :stroke-width="2"
-                            />
-                        </button>
-
-                        <div
-                            v-if="isTransparansiOpen"
-                            data-testid="public-transparansi-dropdown"
-                            class="absolute left-0 mt-1.5 w-52 rounded-lg border border-slate-200 bg-white py-1.5 shadow-md"
-                        >
-                            <Link
-                                v-for="sub in transparansiItems"
-                                :key="sub.href"
-                                :href="sub.href"
-                                :class="[
-                                    'block px-4 py-2 text-sm transition-colors',
-                                    isPathActive(sub.href)
-                                        ? 'bg-blue-50 font-medium text-blue-700'
-                                        : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900',
-                                ]"
-                                @click="closeMenus"
-                            >
-                                {{ sub.label }}
-                            </Link>
-                        </div>
-                    </div>
+                    <!-- 3. Pembangunan Desa -->
+                    <a
+                        href="/#pembangunan"
+                        :class="[
+                            'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                            isPathActive('/transparansi/pembangunan')
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
+                        ]"
+                    >
+                        Pembangunan Desa
+                    </a>
 
                     <!-- 4. Kegiatan -->
                     <Link
@@ -296,43 +234,21 @@ onUnmounted(() => {
                         Beranda
                     </Link>
 
-                    <Link
-                        href="/profil"
+                    <a
+                        href="/#profil"
                         class="flex min-h-[44px] items-center rounded-md px-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
                         @click="closeMenus"
                     >
                         Profil Desa
-                    </Link>
+                    </a>
 
-                    <div>
-                        <button
-                            type="button"
-                            class="flex min-h-[44px] w-full items-center justify-between rounded-md px-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                            @click="isMobileTransparansiOpen = !isMobileTransparansiOpen"
-                        >
-                            <span>Transparansi</span>
-                            <ChevronDown
-                                :class="[
-                                    'h-4 w-4 transition-transform',
-                                    isMobileTransparansiOpen ? 'rotate-180' : '',
-                                ]"
-                            />
-                        </button>
-                        <div
-                            v-if="isMobileTransparansiOpen"
-                            class="ml-3 flex flex-col border-l border-slate-200 pl-3"
-                        >
-                            <Link
-                                v-for="sub in transparansiItems"
-                                :key="sub.href"
-                                :href="sub.href"
-                                class="flex min-h-[44px] items-center rounded-md px-3 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                                @click="closeMenus"
-                            >
-                                {{ sub.label }}
-                            </Link>
-                        </div>
-                    </div>
+                    <a
+                        href="/#pembangunan"
+                        class="flex min-h-[44px] items-center rounded-md px-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                        @click="closeMenus"
+                    >
+                        Pembangunan Desa
+                    </a>
 
                     <Link
                         href="/kegiatan"
@@ -476,12 +392,12 @@ onUnmounted(() => {
                                 </Link>
                             </li>
                             <li>
-                                <Link
-                                    href="/transparansi/apbdes"
+                                <a
+                                    href="/#pembangunan"
                                     class="hover:text-blue-700"
                                 >
-                                    Infografis &amp; Baliho APBDes
-                                </Link>
+                                    Dokumentasi Pembangunan Desa
+                                </a>
                             </li>
                             <li>
                                 <Link

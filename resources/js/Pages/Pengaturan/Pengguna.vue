@@ -314,7 +314,7 @@ async function handleDeleteUser(row) {
                     <button
                         type="button"
                         :data-testid="`edit-user-btn-${row.id}`"
-                        class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                        class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
                         @click="openEditModal(row)"
                     >
                         <Pencil class="h-3.5 w-3.5" :stroke-width="1.75" />
@@ -331,10 +331,10 @@ async function handleDeleteUser(row) {
                                 : undefined
                         "
                         :class="[
-                            'inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors',
+                            'inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium shadow-xs transition-colors',
                             isLockoutProtected(row)
                                 ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900',
                         ]"
                         @click="handleToggleStatus(row)"
                     >
@@ -355,14 +355,15 @@ async function handleDeleteUser(row) {
                                 : undefined
                         "
                         :class="[
-                            'inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors',
+                            'inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium shadow-xs transition-colors',
                             isLockoutProtected(row)
                                 ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300'
-                                : 'border-red-200 bg-white text-red-600 hover:bg-red-50',
+                                : 'border-red-200 bg-white text-red-600 hover:bg-red-50 hover:text-red-700',
                         ]"
                         @click="handleDeleteUser(row)"
                     >
                         <Trash2 class="h-3.5 w-3.5" :stroke-width="1.75" />
+                        <span>Hapus</span>
                     </button>
                 </div>
             </template>

@@ -115,7 +115,12 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
                     WHEN 'kepala_keluarga' THEN 1
                     WHEN 'istri' THEN 2
                     WHEN 'anak' THEN 3
-                    ELSE 4
+                    WHEN 'cucu' THEN 4
+                    WHEN 'orang_tua' THEN 5
+                    WHEN 'kakek' THEN 6
+                    WHEN 'nenek' THEN 7
+                    WHEN 'famili_lain' THEN 8
+                    ELSE 9
                 END ASC
             ")
             ->orderBy('tanggal_lahir')
@@ -143,7 +148,12 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
             'kepala_keluarga' => 'Kepala Keluarga',
             'istri' => 'Istri',
             'anak' => 'Anak',
-            'lainnya' => 'Famili Lain',
+            'cucu' => 'Cucu',
+            'orang_tua' => 'Orang Tua',
+            'kakek' => 'Kakek',
+            'nenek' => 'Nenek',
+            'famili_lain' => 'Famili Lain',
+            'lainnya' => 'Lainnya',
             default => (string) $penduduk->hubungan_keluarga,
         };
 
@@ -154,8 +164,10 @@ class PendudukExport extends StringValueBinder implements FromCollection, Should
         $statusKesejahteraanLabel = match ($statusKesejahteraanVal) {
             StatusKesejahteraan::DtsenDesil1->value => 'Desil 1',
             StatusKesejahteraan::DtsenDesil2->value => 'Desil 2',
-            StatusKesejahteraan::DtsenDesil34->value => 'Desil 3-4',
-            default => 'Non-Prioritas',
+            StatusKesejahteraan::DtsenDesil3->value, 'dtsen_desil_3_4' => 'Desil 3',
+            StatusKesejahteraan::DtsenDesil4->value => 'Desil 4',
+            StatusKesejahteraan::DtsenDesil5->value => 'Desil 5',
+            default => 'Desil 6-10',
         };
 
         $statusKependudukanVal = $penduduk->status_kependudukan instanceof StatusKependudukan

@@ -50,6 +50,18 @@ class KartuKeluargaController extends Controller
                 'rw' => $kartuKeluarga->rw,
                 'alamat' => $kartuKeluarga->alamat,
                 'status_kesejahteraan' => $kkKesejahteraan,
+                'status_kepemilikan_rumah' => $kartuKeluarga->status_kepemilikan_rumah,
+                'kondisi_rumah' => $kartuKeluarga->kondisi_rumah,
+                'jenis_listrik' => $kartuKeluarga->jenis_listrik,
+                'kamar_mandi' => $kartuKeluarga->kamar_mandi,
+                'penghasilan_bulanan' => $kartuKeluarga->penghasilan_bulanan,
+                'kepemilikan_usaha' => $kartuKeluarga->kepemilikan_usaha,
+                'kepemilikan_hewan_ternak' => $kartuKeluarga->kepemilikan_hewan_ternak,
+                'kepemilikan_kendaraan_elektronik' => $kartuKeluarga->kepemilikan_kendaraan_elektronik,
+                'kepemilikan_shml' => $kartuKeluarga->kepemilikan_shml,
+                'kepemilikan_tanah_bidang' => $kartuKeluarga->kepemilikan_tanah_bidang,
+                'kepemilikan_tanah_sawah' => $kartuKeluarga->kepemilikan_tanah_sawah,
+                'tanaman' => $kartuKeluarga->tanaman,
                 'kepala_keluarga' => $kepala ? [
                     'id' => $kepala->id,
                     'nik' => $kepala->nik,
@@ -77,13 +89,18 @@ class KartuKeluargaController extends Controller
                     'tanggal_lahir' => $p->tanggal_lahir?->format('Y-m-d'),
                     'jenis_kelamin' => $p->jenis_kelamin,
                     'agama' => $p->agama,
+                    'suku' => $p->suku,
+                    'kewarganegaraan' => $p->kewarganegaraan ?: 'WNI',
                     'pendidikan' => $p->pendidikan,
+                    'peserta_kip_pip' => $p->peserta_kip_pip,
+                    'kelas_sekolah' => $p->kelas_sekolah,
                     'pekerjaan' => $p->pekerjaan,
                     'status_perkawinan' => $p->status_perkawinan,
                     'hubungan_keluarga' => $p->hubungan_keluarga,
                     'status_kesejahteraan' => $p->status_kesejahteraan instanceof StatusKesejahteraan
                         ? $p->status_kesejahteraan->value
                         : (string) $p->status_kesejahteraan,
+                    'jenis_bpjs' => $p->jenis_bpjs,
                     'status_kependudukan' => $p->status_kependudukan instanceof StatusKependudukan
                         ? $p->status_kependudukan->value
                         : (string) $p->status_kependudukan,

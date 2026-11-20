@@ -132,16 +132,9 @@ onUnmounted(() => {
                     errors[cp.key] ? 'border-red-400' : 'border-slate-200',
                 ]"
             >
-                <div class="flex items-center justify-between gap-2">
+                <div>
                     <span class="text-sm font-semibold text-slate-900">
                         {{ cp.title }}
-                    </span>
-                    <span
-                        v-if="isRequiredForProgress(cp.threshold)"
-                        :data-testid="`checkpoint-required-${cp.key}`"
-                        class="inline-flex items-center rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
-                    >
-                        Wajib
                     </span>
                 </div>
 

@@ -39,10 +39,11 @@ class SchemaFoundationTest extends TestCase
         );
 
         $this->assertSame(
-            ['dtsen_desil_1', 'dtsen_desil_2', 'dtsen_desil_3_4', 'non_prioritas'],
+            ['dtsen_desil_1', 'dtsen_desil_2', 'dtsen_desil_3', 'dtsen_desil_4', 'dtsen_desil_5', 'non_prioritas'],
             array_column(StatusKesejahteraan::cases(), 'value')
         );
         $this->assertTrue(StatusKesejahteraan::DtsenDesil1->isSasaranPrioritas());
+        $this->assertTrue(StatusKesejahteraan::DtsenDesil5->isSasaranPrioritas());
         $this->assertFalse(StatusKesejahteraan::NonPrioritas->isSasaranPrioritas());
 
         $this->assertSame(
@@ -90,7 +91,24 @@ class SchemaFoundationTest extends TestCase
         );
 
         $this->assertSame(
-            ['pkh', 'bpnt', 'blt_dd', 'rtlh', 'pbi_jkn', 'bantuan_daerah'],
+            [
+                'pkh',
+                'bpnt',
+                'blt_dd',
+                'bantuan_pangan_beras',
+                'bantuan_daerah',
+                'rtlh',
+                'pip',
+                'pbi_jkn',
+                'atensi',
+                'bantuan_lansia',
+                'bantuan_disabilitas',
+                'bantuan_korban_bencana',
+                'beasiswa_daerah',
+                'bantuan_kelompok_tani',
+                'bantuan_umkm',
+                'bantuan_sarana_pertanian',
+            ],
             array_column(JenisBansos::cases(), 'value')
         );
 

@@ -382,28 +382,28 @@ async function handleDeleteAntrean(item) {
                 </template>
 
                 <template #cell-actions="{ row }">
-                    <div class="flex items-center justify-end gap-2 whitespace-nowrap">
+                    <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <!-- Aksi saat Menunggu Verifikasi (Khusus Operator) -->
                         <template v-if="row.status === 'menunggu_verifikasi' && isOperator">
-                            <BaseButton
-                                variant="primary"
-                                size="sm"
+                            <button
+                                type="button"
                                 :data-testid="`btn-verifikasi-antrean-${row.id}`"
+                                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 text-xs font-medium text-blue-700 shadow-xs transition-colors hover:bg-blue-100 hover:text-blue-800"
                                 @click="openVerifikasiModal(row)"
                             >
-                                <CheckCircle2 class="mr-1 h-3.5 w-3.5" />
+                                <CheckCircle2 class="h-3.5 w-3.5" />
                                 <span>Verifikasi</span>
-                            </BaseButton>
+                            </button>
 
-                            <BaseButton
-                                variant="outline"
-                                size="sm"
+                            <button
+                                type="button"
                                 :data-testid="`btn-tolak-antrean-${row.id}`"
+                                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 shadow-xs transition-colors hover:bg-red-50 hover:text-red-700"
                                 @click="openTolakModal(row)"
                             >
-                                <XCircle class="mr-1 h-3.5 w-3.5 text-red-600" />
+                                <XCircle class="h-3.5 w-3.5" />
                                 <span>Tolak</span>
-                            </BaseButton>
+                            </button>
                         </template>
 
                         <!-- Aksi saat sudah Terbit (Kabari Warga via WA) -->
@@ -414,9 +414,9 @@ async function handleDeleteAntrean(item) {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 :data-testid="`btn-wa-pickup-${row.id}`"
-                                class="inline-flex h-8 items-center justify-center rounded-md bg-emerald-600 px-3 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
+                                class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-emerald-700"
                             >
-                                <MessageCircle class="mr-1 h-3.5 w-3.5" />
+                                <MessageCircle class="h-3.5 w-3.5" />
                                 <span>Whatsapp</span>
                             </a>
                         </template>
@@ -426,10 +426,11 @@ async function handleDeleteAntrean(item) {
                             v-if="row.status === 'ditolak' && isOperator"
                             type="button"
                             :data-testid="`btn-delete-antrean-${row.id}`"
-                            class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                            class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 shadow-xs transition-colors hover:bg-red-50 hover:text-red-700"
                             @click="handleDeleteAntrean(row)"
                         >
                             <Trash2 class="h-3.5 w-3.5" />
+                            <span>Hapus</span>
                         </button>
                     </div>
                 </template>

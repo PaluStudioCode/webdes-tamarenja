@@ -15,7 +15,6 @@ use App\Models\Penduduk;
 use App\Models\PerangkatDesa;
 use App\Models\ProyekPembangunan;
 use App\Models\User;
-use App\Services\ApbdesService;
 use Carbon\Carbon;
 use Database\Seeders\EssentialDesaSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -59,10 +58,6 @@ class PortalInformasiTerbukaAndUuPdpAuditTest extends TestCase
 
         $routes = [
             '/',
-            '/profil',
-            '/transparansi/apbdes',
-            '/transparansi/pembangunan',
-            '/transparansi/statistik-penduduk',
             '/kegiatan',
             '/unduhan',
         ];
@@ -83,7 +78,7 @@ class PortalInformasiTerbukaAndUuPdpAuditTest extends TestCase
         }
     }
 
-    public function test_beranda_limits_proyek_terbaru_and_kegiatan_terbaru_to_maximum_3_items(): void
+    public function test_beranda_provides_all_proyek_for_pembangunan_section_and_limits_kegiatan_to_3_items_without_apbdes(): void
     {
         for ($i = 1; $i <= 5; $i++) {
             ProyekPembangunan::query()->create([
@@ -121,13 +116,15 @@ class PortalInformasiTerbukaAndUuPdpAuditTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Publik/Beranda')
-                ->has('proyek_terbaru', 3)
+                ->has('proyek_terbaru', 5)
                 ->has('kegiatan_terbaru', 3)
+                ->has('statistik_penduduk')
+                ->missing('sorotan_apbdes')
                 ->where('tahun_aktif', 2026)
             );
     }
 
-    public function test_profil_separates_active_pemerintah_and_bpd_perangkat_and_excludes_inactive_officials(): void
+    public function test_beranda_includes_active_pemerintah_and_bpd_perangkat_and_excludes_inactive_officials(): void
     {
         PerangkatDesa::query()->delete();
 
@@ -155,10 +152,10 @@ class PortalInformasiTerbukaAndUuPdpAuditTest extends TestCase
             'is_aktif' => false,
         ]);
 
-        $this->get('/profil')
+        $this->get('/')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Publik/Profil')
+                ->component('Publik/Beranda')
                 ->has('sotk_pemerintah', 1)
                 ->has('sotk_bpd', 1)
                 ->where('sotk_pemerintah.0.nama_lengkap', 'Moh. Rizal, S.AP')
@@ -208,24 +205,14 @@ class PortalInformasiTerbukaAndUuPdpAuditTest extends TestCase
         $createResident($kkNonAktif, '0201', '1970-01-01', 'L', StatusKependudukan::MeninggalDunia);
         $createResident($kkNonAktif, '0202', '1995-01-01', 'P', StatusKependudukan::PindahKeluar);
 
-        $this->get('/transparansi/statistik-penduduk')
+        $this->get('/')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Publik/StatistikPenduduk')
-                ->where('ringkasan.total_penduduk_aktif', 5)
-                ->where('ringkasan.total_kk_aktif', 1)
-                ->where('ringkasan.laki_laki_count', 3)
-                ->where('ringkasan.perempuan_count', 2)
-                ->where('kelompok_usia.0.kode', '0_4')
-                ->where('kelompok_usia.0.jumlah', 1)
-                ->where('kelompok_usia.1.kode', '5_14')
-                ->where('kelompok_usia.1.jumlah', 1)
-                ->where('kelompok_usia.2.kode', '15_24')
-                ->where('kelompok_usia.2.jumlah', 1)
-                ->where('kelompok_usia.3.kode', '25_59')
-                ->where('kelompok_usia.3.jumlah', 1)
-                ->where('kelompok_usia.4.kode', '60_plus')
-                ->where('kelompok_usia.4.jumlah', 1)
+                ->component('Publik/Beranda')
+                ->where('statistik_penduduk.total_penduduk', 5)
+                ->where('statistik_penduduk.total_kk', 1)
+                ->where('statistik_penduduk.laki_laki', 3)
+                ->where('statistik_penduduk.perempuan', 2)
             );
 
         Carbon::setTestNow();
@@ -251,39 +238,19 @@ class PortalInformasiTerbukaAndUuPdpAuditTest extends TestCase
         $this->assertStringContainsString('application/pdf', (string) $response->headers->get('content-type'));
     }
 
-    public function test_transparansi_apbdes_provides_murni_and_perubahan_comparison(): void
+    public function test_deprecated_public_routes_redirect_to_beranda_sections(): void
     {
-        /** @var ApbdesService $apbdesService */
-        $apbdesService = app(ApbdesService::class);
-
-        $murni = $apbdesService->initializeMurni(2026, $this->operator->id);
-        $apbdesService->updateBatchRincian($murni, [
-            'dds' => [
-                'pagu_anggaran' => 800000000,
-                'realisasi_tahap_1' => 800000000,
-                'realisasi_tahap_2' => 0,
-                'realisasi_tahap_3' => 0,
-            ],
-        ]);
-
-        $perubahan = $apbdesService->createPerubahanCloneAndFreeze(2026, $this->operator->id);
-        $apbdesService->updateBatchRincian($perubahan, [
-            'dds' => [
-                'pagu_anggaran' => 950000000,
-                'realisasi_tahap_1' => 900000000,
-                'realisasi_tahap_2' => 0,
-                'realisasi_tahap_3' => 0,
-            ],
-        ]);
-
         $this->get('/transparansi/apbdes?tahun=2026')
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->component('Publik/TransparansiApbdes')
-                ->where('has_perubahan', true)
-                ->where('dokumen_aktif.jenis_dokumen', 'perubahan')
-                ->where('ringkasan.total_pagu_pendapatan', 950000000)
-            );
+            ->assertRedirect('/');
+
+        $this->get('/transparansi/pembangunan?tahun=2026')
+            ->assertRedirect('/#pembangunan');
+
+        $this->get('/profil')
+            ->assertRedirect('/#profil');
+
+        $this->get('/transparansi/statistik-penduduk')
+            ->assertRedirect('/#profil');
     }
 
     public function test_draft_kegiatan_and_non_public_ppid_return_404_while_public_ppid_increments_jumlah_unduhan(): void

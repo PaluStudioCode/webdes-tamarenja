@@ -11,7 +11,6 @@ import {
     Plus,
     Printer,
     Trash2,
-    TrendingUp,
     Upload,
     UserCheck,
     Users,
@@ -22,12 +21,12 @@ import PageHeader from '@/Components/PageHeader.vue';
 import StatCard from '@/Components/StatCard.vue';
 import UnifiedFilterBar from '@/Components/UnifiedFilterBar.vue';
 import DataTable from '@/Components/DataTable.vue';
-import StatusBadge from '@/Components/StatusBadge.vue';
 import BaseButton from '@/Components/BaseButton.vue';
 import BaseModal from '@/Components/BaseModal.vue';
 import BaseCallout from '@/Components/BaseCallout.vue';
 import NikSearchAutocomplete from '@/Components/NikSearchAutocomplete.vue';
 import FileDropzone from '@/Components/FileDropzone.vue';
+import StatusBadge from '@/Components/StatusBadge.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 
 const props = defineProps({
@@ -57,6 +56,9 @@ const props = defineProps({
             total_penerima: 0,
             total_aktif: 0,
             total_graduasi: 0,
+            total_per_kk: 0,
+            total_perorangan: 0,
+            total_kelompok: 0,
             jumlah_kk_belum_terima: 0,
             jumlah_individu_belum_terima: 0,
         }),
@@ -72,12 +74,22 @@ const props = defineProps({
     opsi_jenis_bantuan: {
         type: Array,
         default: () => [
-            { value: 'pkh', label: 'Program Keluarga Harapan (PKH)' },
-            { value: 'bpnt', label: 'Bantuan Pangan Non-Tunai (BPNT)' },
-            { value: 'blt_dd', label: 'BLT Dana Desa (BLT-DD)' },
-            { value: 'rtlh', label: 'Rumah Tidak Layak Huni (RTLH)' },
-            { value: 'pbi_jkn', label: 'PBI Jaminan Kesehatan (PBI-JKN)' },
-            { value: 'bantuan_daerah', label: 'Bantuan Pemerintah Daerah' },
+            { value: 'pkh', label: 'Program Keluarga Harapan (PKH)', kategori: 'per_kk', kategori_label: 'Bantuan Sosial Per KK', default_nominal: 'Rp 225.000 - Rp 750.000 / Tahap' },
+            { value: 'bpnt', label: 'Bantuan Pangan Non-Tunai (BPNT) / Kartu Sembako', kategori: 'per_kk', kategori_label: 'Bantuan Sosial Per KK', default_nominal: 'Rp 200.000 / Bulan' },
+            { value: 'blt_dd', label: 'BLT Dana Desa (BLT-DD)', kategori: 'per_kk', kategori_label: 'Bantuan Sosial Per KK', default_nominal: 'Rp 300.000 / Bulan' },
+            { value: 'bantuan_pangan_beras', label: 'Bantuan Pangan Beras (CBP)', kategori: 'per_kk', kategori_label: 'Bantuan Sosial Per KK', default_nominal: 'Beras 10 Kg / Bulan' },
+            { value: 'bantuan_daerah', label: 'Bantuan Pangan Daerah', kategori: 'per_kk', kategori_label: 'Bantuan Sosial Per KK', default_nominal: 'Paket Sembako Daerah' },
+            { value: 'rtlh', label: 'Bantuan Rumah Tidak Layak Huni (RTLH)', kategori: 'per_kk', kategori_label: 'Bantuan Sosial Per KK', default_nominal: 'Material Bangunan / Rp 20.000.000' },
+            { value: 'pip', label: 'Program Indonesia Pintar (PIP)', kategori: 'perorangan', kategori_label: 'Bantuan Sosial Perorangan', default_nominal: 'Rp 450.000 - Rp 1.800.000 / Tahun' },
+            { value: 'pbi_jkn', label: 'PBI-JK (Jaminan Kesehatan / KIS)', kategori: 'perorangan', kategori_label: 'Bantuan Sosial Perorangan', default_nominal: 'Iuran BPJS Kesehatan Gratis' },
+            { value: 'atensi', label: 'ATENSI (Asistensi Rehabilitasi Sosial)', kategori: 'perorangan', kategori_label: 'Bantuan Sosial Perorangan', default_nominal: 'Alat Bantu / Sembako / Kewirausahaan' },
+            { value: 'bantuan_lansia', label: 'Bantuan Lansia', kategori: 'perorangan', kategori_label: 'Bantuan Sosial Perorangan', default_nominal: 'Uang Tunai / Paket Sembako Lansia' },
+            { value: 'bantuan_disabilitas', label: 'Bantuan Penyandang Disabilitas', kategori: 'perorangan', kategori_label: 'Bantuan Sosial Perorangan', default_nominal: 'Uang Tunai / Alat Bantu Disabilitas' },
+            { value: 'bantuan_korban_bencana', label: 'Bantuan Korban Bencana', kategori: 'perorangan', kategori_label: 'Bantuan Sosial Perorangan', default_nominal: 'Santunan / Logistik Darurat' },
+            { value: 'beasiswa_daerah', label: 'Beasiswa Daerah', kategori: 'perorangan', kategori_label: 'Bantuan Sosial Perorangan', default_nominal: 'Beasiswa Pendidikan Daerah' },
+            { value: 'bantuan_kelompok_tani', label: 'Bantuan Kelompok Tani (Poktan)', kategori: 'kelompok', kategori_label: 'Bantuan Kelompok Masyarakat', default_nominal: 'Bibit / Pupuk / Alsintan' },
+            { value: 'bantuan_umkm', label: 'Bantuan UMKM / Usaha Ekonomi Produktif', kategori: 'kelompok', kategori_label: 'Bantuan Kelompok Masyarakat', default_nominal: 'Modal Usaha / Peralatan Produksi' },
+            { value: 'bantuan_sarana_pertanian', label: 'Bantuan Sarana Pertanian / Perikanan', kategori: 'kelompok', kategori_label: 'Bantuan Kelompok Masyarakat', default_nominal: 'Pompa Air / Jaring / Sarana Produksi' },
         ],
     },
     opsi_status_kepesertaan: {
@@ -93,6 +105,10 @@ const props = defineProps({
         type: Array,
         default: () => ['Tahap I', 'Tahap II', 'Tahap III', 'Tahap IV'],
     },
+    opsi_tahun: {
+        type: Array,
+        default: () => [],
+    },
     residents: {
         type: Array,
         default: null,
@@ -106,111 +122,107 @@ const isOperator = computed(
     () => page.props?.auth?.user?.role === 'operator',
 );
 
-// 2 Tab Internal Halaman Bansos
-const activeTab = ref('penerima');
-const modePemerataan = ref(
-    props.mode_pemerataan === 'per_individu' ? 'per_individu' : 'per_kk',
-);
+const OPSI_KATEGORI_BANTUAN = [
+    {
+        value: 'per_kk',
+        label: 'Bantuan Sosial Per KK',
+        shortLabel: 'Per KK',
+        desc: '1 KK = 1 penerima aktif per program (PKH, BPNT, BLT-DD, CBP, RTLH)',
+    },
+    {
+        value: 'perorangan',
+        label: 'Bantuan Sosial Perorangan',
+        shortLabel: 'Perorangan',
+        desc: 'Berbasis individu warga (PIP, PBI-JK/KIS, ATENSI, Lansia, Disabilitas)',
+    },
+    {
+        value: 'kelompok',
+        label: 'Bantuan Kelompok Masyarakat',
+        shortLabel: 'Kelompok',
+        desc: 'Berbasis kelompok/usaha warga (Kelompok Tani, UMKM, Sarana Pertanian)',
+    },
+];
+
+function resolveKategoriByJenis(jenisValue) {
+    const found = (props.opsi_jenis_bantuan || []).find((o) => o.value === jenisValue);
+    if (found?.kategori) {
+        return found.kategori;
+    }
+    if (['pip', 'pbi_jkn', 'atensi', 'bantuan_lansia', 'bantuan_disabilitas', 'bantuan_korban_bencana', 'beasiswa_daerah'].includes(jenisValue)) {
+        return 'perorangan';
+    }
+    if (['bantuan_kelompok_tani', 'bantuan_umkm', 'bantuan_sarana_pertanian'].includes(jenisValue)) {
+        return 'kelompok';
+    }
+    return 'per_kk';
+}
+
+function resolveKategoriLabelByJenis(jenisValue) {
+    const kat = resolveKategoriByJenis(jenisValue);
+    const found = OPSI_KATEGORI_BANTUAN.find((k) => k.value === kat);
+    return found?.label || 'Bantuan Sosial Per KK';
+}
 
 const searchQuery = ref(props.filters?.search || '');
+const selectedKategori = ref(props.filters?.kategori_bantuan || '');
 const selectedJenis = ref(props.filters?.jenis_bantuan || '');
 const selectedTahap = ref(props.filters?.tahap_penyaluran || '');
-const selectedStatus = ref(props.filters?.status_kepesertaan || '');
-const selectedDusun = ref(props.filters?.dusun || '');
-const selectedDesil = ref(props.filters?.status_kesejahteraan || '');
+const selectedTahun = ref(
+    props.filters?.tahun_anggaran ? String(props.filters.tahun_anggaran) : '',
+);
+
+const opsiTahunList = computed(() => {
+    const yearsFromRows = (props.penerima_bansos || [])
+        .map((r) => Number(r.tahun_anggaran))
+        .filter((y) => !Number.isNaN(y) && y > 0);
+    const baseYears =
+        Array.isArray(props.opsi_tahun) && props.opsi_tahun.length > 0
+            ? props.opsi_tahun.map((y) => Number(y))
+            : [
+                  props.tahun_anggaran - 1,
+                  props.tahun_anggaran,
+                  props.tahun_anggaran + 1,
+              ];
+    return Array.from(new Set([...baseYears, ...yearsFromRows])).sort(
+        (a, b) => b - a,
+    );
+});
+
+const filteredOpsiJenisFilter = computed(() => {
+    if (!selectedKategori.value) {
+        return props.opsi_jenis_bantuan || [];
+    }
+    return (props.opsi_jenis_bantuan || []).filter(
+        (opt) => (opt.kategori || resolveKategoriByJenis(opt.value)) === selectedKategori.value,
+    );
+});
+
+watch(selectedKategori, (newKat) => {
+    if (newKat && selectedJenis.value) {
+        const currentKat = resolveKategoriByJenis(selectedJenis.value);
+        if (currentKat !== newKat) {
+            selectedJenis.value = '';
+        }
+    }
+});
 
 const hasActiveFilters = computed(() =>
     Boolean(
         searchQuery.value ||
+            selectedKategori.value ||
             selectedJenis.value ||
             selectedTahap.value ||
-            selectedStatus.value ||
-            selectedDusun.value ||
-            selectedDesil.value,
+            selectedTahun.value,
     ),
 );
 
 function resetFilters() {
     searchQuery.value = '';
+    selectedKategori.value = '';
     selectedJenis.value = '';
     selectedTahap.value = '';
-    selectedStatus.value = '';
-    selectedDusun.value = '';
-    selectedDesil.value = '';
+    selectedTahun.value = '';
 }
-
-// Active Filter Chips (Pills)
-const activeFilterChips = computed(() => {
-    const chips = [];
-
-    if (searchQuery.value.trim()) {
-        chips.push({
-            id: 'search',
-            label: `Pencarian: "${searchQuery.value.trim()}"`,
-            clear: () => {
-                searchQuery.value = '';
-            },
-        });
-    }
-
-    if (selectedDusun.value) {
-        chips.push({
-            id: 'dusun',
-            label: `Dusun: ${selectedDusun.value}`,
-            clear: () => {
-                selectedDusun.value = '';
-            },
-        });
-    }
-
-    if (activeTab.value === 'penerima') {
-        if (selectedJenis.value) {
-            const found = props.opsi_jenis_bantuan.find(
-                (o) => o.value === selectedJenis.value,
-            );
-            chips.push({
-                id: 'jenis',
-                label: `Program: ${found?.label || selectedJenis.value}`,
-                clear: () => {
-                    selectedJenis.value = '';
-                },
-            });
-        }
-        if (selectedTahap.value) {
-            chips.push({
-                id: 'tahap',
-                label: `Tahap: ${selectedTahap.value}`,
-                clear: () => {
-                    selectedTahap.value = '';
-                },
-            });
-        }
-        if (selectedStatus.value) {
-            const found = props.opsi_status_kepesertaan.find(
-                (o) => o.value === selectedStatus.value,
-            );
-            chips.push({
-                id: 'status',
-                label: `Status: ${found?.label || selectedStatus.value}`,
-                clear: () => {
-                    selectedStatus.value = '';
-                },
-            });
-        }
-    } else {
-        if (selectedDesil.value) {
-            chips.push({
-                id: 'desil',
-                label: `Desil: ${selectedDesil.value}`,
-                clear: () => {
-                    selectedDesil.value = '';
-                },
-            });
-        }
-    }
-
-    return chips;
-});
 
 const filteredPenerima = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
@@ -221,7 +233,17 @@ const filteredPenerima = computed(() => {
                 .includes(q);
             const matchNik = String(item.nik || '').includes(q);
             const matchKk = String(item.nomor_kk || '').includes(q);
-            if (!matchNama && !matchNik && !matchKk) {
+            const matchKelompok = String(item.nama_kelompok || '')
+                .toLowerCase()
+                .includes(q);
+            if (!matchNama && !matchNik && !matchKk && !matchKelompok) {
+                return false;
+            }
+        }
+        if (selectedKategori.value) {
+            const itemKat =
+                item.kategori_bantuan || resolveKategoriByJenis(item.jenis_bantuan);
+            if (itemKat !== selectedKategori.value) {
                 return false;
             }
         }
@@ -235,63 +257,8 @@ const filteredPenerima = computed(() => {
             return false;
         }
         if (
-            selectedStatus.value &&
-            item.status_kepesertaan !== selectedStatus.value
-        ) {
-            return false;
-        }
-        if (selectedDusun.value && item.dusun !== selectedDusun.value) {
-            return false;
-        }
-        return true;
-    });
-});
-
-const filteredPemerataanKk = computed(() => {
-    const q = searchQuery.value.trim().toLowerCase();
-    return (props.pemerataan_kk || []).filter((item) => {
-        if (q) {
-            const matchKk = String(item.nomor_kk || '').includes(q);
-            const matchNama = String(item.nama_kepala_keluarga || '')
-                .toLowerCase()
-                .includes(q);
-            const matchNik = String(item.nik_kepala_keluarga || '').includes(q);
-            if (!matchKk && !matchNama && !matchNik) {
-                return false;
-            }
-        }
-        if (selectedDusun.value && item.dusun !== selectedDusun.value) {
-            return false;
-        }
-        if (
-            selectedDesil.value &&
-            item.status_kesejahteraan !== selectedDesil.value
-        ) {
-            return false;
-        }
-        return true;
-    });
-});
-
-const filteredPemerataanIndividu = computed(() => {
-    const q = searchQuery.value.trim().toLowerCase();
-    return (props.pemerataan_individu || []).filter((item) => {
-        if (q) {
-            const matchKk = String(item.nomor_kk || '').includes(q);
-            const matchNama = String(item.nama_lengkap || '')
-                .toLowerCase()
-                .includes(q);
-            const matchNik = String(item.nik || '').includes(q);
-            if (!matchKk && !matchNama && !matchNik) {
-                return false;
-            }
-        }
-        if (selectedDusun.value && item.dusun !== selectedDusun.value) {
-            return false;
-        }
-        if (
-            selectedDesil.value &&
-            item.status_kesejahteraan !== selectedDesil.value
+            selectedTahun.value &&
+            String(item.tahun_anggaran) !== String(selectedTahun.value)
         ) {
             return false;
         }
@@ -300,70 +267,56 @@ const filteredPemerataanIndividu = computed(() => {
 });
 
 const penerimaColumns = [
-    { key: 'penerima', label: 'Nama Penerima & NIK/KK' },
-    { key: 'dusun', label: 'Wilayah Dusun' },
-    { key: 'program', label: 'Program & Tahap' },
-    { key: 'nominal', label: 'Bentuk / Nominal' },
-    { key: 'ekonomi', label: 'Prioritas DTSEN' },
-    { key: 'status', label: 'Status' },
+    { key: 'penerima', label: 'Penerima Bantuan' },
+    { key: 'dusun', label: 'Wilayah' },
+    { key: 'program', label: 'Program & Kategori' },
+    { key: 'nominal', label: 'Bentuk Bantuan' },
+    { key: 'tahap', label: 'Tahap & Tahun Anggaran' },
     { key: 'actions', label: 'Aksi', align: 'right' },
-];
-
-const pemerataanKkColumns = [
-    { key: 'kk', label: 'Nomor KK & Kepala Keluarga' },
-    { key: 'dusun', label: 'Dusun / RT-RW' },
-    { key: 'desil', label: 'Prioritas DTSEN' },
-    { key: 'anggota', label: 'Anggota Prioritas Aktif' },
-    { key: 'actions', label: 'Tindak Lanjut', align: 'right' },
-];
-
-const pemerataanIndividuColumns = [
-    { key: 'warga', label: 'Nama Warga & NIK' },
-    { key: 'kk_dusun', label: 'Nomor KK & Dusun' },
-    { key: 'desil', label: 'Prioritas DTSEN' },
-    { key: 'pekerjaan', label: 'Hubungan & Pekerjaan' },
-    { key: 'actions', label: 'Tindak Lanjut', align: 'right' },
 ];
 
 const cetakPdfUrl = computed(() => {
     const params = new URLSearchParams({
-        tahun: String(props.tahun_anggaran),
+        tahun: String(selectedTahun.value || props.tahun_anggaran),
     });
+    if (selectedKategori.value) {
+        params.set('kategori_bantuan', selectedKategori.value);
+    }
     if (selectedJenis.value) {
         params.set('jenis_bantuan', selectedJenis.value);
     }
     if (selectedTahap.value) {
         params.set('tahap_penyaluran', selectedTahap.value);
-    }
-    if (selectedStatus.value) {
-        params.set('status_kepesertaan', selectedStatus.value);
-    }
-    if (selectedDusun.value) {
-        params.set('dusun', selectedDusun.value);
     }
     return `/panel/sosial/bansos/cetak-pdf?${params.toString()}`;
 });
 
 const exportExcelUrl = computed(() => {
     const params = new URLSearchParams({
-        tahun: String(props.tahun_anggaran),
+        tahun: String(selectedTahun.value || props.tahun_anggaran),
     });
+    if (selectedKategori.value) {
+        params.set('kategori_bantuan', selectedKategori.value);
+    }
     if (selectedJenis.value) {
         params.set('jenis_bantuan', selectedJenis.value);
     }
     if (selectedTahap.value) {
         params.set('tahap_penyaluran', selectedTahap.value);
     }
-    if (selectedStatus.value) {
-        params.set('status_kepesertaan', selectedStatus.value);
-    }
-    if (selectedDusun.value) {
-        params.set('dusun', selectedDusun.value);
-    }
     return `/panel/sosial/bansos/export-excel?${params.toString()}`;
 });
 
 // Modal Tambah / Edit Penerima Bansos
+const PRIORITAS_DESIL_VALUES = [
+    'dtsen_desil_1',
+    'dtsen_desil_2',
+    'dtsen_desil_3',
+    'dtsen_desil_4',
+    'dtsen_desil_5',
+];
+const PRIORITAS_DESIL_PARAM = PRIORITAS_DESIL_VALUES.join(',');
+
 const showFormModal = ref(false);
 const isEditing = ref(false);
 const editingId = ref(null);
@@ -371,14 +324,26 @@ const isSubmitting = ref(false);
 const initialResidentForForm = ref(null);
 const kkHistoryInfo = ref(null);
 const formErrors = ref({});
+const selectedResidents = ref([]);
+const pickerResidentId = ref(null);
+const autocompleteResetKey = ref(0);
+const residentSelectionError = ref('');
 
 const STANDARD_TAHAP = ['Tahap I', 'Tahap II', 'Tahap III', 'Tahap IV'];
 const selectedTahapOption = ref('Tahap I');
 const customTahapInput = ref('');
 
+const activeFinalTahap = computed(() =>
+    selectedTahapOption.value === 'custom'
+        ? customTahapInput.value.trim() || 'Tahap I'
+        : selectedTahapOption.value,
+);
+
 const form = reactive({
     penduduk_id: null,
+    kategori_bantuan: 'per_kk',
     jenis_bantuan: 'blt_dd',
+    nama_kelompok: '',
     bentuk_nominal: 'Rp 300.000 / Bulan',
     tahun_anggaran: props.tahun_anggaran,
     tahap_penyaluran: 'Tahap I',
@@ -386,8 +351,46 @@ const form = reactive({
     keterangan: '',
 });
 
-// Pengecekan Bantuan Ganda dalam 1 KK (Aturan: DILARANG)
+const modalOpsiJenisByKategori = computed(() => {
+    return (props.opsi_jenis_bantuan || []).filter(
+        (opt) => (opt.kategori || resolveKategoriByJenis(opt.value)) === form.kategori_bantuan,
+    );
+});
+
+function selectModalKategori(kategoriVal) {
+    form.kategori_bantuan = kategoriVal;
+    const programsInKategori = (props.opsi_jenis_bantuan || []).filter(
+        (opt) => (opt.kategori || resolveKategoriByJenis(opt.value)) === kategoriVal,
+    );
+    if (programsInKategori.length > 0) {
+        const firstProg = programsInKategori[0];
+        form.jenis_bantuan = firstProg.value;
+        if (firstProg.default_nominal) {
+            form.bentuk_nominal = firstProg.default_nominal;
+        }
+    }
+    if (kategoriVal !== 'kelompok') {
+        form.nama_kelompok = '';
+    }
+}
+
+function handleJenisBantuanChange() {
+    const selectedOpt = (props.opsi_jenis_bantuan || []).find(
+        (opt) => opt.value === form.jenis_bantuan,
+    );
+    if (selectedOpt) {
+        form.kategori_bantuan = selectedOpt.kategori || resolveKategoriByJenis(selectedOpt.value);
+        if (selectedOpt.default_nominal) {
+            form.bentuk_nominal = selectedOpt.default_nominal;
+        }
+    }
+}
+
+// Pengecekan Bantuan Ganda dalam 1 KK (Aturan: DILARANG hanya untuk kategori per_kk)
 const duplicateBansosInKk = computed(() => {
+    if (form.kategori_bantuan !== 'per_kk') {
+        return null;
+    }
     if (!kkHistoryInfo.value || !Array.isArray(kkHistoryInfo.value.riwayat_bansos)) {
         return null;
     }
@@ -412,40 +415,72 @@ const duplicateBansosInKk = computed(() => {
     );
 });
 
-const isBlockedByDuplicate = computed(() => {
-    return Boolean(duplicateBansosInKk.value);
-});
-
-const otherActiveBansosInKk = computed(() => {
-    if (!kkHistoryInfo.value || !Array.isArray(kkHistoryInfo.value.riwayat_bansos)) {
-        return [];
+const batchConflictMessage = computed(() => {
+    if (isEditing.value || selectedResidents.value.length === 0) {
+        return '';
     }
 
-    const currentYear = Number(form.tahun_anggaran);
-    const currentJenis = form.jenis_bantuan;
-    const currentPendudukId = Number(form.penduduk_id);
+    const seenKk = new Map();
+    for (const res of selectedResidents.value) {
+        if (
+            res.status_kesejahteraan &&
+            !PRIORITAS_DESIL_VALUES.includes(res.status_kesejahteraan)
+        ) {
+            return `Warga atas nama ${res.nama_lengkap} (NIK: ${res.nik}) bukan kategori Desil 1–5 sehingga tidak memenuhi syarat.`;
+        }
 
-    return kkHistoryInfo.value.riwayat_bansos.filter((item) => {
-        if (Number(item.penduduk_id) === currentPendudukId) {
-            return false;
+        const existingSameNik = (props.penerima_bansos || []).find(
+            (item) =>
+                (Number(item.penduduk_id) === Number(res.id) ||
+                    (item.nik && res.nik && String(item.nik) === String(res.nik))) &&
+                item.jenis_bantuan === form.jenis_bantuan &&
+                Number(item.tahun_anggaran) === Number(form.tahun_anggaran) &&
+                item.tahap_penyaluran === activeFinalTahap.value,
+        );
+        if (existingSameNik) {
+            return `Warga atas nama ${res.nama_lengkap} (NIK: ${res.nik}) sudah terdaftar menerima program ini pada ${activeFinalTahap.value} TA ${form.tahun_anggaran}. Hapus warga tersebut dari daftar atau ubah tahap penyaluran.`;
         }
-        if (Number(item.tahun_anggaran) !== currentYear) {
-            return false;
+
+        const resNoKk = res.nomor_kk || res.kartu_keluarga?.nomor_kk || '';
+        if (form.kategori_bantuan === 'per_kk' && resNoKk) {
+            if (seenKk.has(resNoKk)) {
+                return `Terdapat lebih dari 1 anggota dalam No. KK ${resNoKk} (${seenKk.get(resNoKk)} dan ${res.nama_lengkap}) untuk kategori Bantuan Sosial Per KK.`;
+            }
+            seenKk.set(resNoKk, res.nama_lengkap);
+
+            const sameKkExisting = (props.penerima_bansos || []).find(
+                (item) =>
+                    item.nomor_kk &&
+                    String(item.nomor_kk) === String(resNoKk) &&
+                    item.jenis_bantuan === form.jenis_bantuan &&
+                    Number(item.tahun_anggaran) === Number(form.tahun_anggaran),
+            );
+            if (sameKkExisting) {
+                return `Bantuan ganda 1 KK dilarang: anggota keluarga dari ${res.nama_lengkap} (${sameKkExisting.nama_lengkap} - No. KK ${resNoKk}) sudah menerima bantuan ini pada TA ${form.tahun_anggaran}.`;
+            }
         }
-        if (item.jenis_bantuan === currentJenis) {
-            return false;
-        }
-        return item.status_kepesertaan === 'aktif';
-    });
+    }
+
+    return '';
+});
+
+const isBlockedByDuplicate = computed(() => {
+    return Boolean(duplicateBansosInKk.value) || Boolean(batchConflictMessage.value);
 });
 
 function openCreateModal(prefillResident = null) {
     isEditing.value = false;
     editingId.value = null;
     formErrors.value = {};
+    residentSelectionError.value = '';
+    selectedResidents.value = [];
+    pickerResidentId.value = null;
+    autocompleteResetKey.value += 1;
 
-    form.penduduk_id = prefillResident?.id || null;
+    form.penduduk_id = null;
+    form.kategori_bantuan = 'per_kk';
     form.jenis_bantuan = 'blt_dd';
+    form.nama_kelompok = '';
     form.bentuk_nominal = 'Rp 300.000 / Bulan';
     form.tahun_anggaran = props.tahun_anggaran;
     form.tahap_penyaluran = 'Tahap I';
@@ -455,12 +490,12 @@ function openCreateModal(prefillResident = null) {
     selectedTahapOption.value = 'Tahap I';
     customTahapInput.value = '';
 
-    initialResidentForForm.value = prefillResident || null;
+    initialResidentForForm.value = null;
     kkHistoryInfo.value = null;
     showFormModal.value = true;
 
     if (prefillResident?.id) {
-        loadKkHistory(prefillResident.id);
+        handleSelectResident(prefillResident);
     }
 }
 
@@ -468,9 +503,15 @@ function openEditModal(item) {
     isEditing.value = true;
     editingId.value = item.id;
     formErrors.value = {};
+    residentSelectionError.value = '';
+    selectedResidents.value = [];
+    pickerResidentId.value = item.penduduk_id;
 
+    const jenisVal = item.jenis_bantuan || 'blt_dd';
     form.penduduk_id = item.penduduk_id;
-    form.jenis_bantuan = item.jenis_bantuan || 'blt_dd';
+    form.kategori_bantuan = item.kategori_bantuan || resolveKategoriByJenis(jenisVal);
+    form.jenis_bantuan = jenisVal;
+    form.nama_kelompok = item.nama_kelompok || '';
     form.bentuk_nominal = item.bentuk_nominal || '';
     form.tahun_anggaran = item.tahun_anggaran || props.tahun_anggaran;
     form.tahap_penyaluran = item.tahap_penyaluran || 'Tahap I';
@@ -511,11 +552,99 @@ async function loadKkHistory(pendudukId) {
 }
 
 function handleSelectResident(resident) {
-    form.penduduk_id = resident?.id || null;
+    if (isEditing.value) {
+        form.penduduk_id = resident?.id || null;
+        formErrors.value = {};
+        if (resident?.id) {
+            loadKkHistory(resident.id);
+        } else {
+            kkHistoryInfo.value = null;
+        }
+        return;
+    }
+
+    pickerResidentId.value = null;
+    autocompleteResetKey.value += 1;
+
+    if (!resident || !resident.id) {
+        return;
+    }
+
     formErrors.value = {};
-    if (resident?.id) {
-        loadKkHistory(resident.id);
-    } else {
+    residentSelectionError.value = '';
+
+    // 1. Validasi wajib Desil 1 - 5
+    if (
+        resident.status_kesejahteraan &&
+        !PRIORITAS_DESIL_VALUES.includes(resident.status_kesejahteraan)
+    ) {
+        residentSelectionError.value = `Warga atas nama ${resident.nama_lengkap} (NIK: ${resident.nik}) bukan kategori Desil 1–5 sehingga tidak dapat ditambahkan sebagai penerima bantuan sosial.`;
+        return;
+    }
+
+    // 2. Validasi tidak boleh duplikat di daftar pilihan saat ini
+    if (
+        selectedResidents.value.some(
+            (r) =>
+                Number(r.id) === Number(resident.id) ||
+                (r.nik && resident.nik && String(r.nik) === String(resident.nik)),
+        )
+    ) {
+        residentSelectionError.value = `Warga atas nama ${resident.nama_lengkap} (NIK: ${resident.nik}) sudah ada di dalam daftar penerima yang dipilih.`;
+        return;
+    }
+
+    // 3. Validasi tidak boleh NIK yang sudah menerima bantuan sejenis pada tahap & tahun anggaran yang sama
+    const existingSameNik = (props.penerima_bansos || []).find(
+        (item) =>
+            (Number(item.penduduk_id) === Number(resident.id) ||
+                (item.nik && resident.nik && String(item.nik) === String(resident.nik))) &&
+            item.jenis_bantuan === form.jenis_bantuan &&
+            Number(item.tahun_anggaran) === Number(form.tahun_anggaran) &&
+            item.tahap_penyaluran === activeFinalTahap.value,
+    );
+    if (existingSameNik) {
+        residentSelectionError.value = `Warga atas nama ${resident.nama_lengkap} (NIK: ${resident.nik}) sudah terdaftar menerima bantuan ${existingSameNik.jenis_bantuan_label || form.jenis_bantuan} pada ${activeFinalTahap.value} TA ${form.tahun_anggaran}.`;
+        return;
+    }
+
+    // 4. Validasi 1 KK maksimal 1 penerima untuk kategori Bantuan Sosial Per KK
+    const residentNoKk = resident.nomor_kk || resident.kartu_keluarga?.nomor_kk || '';
+    if (form.kategori_bantuan === 'per_kk' && residentNoKk) {
+        const sameKkInBatch = selectedResidents.value.find((r) => {
+            const rKk = r.nomor_kk || r.kartu_keluarga?.nomor_kk || '';
+            return rKk && String(rKk) === String(residentNoKk);
+        });
+        if (sameKkInBatch) {
+            residentSelectionError.value = `Tidak dapat menambahkan ${resident.nama_lengkap} karena anggota keluarga satu KK (${sameKkInBatch.nama_lengkap} - No. KK ${residentNoKk}) sudah dipilih dalam daftar ini.`;
+            return;
+        }
+
+        const sameKkExisting = (props.penerima_bansos || []).find(
+            (item) =>
+                item.nomor_kk &&
+                String(item.nomor_kk) === String(residentNoKk) &&
+                item.jenis_bantuan === form.jenis_bantuan &&
+                Number(item.tahun_anggaran) === Number(form.tahun_anggaran),
+        );
+        if (sameKkExisting) {
+            residentSelectionError.value = `Bantuan ganda dalam 1 KK dilarang: anggota keluarga satu KK (${sameKkExisting.nama_lengkap} - No. KK ${residentNoKk}) sudah menerima bantuan ini pada TA ${form.tahun_anggaran}.`;
+            return;
+        }
+    }
+
+    selectedResidents.value.push(resident);
+    form.penduduk_id = selectedResidents.value[0]?.id || null;
+    loadKkHistory(resident.id);
+}
+
+function removeSelectedResident(residentId) {
+    selectedResidents.value = selectedResidents.value.filter(
+        (r) => Number(r.id) !== Number(residentId),
+    );
+    form.penduduk_id = selectedResidents.value[0]?.id || null;
+    residentSelectionError.value = '';
+    if (selectedResidents.value.length === 0) {
         kkHistoryInfo.value = null;
     }
 }
@@ -525,18 +654,35 @@ function submitBansosForm() {
         return;
     }
 
-    const finalTahap =
-        selectedTahapOption.value === 'custom'
-            ? customTahapInput.value.trim() || 'Tahap I'
-            : selectedTahapOption.value;
+    if (!isEditing.value && selectedResidents.value.length === 0 && !form.penduduk_id) {
+        residentSelectionError.value =
+            'Silakan pilih minimal 1 warga penerima (Desil 1–5) terlebih dahulu.';
+        return;
+    }
+
+    const finalTahap = activeFinalTahap.value;
 
     form.tahap_penyaluran = finalTahap;
     formErrors.value = {};
+    residentSelectionError.value = '';
     isSubmitting.value = true;
 
+    const batchIds =
+        selectedResidents.value.length > 0
+            ? selectedResidents.value.map((r) => r.id)
+            : form.penduduk_id
+              ? [form.penduduk_id]
+              : [];
+
     const payload = {
-        penduduk_id: form.penduduk_id,
+        penduduk_id: isEditing.value ? form.penduduk_id : batchIds[0] || null,
+        penduduk_ids: isEditing.value ? [form.penduduk_id] : batchIds,
+        kategori_bantuan: form.kategori_bantuan,
         jenis_bantuan: form.jenis_bantuan,
+        nama_kelompok:
+            form.kategori_bantuan === 'kelompok'
+                ? form.nama_kelompok.trim() || null
+                : null,
         bentuk_nominal: form.bentuk_nominal,
         tahun_anggaran: form.tahun_anggaran,
         tahap_penyaluran: finalTahap,
@@ -564,6 +710,7 @@ function submitBansosForm() {
         preserveScroll: true,
         onSuccess: () => {
             showFormModal.value = false;
+            selectedResidents.value = [];
         },
         onError: (errs) => {
             formErrors.value = errs || {};
@@ -628,14 +775,14 @@ function submitImportExcel() {
 </script>
 
 <template>
-    <Head :title="`Data Penerima Bansos & Pemerataan TA ${tahun_anggaran}`" />
+    <Head :title="`Data Penerima Bantuan Sosial TA ${tahun_anggaran}`" />
 
     <AppLayout>
         <div class="space-y-6">
             <!-- Header Halaman dengan PageHeader -->
             <PageHeader
-                title="Data Sosial (Bansos) & Pemerataan Bantuan"
-                :description="`Pengelolaan penyaluran bantuan sosial dan saringan keluarga prioritas DTSEN Desil 1–4 Tahun Anggaran ${tahun_anggaran}.`"
+                title="Data Penerima Bantuan Sosial (Bansos)"
+                :description="`Pencatatan penerima bantuan sosial keluarga (Per KK), perorangan, dan kelompok masyarakat Tahun Anggaran ${tahun_anggaran}.`"
             >
                 <template #actions>
                     <a
@@ -688,235 +835,104 @@ function submitImportExcel() {
                     :icon="Users"
                 />
                 <StatCard
-                    label="KPM Bantuan Aktif"
-                    :value="ringkasan?.total_aktif ?? 0"
-                    subtext="Status penyaluran aktif"
+                    label="Bansos Per KK (KPM)"
+                    :value="ringkasan?.total_per_kk ?? 0"
+                    subtext="PKH, BPNT, BLT-DD, CBP, RTLH"
                     tone="emerald"
                     :icon="CheckCircle2"
                 />
                 <StatCard
-                    label="Graduasi Mandiri"
-                    :value="ringkasan?.total_graduasi ?? 0"
-                    subtext="KPM telah mandiri/lulus"
+                    label="Bansos Perorangan"
+                    :value="ringkasan?.total_perorangan ?? 0"
+                    subtext="PIP, PBI-JK, Lansia, Disabilitas"
                     tone="amber"
-                    :icon="TrendingUp"
+                    :icon="UserCheck"
                 />
                 <StatCard
-                    label="Keluarga Belum Menerima"
-                    :value="modePemerataan === 'per_kk' ? (ringkasan?.jumlah_kk_belum_terima ?? pemerataan_kk.length) : (ringkasan?.jumlah_individu_belum_terima ?? pemerataan_individu.length)"
-                    subtext="Sasaran prioritas DTSEN"
+                    label="Bantuan Kelompok Masyarakat"
+                    :value="ringkasan?.total_kelompok ?? 0"
+                    subtext="Kelompok Tani, UMKM, Sarana Tani"
                     tone="neutral"
                     :icon="HeartHandshake"
                 />
             </div>
 
-            <!-- 2 Tab Kontekstual: Daftar Penerima Bansos vs Pemerataan Bantuan -->
-            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-3">
-                <div class="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-1">
-                    <button
-                        type="button"
-                        data-testid="tab-daftar-penerima"
-                        :class="[
-                            'inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
-                            activeTab === 'penerima'
-                                ? 'bg-white text-blue-700 shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900',
-                        ]"
-                        @click="activeTab = 'penerima'"
+            <!-- UnifiedFilterBar -->
+            <UnifiedFilterBar
+                v-model="searchQuery"
+                search-placeholder="Cari nama penerima, NIK, Nomor KK, atau nama kelompok..."
+                :has-custom-active-filter="hasActiveFilters"
+                @reset="resetFilters"
+            >
+                <template #filters>
+                    <select
+                        v-model="selectedKategori"
+                        aria-label="Filter Kategori Bantuan"
+                        data-testid="filter-kategori-bansos"
+                        class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
                     >
-                        <span>Daftar Penerima Bansos</span>
-                        <span
-                            class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-blue-700"
+                        <option value="">Semua Kategori Bantuan</option>
+                        <option
+                            v-for="kat in OPSI_KATEGORI_BANTUAN"
+                            :key="kat.value"
+                            :value="kat.value"
                         >
-                            {{ ringkasan?.total_penerima ?? penerima_bansos.length }}
-                        </span>
-                    </button>
+                            {{ kat.label }}
+                        </option>
+                    </select>
 
-                    <button
-                        type="button"
-                        data-testid="tab-pemerataan-bantuan"
-                        :class="[
-                            'inline-flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors',
-                            activeTab === 'pemerataan'
-                                ? 'bg-white text-blue-700 shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900',
-                        ]"
-                        @click="activeTab = 'pemerataan'"
+                    <select
+                        v-model="selectedJenis"
+                        aria-label="Filter Jenis Bantuan"
+                        data-testid="filter-jenis-bansos"
+                        class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
                     >
-                        <span>Pemerataan Bantuan (Prioritas DTSEN)</span>
-                        <span
-                            class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-amber-800"
+                        <option value="">Semua Program Bantuan</option>
+                        <option
+                            v-for="opt in filteredOpsiJenisFilter"
+                            :key="opt.value"
+                            :value="opt.value"
                         >
-                            {{
-                                modePemerataan === 'per_kk'
-                                    ? pemerataan_kk.length
-                                    : pemerataan_individu.length
-                            }}
-                        </span>
-                    </button>
-                </div>
+                            {{ opt.label }}
+                        </option>
+                    </select>
 
-                <!-- Toggle Mode Pemerataan: Per KK [Default] vs Per Individu -->
-                <div
-                    v-if="activeTab === 'pemerataan'"
-                    data-testid="pemerataan-mode-toggle"
-                    class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1"
-                >
-                    <button
-                        type="button"
-                        data-testid="toggle-pemerataan-per-kk"
-                        :class="[
-                            'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
-                            modePemerataan === 'per_kk'
-                                ? 'bg-blue-700 text-white'
-                                : 'text-slate-600 hover:bg-slate-100',
-                        ]"
-                        @click="modePemerataan = 'per_kk'"
+                    <select
+                        v-model="selectedTahap"
+                        aria-label="Filter Tahap Penyaluran"
+                        data-testid="filter-tahap-bansos"
+                        class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
                     >
-                        <Users class="h-3.5 w-3.5" />
-                        <span>Per KK (Default)</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        data-testid="toggle-pemerataan-per-individu"
-                        :class="[
-                            'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
-                            modePemerataan === 'per_individu'
-                                ? 'bg-blue-700 text-white'
-                                : 'text-slate-600 hover:bg-slate-100',
-                        ]"
-                        @click="modePemerataan = 'per_individu'"
-                    >
-                        <UserCheck class="h-3.5 w-3.5" />
-                        <span>Per Individu</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- UnifiedFilterBar dengan Template #filters & Active Filter Chips -->
-            <div class="space-y-2">
-                <UnifiedFilterBar
-                    v-model="searchQuery"
-                    search-placeholder="Cari nama warga, NIK, atau Nomor KK..."
-                    :has-custom-active-filter="hasActiveFilters"
-                    @reset="resetFilters"
-                >
-                    <template #filters>
-                        <select
-                            v-model="selectedDusun"
-                            aria-label="Filter Dusun"
-                            data-testid="filter-dusun-bansos"
-                            class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
+                        <option value="">Semua Tahap</option>
+                        <option
+                            v-for="thp in opsi_tahap"
+                            :key="thp"
+                            :value="thp"
                         >
-                            <option value="">Semua Dusun</option>
-                            <option
-                                v-for="d in daftar_dusun"
-                                :key="d"
-                                :value="d"
-                            >
-                                {{ d }}
-                            </option>
-                        </select>
+                            {{ thp }}
+                        </option>
+                    </select>
 
-                        <template v-if="activeTab === 'penerima'">
-                            <select
-                                v-model="selectedJenis"
-                                aria-label="Filter Jenis Bantuan"
-                                data-testid="filter-jenis-bansos"
-                                class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
-                            >
-                                <option value="">Semua Program Bantuan</option>
-                                <option
-                                    v-for="opt in opsi_jenis_bantuan"
-                                    :key="opt.value"
-                                    :value="opt.value"
-                                >
-                                    {{ opt.label }}
-                                </option>
-                            </select>
-
-                            <select
-                                v-model="selectedTahap"
-                                aria-label="Filter Tahap Penyaluran"
-                                data-testid="filter-tahap-bansos"
-                                class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
-                            >
-                                <option value="">Semua Tahap</option>
-                                <option
-                                    v-for="thp in opsi_tahap"
-                                    :key="thp"
-                                    :value="thp"
-                                >
-                                    {{ thp }}
-                                </option>
-                            </select>
-
-                            <select
-                                v-model="selectedStatus"
-                                aria-label="Filter Status Kepesertaan"
-                                data-testid="filter-status-bansos"
-                                class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
-                            >
-                                <option value="">Semua Status</option>
-                                <option
-                                    v-for="st in opsi_status_kepesertaan"
-                                    :key="st.value"
-                                    :value="st.value"
-                                >
-                                    {{ st.label }}
-                                </option>
-                            </select>
-                        </template>
-
-                        <template v-else>
-                            <select
-                                v-model="selectedDesil"
-                                aria-label="Filter Prioritas DTSEN"
-                                data-testid="filter-desil-bansos"
-                                class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
-                            >
-                                <option value="">Semua Prioritas DTSEN</option>
-                                <option value="dtsen_desil_1">Desil 1 (Sangat Miskin)</option>
-                                <option value="dtsen_desil_2">Desil 2 (Miskin)</option>
-                                <option value="dtsen_desil_3_4">Desil 3–4 (Hampir / Rentan Miskin)</option>
-                            </select>
-                        </template>
-                    </template>
-                </UnifiedFilterBar>
-
-                <!-- Active Filter Chips (Pills) -->
-                <div
-                    v-if="activeFilterChips.length > 0"
-                    class="flex flex-wrap items-center gap-2 pt-1"
-                >
-                    <span class="text-xs font-medium text-slate-500">Filter Aktif:</span>
-                    <span
-                        v-for="chip in activeFilterChips"
-                        :key="chip.id"
-                        class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-200"
+                    <select
+                        v-model="selectedTahun"
+                        aria-label="Filter Tahun Anggaran"
+                        data-testid="filter-tahun-bansos"
+                        class="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700"
                     >
-                        <span>{{ chip.label }}</span>
-                        <button
-                            type="button"
-                            class="rounded-full p-0.5 text-blue-600 hover:bg-blue-100 hover:text-blue-900"
-                            @click="chip.clear()"
+                        <option value="">Semua Tahun Anggaran</option>
+                        <option
+                            v-for="thn in opsiTahunList"
+                            :key="thn"
+                            :value="String(thn)"
                         >
-                            <X class="h-3 w-3" />
-                        </button>
-                    </span>
-                    <button
-                        type="button"
-                        class="text-xs font-medium text-slate-500 hover:text-red-700 underline underline-offset-2 ml-1"
-                        @click="resetFilters"
-                    >
-                        Reset Semua
-                    </button>
-                </div>
-            </div>
+                            TA {{ thn }}
+                        </option>
+                    </select>
+                </template>
+            </UnifiedFilterBar>
 
-            <!-- TAB 1: Daftar Penerima Bansos (DataTable) -->
-            <div v-if="activeTab === 'penerima'" data-testid="section-daftar-penerima">
+            <!-- Daftar Penerima Bansos (DataTable) -->
+            <div data-testid="section-daftar-penerima">
                 <DataTable
                     :columns="penerimaColumns"
                     :rows="filteredPenerima"
@@ -924,54 +940,68 @@ function submitImportExcel() {
                     empty-description="Tambahkan penerima secara manual atau impor daftar NIK penerima melalui berkas Excel."
                 >
                     <template #cell-penerima="{ row }">
-                        <div>
+                        <div class="py-0.5">
                             <p class="font-semibold text-slate-900">
                                 {{ row.nama_lengkap }}
                             </p>
-                            <p class="text-xs tabular-nums text-slate-500">
-                                NIK: {{ row.nik }} &bull; KK: {{ row.nomor_kk }}
+                            <p class="mt-0.5 text-xs tabular-nums text-slate-500">
+                                NIK: {{ row.nik }}
+                            </p>
+                            <p
+                                v-if="row.nama_kelompok"
+                                class="mt-0.5 text-xs font-medium text-amber-700"
+                            >
+                                {{ row.nama_kelompok }}
                             </p>
                         </div>
                     </template>
 
                     <template #cell-dusun="{ row }">
-                        <div class="text-xs">
+                        <div class="py-0.5">
                             <p class="font-medium text-slate-800">{{ row.dusun }}</p>
-                            <p class="text-slate-500">
+                            <p class="mt-0.5 text-xs text-slate-500">
                                 RT {{ row.rt || '001' }} / RW {{ row.rw || '001' }}
                             </p>
                         </div>
                     </template>
 
                     <template #cell-program="{ row }">
-                        <div>
+                        <div class="py-0.5">
                             <p class="font-medium text-slate-900">
                                 {{ row.jenis_bantuan_label }}
                             </p>
-                            <p class="text-xs text-slate-500">
-                                {{ row.tahap_penyaluran }} (TA {{ row.tahun_anggaran }})
+                            <p class="mt-0.5 text-xs text-slate-500">
+                                {{
+                                    row.kategori_bantuan_label ||
+                                    resolveKategoriLabelByJenis(row.jenis_bantuan)
+                                }}
                             </p>
                         </div>
                     </template>
 
                     <template #cell-nominal="{ row }">
-                        <span class="font-semibold text-slate-900">
-                            {{ row.bentuk_nominal }}
-                        </span>
+                        <div class="py-0.5">
+                            <p class="font-semibold text-slate-900">
+                                {{ row.bentuk_nominal }}
+                            </p>
+                            <p
+                                v-if="row.keterangan"
+                                class="mt-0.5 text-xs text-slate-500"
+                            >
+                                {{ row.keterangan }}
+                            </p>
+                        </div>
                     </template>
 
-                    <template #cell-ekonomi="{ row }">
-                        <StatusBadge
-                            :status="row.kategori_ekonomi"
-                            :label="row.kategori_ekonomi_label"
-                        />
-                    </template>
-
-                    <template #cell-status="{ row }">
-                        <StatusBadge
-                            :status="row.status_kepesertaan"
-                            :label="row.status_kepesertaan_label"
-                        />
+                    <template #cell-tahap="{ row }">
+                        <div class="py-0.5">
+                            <p class="font-medium text-slate-800">
+                                {{ row.tahap_penyaluran }}
+                            </p>
+                            <p class="mt-0.5 text-xs tabular-nums text-slate-500">
+                                TA {{ row.tahun_anggaran }}
+                            </p>
+                        </div>
                     </template>
 
                     <template #cell-actions="{ row }">
@@ -982,179 +1012,26 @@ function submitImportExcel() {
                             <button
                                 type="button"
                                 :data-testid="`btn-edit-bansos-${row.id}`"
-                                class="inline-flex h-8 items-center justify-center rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
                                 @click="openEditModal(row)"
                             >
-                                <Pencil class="mr-1 h-3.5 w-3.5" />
+                                <Pencil class="h-3.5 w-3.5" />
                                 <span>Edit</span>
                             </button>
 
                             <button
                                 type="button"
                                 :data-testid="`btn-delete-bansos-${row.id}`"
-                                class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                                class="inline-flex h-8 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 shadow-xs transition-colors hover:bg-red-50 hover:text-red-700"
                                 @click="handleDeleteBansos(row)"
                             >
                                 <Trash2 class="h-3.5 w-3.5" />
+                                <span>Hapus</span>
                             </button>
                         </div>
                         <span v-else class="text-xs text-slate-400">Read-Only</span>
                     </template>
                 </DataTable>
-            </div>
-
-            <!-- TAB 2: Pemerataan Bantuan (DataTable) -->
-            <div v-else data-testid="section-pemerataan-bantuan" class="space-y-4">
-                <BaseCallout
-                    variant="info"
-                    title="Saringan Pemerataan Bantuan Sosial (Prioritas DTSEN Desil 1–4)"
-                >
-                    <span v-if="modePemerataan === 'per_kk'">
-                        <strong>Mode Default (Berbasis Kartu Keluarga)</strong>: Menampilkan KK aktif beranggota DTSEN Desil 1–4 di mana <strong>seluruh anggota dalam KK tersebut belum pernah menerima bantuan sosial apa pun</strong> (baik Aktif maupun Graduasi) pada Tahun Anggaran {{ tahun_anggaran }}.
-                    </span>
-                    <span v-else>
-                        <strong>Mode Toggle (Per Individu)</strong>: Menampilkan individu warga aktif kategori DTSEN Desil 1–4 yang belum tercatat menerima bantuan sosial pada Tahun Anggaran {{ tahun_anggaran }}.
-                    </span>
-                </BaseCallout>
-
-                <!-- Tabel Pemerataan Per KK -->
-                <div
-                    v-if="modePemerataan === 'per_kk'"
-                    data-testid="table-pemerataan-kk"
-                >
-                    <DataTable
-                        :columns="pemerataanKkColumns"
-                        :rows="filteredPemerataanKk"
-                        empty-title="Seluruh KK Prioritas DTSEN Desil 1–4 Sudah Terjangkau Bantuan"
-                        empty-description="Tidak ditemukan Kartu Keluarga prioritas Desil 1–4 yang belum menerima bantuan pada tahun anggaran ini."
-                    >
-                        <template #cell-kk="{ row }">
-                            <div>
-                                <p class="font-semibold text-slate-900">
-                                    {{ row.nama_kepala_keluarga }}
-                                </p>
-                                <p class="text-xs tabular-nums text-slate-500">
-                                    No. KK: {{ row.nomor_kk }} &bull; NIK: {{ row.nik_kepala_keluarga }}
-                                </p>
-                            </div>
-                        </template>
-
-                        <template #cell-dusun="{ row }">
-                            <div class="text-xs">
-                                <p class="font-medium text-slate-800">{{ row.dusun }}</p>
-                                <p class="text-slate-500">
-                                    RT {{ row.rt || '001' }} / RW {{ row.rw || '001' }}
-                                </p>
-                            </div>
-                        </template>
-
-                        <template #cell-desil="{ row }">
-                            <StatusBadge
-                                :status="row.status_kesejahteraan"
-                                :label="row.status_kesejahteraan_label"
-                            />
-                        </template>
-
-                        <template #cell-anggota="{ row }">
-                            <span class="text-xs font-medium text-slate-700">
-                                {{ row.jumlah_anggota_prioritas }} prioritas dari {{ row.jumlah_anggota_aktif }} anggota aktif
-                            </span>
-                        </template>
-
-                        <template #cell-actions="{ row }">
-                            <BaseButton
-                                v-if="isOperator"
-                                variant="outline"
-                                size="sm"
-                                :data-testid="`btn-daftarkan-kk-${row.kartu_keluarga_id}`"
-                                @click="
-                                    openCreateModal({
-                                        id: row.penduduk_id,
-                                        nik: row.nik_kepala_keluarga,
-                                        nomor_kk: row.nomor_kk,
-                                        nama_lengkap: row.nama_kepala_keluarga,
-                                        dusun: row.dusun,
-                                        status_kesejahteraan: row.status_kesejahteraan,
-                                    })
-                                "
-                            >
-                                <Plus class="mr-1 h-3.5 w-3.5" />
-                                <span>Daftarkan Bantuan</span>
-                            </BaseButton>
-                            <span v-else class="text-xs text-slate-400">Read-Only</span>
-                        </template>
-                    </DataTable>
-                </div>
-
-                <!-- Tabel Pemerataan Per Individu -->
-                <div
-                    v-else
-                    data-testid="table-pemerataan-individu"
-                >
-                    <DataTable
-                        :columns="pemerataanIndividuColumns"
-                        :rows="filteredPemerataanIndividu"
-                        empty-title="Seluruh Individu Prioritas DTSEN Desil 1–4 Sudah Terjangkau"
-                        empty-description="Tidak ditemukan warga aktif kategori DTSEN Desil 1–4 yang belum menerima bantuan pada tahun anggaran ini."
-                    >
-                        <template #cell-warga="{ row }">
-                            <div>
-                                <p class="font-semibold text-slate-900">
-                                    {{ row.nama_lengkap }}
-                                </p>
-                                <p class="text-xs tabular-nums text-slate-500">
-                                    NIK: {{ row.nik }}
-                                </p>
-                            </div>
-                        </template>
-
-                        <template #cell-kk_dusun="{ row }">
-                            <div class="text-xs tabular-nums">
-                                <p class="font-medium text-slate-800">KK: {{ row.nomor_kk }}</p>
-                                <p class="text-slate-500">{{ row.dusun }}</p>
-                            </div>
-                        </template>
-
-                        <template #cell-desil="{ row }">
-                            <StatusBadge
-                                :status="row.status_kesejahteraan"
-                                :label="row.status_kesejahteraan_label"
-                            />
-                        </template>
-
-                        <template #cell-pekerjaan="{ row }">
-                            <div class="text-xs">
-                                <p class="font-medium capitalize text-slate-800">
-                                    {{ String(row.hubungan_keluarga || '').replace('_', ' ') }}
-                                </p>
-                                <p class="text-slate-500">{{ row.pekerjaan || '—' }}</p>
-                            </div>
-                        </template>
-
-                        <template #cell-actions="{ row }">
-                            <BaseButton
-                                v-if="isOperator"
-                                variant="outline"
-                                size="sm"
-                                :data-testid="`btn-daftarkan-individu-${row.penduduk_id}`"
-                                @click="
-                                    openCreateModal({
-                                        id: row.penduduk_id,
-                                        nik: row.nik,
-                                        nomor_kk: row.nomor_kk,
-                                        nama_lengkap: row.nama_lengkap,
-                                        dusun: row.dusun,
-                                        status_kesejahteraan: row.status_kesejahteraan,
-                                    })
-                                "
-                            >
-                                <Plus class="mr-1 h-3.5 w-3.5" />
-                                <span>Daftarkan Bantuan</span>
-                            </BaseButton>
-                            <span v-else class="text-xs text-slate-400">Read-Only</span>
-                        </template>
-                    </DataTable>
-                </div>
             </div>
         </div>
 
@@ -1175,6 +1052,7 @@ function submitImportExcel() {
                 @submit.prevent="submitBansosForm"
             >
                 <NikSearchAutocomplete
+                    v-if="isEditing"
                     v-model="form.penduduk_id"
                     :initial-resident="initialResidentForForm"
                     :items="residents"
@@ -1184,9 +1062,107 @@ function submitImportExcel() {
                     @select="handleSelectResident"
                 />
 
-                <!-- Ringkasan Warga & KK menggunakan BaseCallout -->
+                <div v-else class="space-y-3">
+                    <NikSearchAutocomplete
+                        :key="autocompleteResetKey"
+                        v-model="pickerResidentId"
+                        :items="residents"
+                        :search-params="{ status_kesejahteraan: PRIORITAS_DESIL_PARAM }"
+                        label="Cari & Tambah Warga Penerima (Khusus Desil 1–5)"
+                        placeholder="Ketik NIK atau nama warga Desil 1–5 untuk ditambahkan ke daftar..."
+                        helper-text="Anda dapat memilih banyak warga sekaligus. Hanya warga Desil 1–5 yang belum menerima bantuan ini yang dapat ditambahkan."
+                        :error="formErrors.penduduk_id || formErrors.penduduk_ids"
+                        @select="handleSelectResident"
+                    />
+
+                    <!-- Pesan Error Validasi Pilihan Warga (Bukan Desil 1-5 / Sudah Menerima / Duplikat) -->
+                    <div
+                        v-if="residentSelectionError || formErrors.penduduk_id || formErrors.penduduk_ids"
+                        data-testid="resident-selection-error"
+                        class="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700"
+                    >
+                        {{ residentSelectionError || formErrors.penduduk_id || formErrors.penduduk_ids }}
+                    </div>
+
+                    <!-- Daftar Warga Penerima yang Dipilih (Multi-Input) -->
+                    <div
+                        v-if="selectedResidents.length > 0"
+                        data-testid="selected-residents-list"
+                        class="rounded-lg border border-blue-200 bg-blue-50/40 p-3"
+                    >
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="text-xs font-semibold text-slate-800">
+                                Daftar Penerima Dipilih ({{ selectedResidents.length }} Warga)
+                            </p>
+                            <button
+                                v-if="selectedResidents.length > 1"
+                                type="button"
+                                data-testid="btn-clear-selected-residents"
+                                class="text-xs font-medium text-red-600 hover:underline"
+                                @click="
+                                    selectedResidents = [];
+                                    form.penduduk_id = null;
+                                    kkHistoryInfo = null;
+                                "
+                            >
+                                Kosongkan Semua
+                            </button>
+                        </div>
+
+                        <div class="max-h-48 space-y-2 overflow-y-auto pr-1">
+                            <div
+                                v-for="(res, idx) in selectedResidents"
+                                :key="res.id"
+                                :data-testid="`selected-resident-item-${res.id}`"
+                                class="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-2xs"
+                            >
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">
+                                            {{ idx + 1 }}
+                                        </span>
+                                        <p class="truncate text-sm font-semibold text-slate-900">
+                                            {{ res.nama_lengkap }}
+                                        </p>
+                                        <StatusBadge
+                                            v-if="res.status_kesejahteraan"
+                                            :status="res.status_kesejahteraan"
+                                        />
+                                    </div>
+                                    <p class="mt-0.5 text-xs tabular-nums text-slate-500">
+                                        NIK: {{ res.nik }}
+                                        <template v-if="res.dusun || res.kartu_keluarga?.dusun">
+                                            &bull; {{ res.dusun || res.kartu_keluarga?.dusun }}
+                                        </template>
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    :data-testid="`btn-remove-selected-resident-${res.id}`"
+                                    class="inline-flex h-7 items-center gap-1 rounded-md border border-red-200 bg-white px-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
+                                    @click="removeSelectedResident(res.id)"
+                                >
+                                    <X class="h-3.5 w-3.5" />
+                                    <span>Hapus</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Peringatan Konflik / Bantuan Ganda dalam 1 KK -->
                 <BaseCallout
-                    v-if="isBlockedByDuplicate"
+                    v-if="batchConflictMessage"
+                    data-testid="batch-conflict-callout"
+                    variant="danger"
+                    title="Terdapat Konflik Data Penerima"
+                >
+                    {{ batchConflictMessage }}
+                </BaseCallout>
+
+                <BaseCallout
+                    v-else-if="duplicateBansosInKk"
                     variant="danger"
                     title="DILARANG: Bantuan Ganda dalam 1 Kartu Keluarga"
                 >
@@ -1196,27 +1172,27 @@ function submitImportExcel() {
                     Sesuai kebijakan desa, bantuan ganda sejenis dalam 1 KK dilarang keras. Tombol simpan dinonaktifkan.
                 </BaseCallout>
 
-                <BaseCallout
-                    v-else-if="otherActiveBansosInKk.length > 0"
-                    variant="info"
-                    title="Catatan Bantuan Keluarga Lain"
-                >
-                    Nomor KK: <strong>{{ kkHistoryInfo?.nomor_kk }}</strong> &bull;
-                    Anggota KK lain telah menerima:
-                    <strong>{{ otherActiveBansosInKk.map(o => `${o.nama_penerima} (${o.jenis_bantuan_label})`).join(', ') }}</strong>.
-                </BaseCallout>
-
-                <BaseCallout
-                    v-else-if="kkHistoryInfo"
-                    variant="info"
-                    title="Ringkasan Kepesertaan Bansos 1 KK"
-                >
-                    Nomor KK: <strong>{{ kkHistoryInfo.nomor_kk }}</strong> &bull;
-                    Total Bantuan Aktif di KK ini:
-                    <strong>{{ kkHistoryInfo.total_bantuan_aktif }} program</strong>.
-                </BaseCallout>
-
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div class="space-y-1.5 sm:col-span-2">
+                        <label class="block text-sm font-medium text-slate-700">
+                            Kategori Bantuan Sosial <span class="text-red-600">*</span>
+                        </label>
+                        <select
+                            v-model="form.kategori_bantuan"
+                            data-testid="select-kategori-bantuan"
+                            class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
+                            @change="selectModalKategori(form.kategori_bantuan)"
+                        >
+                            <option
+                                v-for="kat in OPSI_KATEGORI_BANTUAN"
+                                :key="kat.value"
+                                :value="kat.value"
+                            >
+                                {{ kat.label }}
+                            </option>
+                        </select>
+                    </div>
+
                     <div class="space-y-1.5 sm:col-span-2">
                         <label class="block text-sm font-medium text-slate-700">
                             Jenis Program Bantuan <span class="text-red-600">*</span>
@@ -1225,15 +1201,39 @@ function submitImportExcel() {
                             v-model="form.jenis_bantuan"
                             data-testid="select-jenis-bantuan"
                             class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
+                            @change="handleJenisBantuanChange"
                         >
                             <option
-                                v-for="opt in opsi_jenis_bantuan"
+                                v-for="opt in modalOpsiJenisByKategori"
                                 :key="opt.value"
                                 :value="opt.value"
                             >
                                 {{ opt.label }}
                             </option>
                         </select>
+                    </div>
+
+                    <div
+                        v-if="form.kategori_bantuan === 'kelompok'"
+                        class="space-y-1.5 sm:col-span-2"
+                    >
+                        <label class="block text-sm font-medium text-slate-700">
+                            Nama Kelompok / Usaha (Poktan / UMKM) <span class="text-red-600">*</span>
+                        </label>
+                        <input
+                            v-model="form.nama_kelompok"
+                            type="text"
+                            required
+                            data-testid="input-nama-kelompok"
+                            placeholder="Contoh: Kelompok Tani Harapan Jaya / UMKM Keripik Pisang Ibu Sari"
+                            class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
+                        />
+                        <p
+                            v-if="formErrors.nama_kelompok"
+                            class="text-xs text-red-600"
+                        >
+                            {{ formErrors.nama_kelompok }}
+                        </p>
                     </div>
 
                     <div class="space-y-1.5 sm:col-span-2">
@@ -1302,25 +1302,6 @@ function submitImportExcel() {
 
                     <div class="space-y-1.5 sm:col-span-2">
                         <label class="block text-sm font-medium text-slate-700">
-                            Status Kepesertaan
-                        </label>
-                        <select
-                            v-model="form.status_kepesertaan"
-                            data-testid="select-status-kepesertaan"
-                            class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"
-                        >
-                            <option
-                                v-for="st in opsi_status_kepesertaan"
-                                :key="st.value"
-                                :value="st.value"
-                            >
-                                {{ st.label }}
-                            </option>
-                        </select>
-                    </div>
-
-                    <div class="space-y-1.5 sm:col-span-2">
-                        <label class="block text-sm font-medium text-slate-700">
                             Keterangan Tambahan (Opsional)
                         </label>
                         <input
@@ -1347,7 +1328,13 @@ function submitImportExcel() {
                         :disabled="isBlockedByDuplicate || isSubmitting"
                         data-testid="btn-submit-bansos"
                     >
-                        {{ isEditing ? 'Simpan Perubahan' : 'Simpan Penerima' }}
+                        {{
+                            isEditing
+                                ? 'Simpan Perubahan'
+                                : selectedResidents.length > 1
+                                  ? `Simpan ${selectedResidents.length} Penerima`
+                                  : 'Simpan Penerima'
+                        }}
                     </BaseButton>
                 </div>
             </form>

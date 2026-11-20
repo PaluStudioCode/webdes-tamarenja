@@ -239,15 +239,28 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
             true,
         );
 
-        // 2. Klik tombol expand pada baris KK untuk menampilkan sub-tabel anggota keluarga
+        // Memverifikasi StatCard Total Kartu Keluarga dengan subtext dinamis
+        expect(wrapper.text()).toContain('Total Kartu Keluarga');
+        expect(wrapper.text()).toContain('Seluruh KK berdomisili aktif di desa');
+
+        // 2. Klik tombol Detail pada baris KK untuk membuka Modal Detail KK (berisi profil aset & daftar anggota keluarga)
+        expect(
+            wrapper.find('[data-testid="modal-detail-kk"]').exists(),
+        ).toBe(false);
         expect(
             wrapper.find('[data-testid="subtable-anggota-kk-10"]').exists(),
         ).toBe(false);
 
         await wrapper
-            .find('[data-testid="toggle-expand-kk-10"]')
+            .find('[data-testid="row-action-detail-0"]')
             .trigger('click');
 
+        expect(
+            wrapper.find('[data-testid="modal-detail-kk"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="kk-assets-summary-10"]').exists(),
+        ).toBe(true);
         expect(
             wrapper.find('[data-testid="subtable-anggota-kk-10"]').exists(),
         ).toBe(true);
@@ -259,7 +272,7 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
         expect(subtableText).toContain('Hasanuddin');
         expect(subtableText).toContain('Siti Aminah');
 
-        // 3. Sub-tabel anggota sudah menampilkan seluruh data individu secara langsung tanpa tombol Detail maupun SlideOverDrawer
+        // 3. Sub-tabel anggota di dalam Modal Detail KK menampilkan seluruh data individu secara langsung tanpa SlideOverDrawer
         expect(
             wrapper.find('[data-testid="member-action-detail-101"]').exists(),
         ).toBe(false);
@@ -267,25 +280,35 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
             false,
         );
 
-        // 4. Tidak ada duplikasi tombol Tambah Penduduk di Header atas maupun di dalam sub-tabel;
+        // 4. Tidak ada duplikasi tombol Tambah Penduduk di Header atas
         // Desktop (>= md): aksi ditampilkan langsung inline tanpa harus klik titik tiga
         // Mobile (< md): aksi dibungkus rapi dalam tombol titik tiga (MoreHorizontal)
         expect(
             wrapper.find('[data-testid="btn-open-create-penduduk"]').exists(),
         ).toBe(false);
-        expect(
-            wrapper.find('[data-testid="btn-add-member-kk-10"]').exists(),
-        ).toBe(false);
 
-        // Aksi baris KK di Desktop (inline buttons)
+        // Aksi baris KK di Desktop (hanya Detail & Hapus KK, karena + Anggota dan Ubah KK berada di dalam Modal Detail KK)
+        expect(
+            wrapper.find('[data-testid="row-action-detail-0"]').exists(),
+        ).toBe(true);
         expect(
             wrapper.find('[data-testid="row-action-tambah_anggota-0"]').exists(),
-        ).toBe(true);
+        ).toBe(false);
         expect(
             wrapper.find('[data-testid="row-action-edit-0"]').exists(),
-        ).toBe(true);
+        ).toBe(false);
         expect(
             wrapper.find('[data-testid="row-action-hapus-0"]').exists(),
+        ).toBe(true);
+
+        // Tombol Ubah KK dan + Anggota tersedia di dalam Modal Detail KK
+        expect(
+            wrapper.find('[data-testid="modal-detail-kk-btn-edit"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper
+                .find('[data-testid="modal-detail-kk-btn-add-member"]')
+                .exists(),
         ).toBe(true);
 
         // Aksi baris KK di Mobile (tombol titik tiga membuka dropdown menu)
@@ -294,10 +317,7 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
         );
         await wrapper.find('[data-testid="row-more-btn-0"]').trigger('click');
         expect(
-            wrapper.find('[data-testid="row-action-menu-tambah_anggota-0"]').exists(),
-        ).toBe(true);
-        expect(
-            wrapper.find('[data-testid="row-action-menu-edit-0"]').exists(),
+            wrapper.find('[data-testid="row-action-menu-detail-0"]').exists(),
         ).toBe(true);
         expect(
             wrapper.find('[data-testid="row-action-menu-hapus-0"]').exists(),
@@ -449,9 +469,9 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
             props: createSampleProps(),
         });
 
-        // Buka rincian anggota KK terlebih dahulu -> klik Mutasi pada anggota pertama (id: 101)
+        // Buka Modal Detail KK terlebih dahulu -> klik Mutasi pada anggota pertama (id: 101)
         await wrapper
-            .find('[data-testid="toggle-expand-kk-10"]')
+            .find('[data-testid="row-action-detail-0"]')
             .trigger('click');
         await wrapper
             .find('[data-testid="member-action-mutasi-101"]')
@@ -513,7 +533,10 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
             wrapper.find('[data-testid="btn-open-create-penduduk"]').exists(),
         ).toBe(false);
 
-        // Pada baris tabel KK, tombol Tambah Anggota/Edit/Hapus disembunyikan untuk kepala_desa
+        // Pada baris tabel KK, tombol Detail tetap tampil untuk kepala_desa, tetapi Tambah Anggota/Edit/Hapus disembunyikan
+        expect(
+            wrapper.find('[data-testid="row-action-detail-0"]').exists(),
+        ).toBe(true);
         expect(
             wrapper.find('[data-testid="row-action-tambah_anggota-0"]').exists(),
         ).toBe(false);
@@ -523,13 +546,10 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
         expect(wrapper.find('[data-testid="row-action-hapus-0"]').exists()).toBe(
             false,
         );
-        expect(wrapper.find('[data-testid="row-more-btn-0"]').exists()).toBe(
-            false,
-        );
 
-        // Saat sub-tabel anggota dibuka, seluruh tombol aksi anggota disembunyikan untuk kepala_desa (Read-Only)
+        // Saat Modal Detail KK dibuka, seluruh tombol aksi anggota disembunyikan untuk kepala_desa (Read-Only)
         await wrapper
-            .find('[data-testid="toggle-expand-kk-10"]')
+            .find('[data-testid="row-action-detail-0"]')
             .trigger('click');
         expect(
             wrapper.find('[data-testid="member-action-detail-101"]').exists(),
@@ -548,7 +568,7 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
         ).toBe(false);
     });
 
-    it('highlights matching family member row clearly with amber highlight and left accent border when search filter is active', () => {
+    it('keeps main KK table filter focused on KK-level filters only (Dusun & DTSEN) without individual member search badges', async () => {
         const page = usePage();
         page.props.auth.user = {
             id: 1,
@@ -557,13 +577,110 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
         };
 
         const props = createSampleProps();
-        props.filters.search = 'Siti Aminah';
-
         const wrapper = mount(KependudukanIndex, { props });
 
-        // Baris KK otomatis terbuka saat ada filter pencarian anggota aktif
+        // Tabel utama KK hanya memiliki filter Dusun dan Kategori DTSEN (tanpa filter Status Warga individu)
         expect(
-            wrapper.find('[data-testid="subtable-anggota-kk-10"]').exists(),
+            wrapper.find('[data-testid="filter-select-dusun"]').exists(),
+        ).toBe(true);
+        const dtsenFilterSelect = wrapper.get(
+            '[data-testid="filter-select-status_kesejahteraan"]',
+        );
+        expect(dtsenFilterSelect.text()).toContain('Desil 1');
+        expect(dtsenFilterSelect.text()).toContain('Desil 2');
+        expect(dtsenFilterSelect.text()).toContain('Desil 3');
+        expect(dtsenFilterSelect.text()).toContain('Desil 4');
+        expect(dtsenFilterSelect.text()).toContain('Desil 5');
+        expect(dtsenFilterSelect.text()).toContain('Desil 6-10');
+        expect(
+            wrapper
+                .find('[data-testid="filter-select-status_kependudukan"]')
+                .exists(),
+        ).toBe(false);
+
+        // Tidak ada badge pencocokan individu di tabel utama KK
+        expect(
+            wrapper
+                .find('[data-testid="badge-kk-matched-members-10"]')
+                .exists(),
+        ).toBe(false);
+    });
+
+    it('opens Cari Individu modal, supports filter options & realtime search, and highlights the individual row in Modal Detail KK when Lihat KK is clicked', async () => {
+        const page = usePage();
+        page.props.auth.user = {
+            id: 1,
+            name: 'Operator Desa',
+            role: 'operator',
+        };
+
+        const wrapper = mount(KependudukanIndex, {
+            props: createSampleProps(),
+        });
+
+        expect(
+            wrapper.find('[data-testid="btn-open-search-individu"]').exists(),
+        ).toBe(true);
+
+        await wrapper
+            .find('[data-testid="btn-open-search-individu"]')
+            .trigger('click');
+
+        expect(
+            wrapper.find('[data-testid="modal-search-individu"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="search-individu-filters"]').exists(),
+        ).toBe(true);
+
+        // 1. Uji filter option tanpa mengetik kata kunci (misal: Status Warga = Pindah Keluar -> hanya Hasanuddin id 101)
+        await wrapper
+            .get('[data-testid="search-individu-filter-status"]')
+            .setValue('pindah_keluar');
+
+        expect(
+            wrapper.find('[data-testid="search-individu-results"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="search-individu-item-101"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="search-individu-item-102"]').exists(),
+        ).toBe(false);
+
+        // Reset filter pada modal pencarian individu
+        await wrapper
+            .get('[data-testid="search-individu-reset-btn"]')
+            .trigger('click');
+        expect(
+            wrapper.find('[data-testid="search-individu-results"]').exists(),
+        ).toBe(false);
+
+        // 2. Uji kombinasi filter Jenis Kelamin = P + pencarian nama 'Siti'
+        await wrapper
+            .get('[data-testid="search-individu-filter-jk"]')
+            .setValue('P');
+        const searchInput = wrapper.get('[data-testid="input-search-individu"]');
+        await searchInput.setValue('Siti Aminah');
+
+        expect(
+            wrapper.find('[data-testid="search-individu-results"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="search-individu-item-102"]').exists(),
+        ).toBe(true);
+
+        // Klik tombol Lihat KK pada hasil pencarian individu
+        await wrapper
+            .find('[data-testid="btn-lihat-kk-individu-102"]')
+            .trigger('click');
+
+        // Modal pencarian individu tertutup dan Modal Detail KK langsung terbuka dengan highlight pada individu tersebut
+        expect(
+            wrapper.find('[data-testid="modal-search-individu"]').exists(),
+        ).toBe(false);
+        expect(
+            wrapper.find('[data-testid="modal-detail-kk"]').exists(),
         ).toBe(true);
 
         const matchedRow = wrapper.get('[data-testid="member-row-102"]');
@@ -576,5 +693,241 @@ describe('Kependudukan/Index.vue Unified Interface', () => {
 
         expect(unmatchedRow.classes()).not.toContain('bg-amber-50/90');
         expect(unmatchedRow.text()).not.toContain('Cocok');
+    });
+
+    it('supports extended hubungan keluarga options (Cucu, Orang Tua, Kakek, Nenek, Famili Lain, Lainnya) and conditionally displays KIP/PIP & Kelas Sekolah for unmarried Anak/Cucu/Famili Lain/Lainnya', async () => {
+        const page = usePage();
+        page.props.auth.user = {
+            id: 1,
+            name: 'Operator Desa',
+            role: 'operator',
+        };
+
+        const wrapper = mount(KependudukanIndex, {
+            props: createSampleProps(),
+        });
+
+        // Buka Modal Detail KK lalu klik + Anggota
+        await wrapper
+            .find('[data-testid="row-action-detail-0"]')
+            .trigger('click');
+        await wrapper
+            .find('[data-testid="modal-detail-kk-btn-add-member"]')
+            .trigger('click');
+
+        // Pastikan opsi hubungan keluarga lengkap tersedia (termasuk Cucu, Orang Tua, Kakek, Nenek, Famili Lain, Lainnya)
+        const hubunganSelectText = wrapper
+            .get('[data-testid="select-hubungan"]')
+            .text();
+        expect(hubunganSelectText).toContain('Kepala Keluarga');
+        expect(hubunganSelectText).toContain('Istri');
+        expect(hubunganSelectText).toContain('Anak');
+        expect(hubunganSelectText).toContain('Cucu');
+        expect(hubunganSelectText).toContain('Orang Tua');
+        expect(hubunganSelectText).toContain('Kakek');
+        expect(hubunganSelectText).toContain('Nenek');
+        expect(hubunganSelectText).toContain('Famili Lain');
+        expect(hubunganSelectText).toContain('Lainnya');
+
+        // Karena KK sudah memiliki Kepala Keluarga, default form adalah hubungan = 'anak' & status_perkawinan = 'belum_kawin'
+        expect(
+            wrapper.find('[data-testid="select-peserta-kip-pip"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="input-kelas-sekolah"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="input-pendidikan"]').exists(),
+        ).toBe(true);
+
+        // Saat Kelas Sekolah diisi (misal: '2 SMP'), input Pendidikan Terakhir otomatis disembunyikan & tercatat otomatis
+        await wrapper
+            .get('[data-testid="input-kelas-sekolah"]')
+            .setValue('2 SMP');
+        expect(
+            wrapper.find('[data-testid="input-pendidikan"]').exists(),
+        ).toBe(false);
+        expect(
+            wrapper
+                .get('[data-testid="note-auto-pendidikan-penduduk"]')
+                .text(),
+        ).toContain('Tamat SD/Sederajat');
+
+        // Jika hubungan diubah menjadi 'cucu' (dan masih 'belum_kawin'), field KIP/PIP & Kelas Sekolah tetap tampil
+        await wrapper.get('[data-testid="select-hubungan"]').setValue('cucu');
+        expect(
+            wrapper.find('[data-testid="select-peserta-kip-pip"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="input-kelas-sekolah"]').exists(),
+        ).toBe(true);
+
+        // Jika hubungan diubah menjadi 'kakek' (atau 'nenek'/'orang_tua'/'istri'), field KIP/PIP & Kelas Sekolah otomatis disembunyikan dan Pendidikan Terakhir tampil kembali
+        await wrapper.get('[data-testid="select-hubungan"]').setValue('kakek');
+        expect(
+            wrapper.find('[data-testid="select-peserta-kip-pip"]').exists(),
+        ).toBe(false);
+        expect(
+            wrapper.find('[data-testid="input-kelas-sekolah"]').exists(),
+        ).toBe(false);
+        expect(
+            wrapper.find('[data-testid="input-pendidikan"]').exists(),
+        ).toBe(true);
+
+        // Uji juga pada Modal Tambah KK (saat hubungan anggota diubah menjadi Anak/Cucu, status_perkawinan otomatis menjadi belum_kawin sehingga input KIP/PIP & Kelas Sekolah langsung tampil)
+        await wrapper
+            .find('[data-testid="btn-open-create-kk"]')
+            .trigger('click');
+        expect(
+            wrapper.find('[data-testid="select-kk-member-kip-0"]').exists(),
+        ).toBe(false);
+        expect(
+            wrapper.find('[data-testid="input-kk-member-kelas-0"]').exists(),
+        ).toBe(false);
+
+        await wrapper
+            .get('[data-testid="select-kk-member-hubungan-0"]')
+            .setValue('anak');
+        expect(
+            wrapper.find('[data-testid="select-kk-member-kip-0"]').exists(),
+        ).toBe(true);
+        expect(
+            wrapper.find('[data-testid="input-kk-member-kelas-0"]').exists(),
+        ).toBe(true);
+    });
+
+    it('renders expanded 6xl Detail KK modal with subtitle, domisili, explicit asset labels, 10 structured member columns, and auto-calculated age', async () => {
+        const page = usePage();
+        page.props.auth.user = {
+            id: 1,
+            name: 'Operator Desa',
+            role: 'operator',
+        };
+
+        const props = createSampleProps();
+        const kk = props.kartu_keluarga.data[0];
+        kk.status_kepemilikan_rumah = 'Milik Sendiri';
+        kk.kondisi_rumah = 'Semi Permanen';
+        kk.jenis_listrik = 'PLN 900W';
+        kk.kamar_mandi = 'Ada';
+        kk.penghasilan_bulanan = 'Rp 1.500.000';
+        kk.kepemilikan_usaha = 'Warung Kelontong';
+        kk.kepemilikan_hewan_ternak = '2 Ekor Sapi';
+        kk.kepemilikan_kendaraan_elektronik = '1 Motor, 1 TV';
+        kk.kepemilikan_shml = '1';
+        kk.kepemilikan_tanah_bidang = '2';
+        kk.kepemilikan_tanah_sawah = '1';
+        kk.tanaman = 'Kelapa & Kakao';
+
+        kk.anggota[0].suku = 'Kaili';
+        kk.anggota[0].jenis_bpjs = 'Pemerintah';
+        kk.anggota.push({
+            id: 103,
+            kartu_keluarga_id: 10,
+            nik: '7203081506140003',
+            nama_lengkap: 'Ahmad Fauzi',
+            tempat_lahir: 'Donggala',
+            tanggal_lahir: '2014-06-15',
+            jenis_kelamin: 'L',
+            agama: 'Islam',
+            suku: 'Kaili',
+            kewarganegaraan: 'WNI',
+            pendidikan: 'Belum Tamat SD/Sederajat',
+            kelas_sekolah: '5 SD',
+            peserta_kip_pip: 'PIP',
+            pekerjaan: 'Pelajar',
+            status_perkawinan: 'belum_kawin',
+            hubungan_keluarga: 'anak',
+            jenis_bpjs: 'Pemerintah',
+            status_kesejahteraan: 'dtsen_desil_1',
+            status_kependudukan: 'aktif',
+        });
+        kk.jumlah_anggota = 3;
+        kk.jumlah_anggota_aktif = 2;
+
+        const wrapper = mount(KependudukanIndex, { props });
+
+        await wrapper
+            .find('[data-testid="row-action-detail-0"]')
+            .trigger('click');
+
+        // 1. BaseModal menggunakan ukuran 6xl dan menampilkan subtitle domisili
+        const dialog = wrapper.get('[role="dialog"]');
+        expect(dialog.classes()).toContain('max-w-6xl');
+        const subtitleEl = wrapper.get('[data-testid="base-modal-subtitle"]');
+        expect(subtitleEl.text()).toContain('Dusun I');
+        expect(subtitleEl.text()).toContain('RT 001 / RW 001');
+        expect(subtitleEl.text()).toContain('Jl. Trans Sulawesi No. 1');
+
+        // 2. Baris ringkasan KK menampilkan Domisili & Alamat secara eksplisit
+        const domisiliSummary = wrapper.get(
+            '[data-testid="kk-summary-domisili"]',
+        );
+        expect(domisiliSummary.text()).toContain('Domisili & Alamat');
+        expect(domisiliSummary.text()).toContain('Dusun I');
+        expect(domisiliSummary.text()).toContain('Jl. Trans Sulawesi No. 1');
+
+        // 3. Kartu Profil Hunian, Sosial-Ekonomi & Aset menampilkan seluruh label 12 field secara jelas
+        const assetsSummaryText = wrapper
+            .get('[data-testid="kk-assets-summary-10"]')
+            .text();
+        expect(assetsSummaryText).toContain('Kepemilikan Rumah:');
+        expect(assetsSummaryText).toContain('Milik Sendiri');
+        expect(assetsSummaryText).toContain('Kondisi Bangunan:');
+        expect(assetsSummaryText).toContain('Semi Permanen');
+        expect(assetsSummaryText).toContain('Listrik:');
+        expect(assetsSummaryText).toContain('PLN 900W');
+        expect(assetsSummaryText).toContain('Kamar Mandi:');
+        expect(assetsSummaryText).toContain('Ada');
+        expect(assetsSummaryText).toContain('Penghasilan / Bulan:');
+        expect(assetsSummaryText).toContain('Rp 1.500.000');
+        expect(assetsSummaryText).toContain('Kepemilikan Usaha:');
+        expect(assetsSummaryText).toContain('Warung Kelontong');
+        expect(assetsSummaryText).toContain('Hewan Ternak:');
+        expect(assetsSummaryText).toContain('2 Ekor Sapi');
+        expect(assetsSummaryText).toContain('Kendaraan / Elektronik:');
+        expect(assetsSummaryText).toContain('1 Motor, 1 TV');
+        expect(assetsSummaryText).toContain('Sertifikat (SHML):');
+        expect(assetsSummaryText).toContain('Tanah Bidang:');
+        expect(assetsSummaryText).toContain('Tanah Sawah:');
+        expect(assetsSummaryText).toContain('Tanaman:');
+        expect(assetsSummaryText).toContain('Kelapa & Kakao');
+
+        // 4. Tabel anggota memiliki 10 kolom informasi terstruktur (+ 1 kolom Aksi)
+        const subtable = wrapper.get('[data-testid="subtable-anggota-kk-10"]');
+        const headers = subtable.findAll('thead th').map((th) => th.text());
+        expect(headers).toEqual([
+            'No',
+            'Nama & NIK',
+            'L/P',
+            'Hubungan',
+            'TTL & Usia',
+            'Status Kawin & Identitas',
+            'Pendidikan',
+            'Pekerjaan',
+            'BPJS & Bantuan',
+            'Status Warga',
+            'Aksi',
+        ]);
+
+        // 5. Verifikasi konten baris anggota ke-1 (Kepala Keluarga mutasi + Tgl mutasi + Suku + Usia + BPJS)
+        const row1Text = wrapper.get('[data-testid="member-row-101"]').text();
+        expect(row1Text).toContain('1');
+        expect(row1Text).toContain('Hasanuddin');
+        expect(row1Text).toContain('Laki-laki');
+        expect(row1Text).toContain('Kepala Keluarga');
+        expect(row1Text).toContain('Usia:');
+        expect(row1Text).toContain('Kaili');
+        expect(row1Text).toContain('BPJS: Pemerintah');
+        expect(row1Text).toContain('Tgl:');
+
+        // 6. Verifikasi konten baris anak sekolah (Ahmad Fauzi: Kelas Sekolah & Bantuan Pendidikan PIP)
+        const row3Text = wrapper.get('[data-testid="member-row-103"]').text();
+        expect(row3Text).toContain('3');
+        expect(row3Text).toContain('Ahmad Fauzi');
+        expect(row3Text).toContain('Anak');
+        expect(row3Text).toContain('Kelas 5 SD');
+        expect(row3Text).toContain('Pendidikan: PIP');
+        expect(row3Text).toContain('Pelajar');
     });
 });

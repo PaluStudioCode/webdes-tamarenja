@@ -460,4 +460,193 @@ class BansosCrudExcelPemerataanAndPdfTest extends TestCase
 
         $this->assertSame('Rp 600.000 / 2 Bulan', $bansosSuami->fresh()->bentuk_nominal);
     }
+
+    #[Test]
+    public function pencatatan_tiga_kategori_bansos_mengizinkan_lebih_dari_satu_anggota_kk_pada_bansos_perorangan_dan_mewajibkan_nama_kelompok_pada_bantuan_kelompok(): void
+    {
+        $kk = KartuKeluarga::factory()->create(['nomor_kk' => '7203080101990088', 'dusun' => 'Dusun I']);
+
+        $kepala = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk->id,
+            'nama_lengkap' => 'Ahmad Petani',
+            'hubungan_keluarga' => 'kepala_keluarga',
+            'status_kependudukan' => StatusKependudukan::Aktif,
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil2,
+        ]);
+
+        $anak1 = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk->id,
+            'nama_lengkap' => 'Rina Anak Pertama',
+            'hubungan_keluarga' => 'anak',
+            'status_kependudukan' => StatusKependudukan::Aktif,
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil2,
+        ]);
+
+        $anak2 = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk->id,
+            'nama_lengkap' => 'Dodi Anak Kedua',
+            'hubungan_keluarga' => 'anak',
+            'status_kependudukan' => StatusKependudukan::Aktif,
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil2,
+        ]);
+
+        // 1. Kategori Perorangan (PIP): Anak 1 & Anak 2 dalam 1 KK yang sama BOLEH sama-sama menerima PIP aktif
+        $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_id' => $anak1->id,
+                'jenis_bantuan' => JenisBansos::Pip->value,
+                'bentuk_nominal' => 'Rp 450.000 / Tahun',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_id' => $anak2->id,
+                'jenis_bantuan' => JenisBansos::Pip->value,
+                'bentuk_nominal' => 'Rp 1.000.000 / Tahun',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $pipAnak1 = PenerimaBansos::query()
+            ->where('penduduk_id', $anak1->id)
+            ->where('jenis_bantuan', JenisBansos::Pip->value)
+            ->firstOrFail();
+        $this->assertSame('perorangan', $pipAnak1->kategori_bantuan);
+
+        // 2. Kategori Kelompok (Bantuan Kelompok Tani): Tanpa nama_kelompok harus gagal validasi
+        $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_id' => $kepala->id,
+                'jenis_bantuan' => JenisBansos::BantuanKelompokTani->value,
+                'nama_kelompok' => '',
+                'bentuk_nominal' => 'Bibit Jagung & Pupuk NPK',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+            ])
+            ->assertSessionHasErrors('nama_kelompok');
+
+        // Dengan nama_kelompok berhasil disimpan dengan kategori_bantuan = 'kelompok'
+        $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_id' => $kepala->id,
+                'jenis_bantuan' => JenisBansos::BantuanKelompokTani->value,
+                'nama_kelompok' => 'Kelompok Tani Harapan Makmur',
+                'bentuk_nominal' => 'Bibit Jagung & Pupuk NPK',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $poktanRecord = PenerimaBansos::query()
+            ->where('penduduk_id', $kepala->id)
+            ->where('jenis_bantuan', JenisBansos::BantuanKelompokTani->value)
+            ->firstOrFail();
+        $this->assertSame('kelompok', $poktanRecord->kategori_bantuan);
+        $this->assertSame('Kelompok Tani Harapan Makmur', $poktanRecord->nama_kelompok);
+
+        // 3. Cetak PDF dengan filter kategori_bantuan=kelompok
+        $pdfKelompok = $this->actingAs($this->operator)
+            ->get('/panel/sosial/bansos/cetak-pdf?tahun=2026&kategori_bantuan=kelompok');
+        $pdfKelompok->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $pdfKelompok->headers->get('Content-Type'));
+    }
+
+    #[Test]
+    public function input_banyak_penerima_sekaligus_mewajibkan_nik_desil_1_sampai_5_dan_menolak_nik_yang_sudah_menerima(): void
+    {
+        $kk1 = KartuKeluarga::factory()->create(['nomor_kk' => '7203080101880001', 'dusun' => 'Dusun I']);
+        $kk2 = KartuKeluarga::factory()->create(['nomor_kk' => '7203080101880002', 'dusun' => 'Dusun II']);
+        $kk3 = KartuKeluarga::factory()->create(['nomor_kk' => '7203080101880003', 'dusun' => 'Dusun III']);
+
+        $wargaDesil1 = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk1->id,
+            'nik' => '7203081205990001',
+            'nama_lengkap' => 'Warga Batch Desil Satu',
+            'status_kependudukan' => StatusKependudukan::Aktif,
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil1,
+        ]);
+
+        $wargaDesil5 = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk2->id,
+            'nik' => '7203081205990005',
+            'nama_lengkap' => 'Warga Batch Desil Lima',
+            'status_kependudukan' => StatusKependudukan::Aktif,
+            'status_kesejahteraan' => StatusKesejahteraan::DtsenDesil5,
+        ]);
+
+        $wargaMampu = Penduduk::factory()->create([
+            'kartu_keluarga_id' => $kk3->id,
+            'nik' => '7203081205990009',
+            'nama_lengkap' => 'Warga Batch Non Prioritas',
+            'status_kependudukan' => StatusKependudukan::Aktif,
+            'status_kesejahteraan' => StatusKesejahteraan::NonPrioritas,
+        ]);
+
+        // 1. Endpoint cari-nik dengan filter Desil 1-5 hanya mengembalikan warga Desil 1 & Desil 5
+        $searchRes = $this->actingAs($this->operator)
+            ->getJson('/panel/kependudukan/cari-nik?q=Warga%20Batch&status_kesejahteraan=dtsen_desil_1,dtsen_desil_2,dtsen_desil_3,dtsen_desil_4,dtsen_desil_5');
+        $searchRes->assertOk();
+        $returnedNiks = collect($searchRes->json('data'))->pluck('nik')->all();
+        $this->assertContains('7203081205990001', $returnedNiks);
+        $this->assertContains('7203081205990005', $returnedNiks);
+        $this->assertNotContains('7203081205990009', $returnedNiks);
+
+        // 2. Submit batch dengan warga NonPrioritas (bukan Desil 1-5) -> DITOLAK
+        $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_ids' => [$wargaDesil1->id, $wargaMampu->id],
+                'jenis_bantuan' => JenisBansos::BltDd->value,
+                'bentuk_nominal' => 'Rp 300.000 / Bulan',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+            ])
+            ->assertSessionHasErrors('penduduk_id');
+
+        // 3. Submit batch 2 warga Desil 1 & Desil 5 sekaligus -> BERHASIL menyimpan keduanya
+        $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_ids' => [$wargaDesil1->id, $wargaDesil5->id],
+                'jenis_bantuan' => JenisBansos::BltDd->value,
+                'bentuk_nominal' => 'Rp 300.000 / Bulan',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('penerima_bansos', [
+            'penduduk_id' => $wargaDesil1->id,
+            'jenis_bantuan' => JenisBansos::BltDd->value,
+            'tahun_anggaran' => 2026,
+            'tahap_penyaluran' => 'Tahap I',
+        ]);
+        $this->assertDatabaseHas('penerima_bansos', [
+            'penduduk_id' => $wargaDesil5->id,
+            'jenis_bantuan' => JenisBansos::BltDd->value,
+            'tahun_anggaran' => 2026,
+            'tahap_penyaluran' => 'Tahap I',
+        ]);
+
+        // 4. Submit ulang NIK yang sudah menerima bantuan pada program, tahap, & tahun yang sama -> DITOLAK
+        $resAlreadyReceived = $this->actingAs($this->operator)
+            ->post('/panel/sosial/bansos', [
+                'penduduk_ids' => [$wargaDesil1->id],
+                'jenis_bantuan' => JenisBansos::BltDd->value,
+                'bentuk_nominal' => 'Rp 300.000 / Bulan',
+                'tahun_anggaran' => 2026,
+                'tahap_penyaluran' => 'Tahap I',
+            ]);
+        $resAlreadyReceived->assertSessionHasErrors('penduduk_id');
+        $this->assertStringContainsString(
+            'sudah terdaftar sebagai penerima',
+            session('errors')->first('penduduk_id'),
+        );
+    }
 }

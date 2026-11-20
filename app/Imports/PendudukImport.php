@@ -98,7 +98,17 @@ class PendudukImport implements ToCollection, WithHeadingRow
                     'hubungan_keluarga' => [
                         'required',
                         'string',
-                        Rule::in(['kepala_keluarga', 'istri', 'anak', 'lainnya']),
+                        Rule::in([
+                            'kepala_keluarga',
+                            'istri',
+                            'anak',
+                            'cucu',
+                            'orang_tua',
+                            'kakek',
+                            'nenek',
+                            'famili_lain',
+                            'lainnya',
+                        ]),
                     ],
                     'status_kesejahteraan' => ['required', Rule::enum(StatusKesejahteraan::class)],
                     'jenis_bpjs' => ['nullable', 'string', 'max:50'],
@@ -623,7 +633,12 @@ class PendudukImport implements ToCollection, WithHeadingRow
             'kepala_keluarga', 'kk' => 'kepala_keluarga',
             'istri', 'isteri', 'suami' => 'istri',
             'anak', 'anak_kandung', 'anak_angkat', 'anak_tiri' => 'anak',
-            'lainnya', 'famili_lain', 'orang_tua', 'mertua', 'cucu' => 'lainnya',
+            'cucu' => 'cucu',
+            'orang_tua', 'ayah', 'ibu', 'bapak', 'mertua' => 'orang_tua',
+            'kakek' => 'kakek',
+            'nenek' => 'nenek',
+            'famili_lain', 'saudara', 'keponakan', 'menantu' => 'famili_lain',
+            'lainnya', 'lain_lain', 'lain' => 'lainnya',
             default => $snake !== '' ? $snake : 'lainnya',
         };
     }
@@ -636,10 +651,12 @@ class PendudukImport implements ToCollection, WithHeadingRow
         }
 
         return match ($clean) {
-            'dtsen_desil_1', 'desil_1', 'desil 1', '1', 'miskin ekstrem' => StatusKesejahteraan::DtsenDesil1->value,
+            'dtsen_desil_1', 'desil_1', 'desil 1', '1', 'miskin ekstrem', 'sangat miskin' => StatusKesejahteraan::DtsenDesil1->value,
             'dtsen_desil_2', 'desil_2', 'desil 2', '2', 'miskin' => StatusKesejahteraan::DtsenDesil2->value,
-            'dtsen_desil_3_4', 'desil_3_4', 'desil 3-4', 'desil 3', 'desil 4', '3', '4', 'rentan miskin' => StatusKesejahteraan::DtsenDesil34->value,
-            'non_prioritas', 'non-prioritas', 'non prioritas', 'mampu', 'desil 5-10' => StatusKesejahteraan::NonPrioritas->value,
+            'dtsen_desil_3', 'dtsen_desil_3_4', 'desil_3', 'desil_3_4', 'desil 3', 'desil 3-4', '3', 'rentan miskin' => StatusKesejahteraan::DtsenDesil3->value,
+            'dtsen_desil_4', 'desil_4', 'desil 4', '4', 'hampir miskin' => StatusKesejahteraan::DtsenDesil4->value,
+            'dtsen_desil_5', 'desil_5', 'desil 5', '5' => StatusKesejahteraan::DtsenDesil5->value,
+            'non_prioritas', 'dtsen_desil_6_10', 'desil_6_10', 'desil 6-10', 'desil 6–10', '6-10', '6', '7', '8', '9', '10', 'non-prioritas', 'non prioritas', 'mampu', 'desil 5-10' => StatusKesejahteraan::NonPrioritas->value,
             default => $clean,
         };
     }

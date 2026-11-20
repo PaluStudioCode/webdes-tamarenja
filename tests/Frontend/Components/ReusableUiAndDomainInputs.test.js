@@ -414,9 +414,9 @@ describe('Sub-Fase 3.3: Komponen UI Dasar, Tabel Anti-Penumpukan & Input Khusus 
             expect(checkpoints.find('[data-testid="checkpoint-box-foto_50"]').exists()).toBe(true);
             expect(checkpoints.find('[data-testid="checkpoint-box-foto_100"]').exists()).toBe(true);
 
-            // Progres 55% -> foto_0 & foto_50 wajib, foto_100 belum wajib
-            expect(checkpoints.find('[data-testid="checkpoint-required-foto_0"]').exists()).toBe(true);
-            expect(checkpoints.find('[data-testid="checkpoint-required-foto_50"]').exists()).toBe(true);
+            // Badge Wajib pada foto telah dihapus agar tampilan bersih
+            expect(checkpoints.find('[data-testid="checkpoint-required-foto_0"]').exists()).toBe(false);
+            expect(checkpoints.find('[data-testid="checkpoint-required-foto_50"]').exists()).toBe(false);
             expect(checkpoints.find('[data-testid="checkpoint-required-foto_100"]').exists()).toBe(false);
 
             const samplePdf = new File([new Uint8Array(2048)], 'perdes-apbdes-2026.pdf', {

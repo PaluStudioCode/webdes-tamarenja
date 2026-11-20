@@ -40,21 +40,20 @@ describe('Sub-Fase 3.2: Tiga Root Layout (PublicLayout, AuthLayout, AppLayout) &
 
             expect(desktopNav.text()).toContain('Beranda');
             expect(desktopNav.text()).toContain('Profil Desa');
-            expect(desktopNav.text()).toContain('Transparansi');
+            expect(desktopNav.text()).toContain('Pembangunan Desa');
             expect(desktopNav.text()).toContain('Kegiatan');
             expect(desktopNav.text()).toContain('Unduhan PPID');
             expect(desktopNav.text()).toContain('Layanan Mandiri');
 
+            // Tidak ada dropdown Transparansi lagi, menu menjadi flat langsung
+            expect(navbar.find('[data-testid="public-transparansi-trigger"]').exists()).toBe(false);
+            expect(navbar.find('[data-testid="public-transparansi-dropdown"]').exists()).toBe(false);
+            expect(desktopNav.find('a[href="/#profil"]').exists()).toBe(true);
+            expect(desktopNav.find('a[href="/#pembangunan"]').exists()).toBe(true);
+
             // Tidak boleh ada tautan /login atau tombol Login Internal mencolok di Top Navbar
             expect(navbar.find('a[href="/login"]').exists()).toBe(false);
             expect(navbar.text()).not.toContain('Panel Perangkat Desa');
-
-            // Dropdown Transparansi berisi 3 submenu publik
-            await wrapper.get('[data-testid="public-transparansi-trigger"]').trigger('click');
-            const dropdown = wrapper.get('[data-testid="public-transparansi-dropdown"]');
-            expect(dropdown.text()).toContain('APBDes');
-            expect(dropdown.text()).toContain('Pembangunan');
-            expect(dropdown.text()).toContain('Statistik Penduduk');
 
             // Kontainer utama max-w-7xl
             expect(wrapper.get('[data-testid="public-main-container"]').classes()).toContain('max-w-7xl');

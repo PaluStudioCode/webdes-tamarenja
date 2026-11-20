@@ -91,7 +91,12 @@ class PendudukController extends Controller
                         WHEN 'kepala_keluarga' THEN 1
                         WHEN 'istri' THEN 2
                         WHEN 'anak' THEN 3
-                        ELSE 4
+                        WHEN 'cucu' THEN 4
+                        WHEN 'orang_tua' THEN 5
+                        WHEN 'kakek' THEN 6
+                        WHEN 'nenek' THEN 7
+                        WHEN 'famili_lain' THEN 8
+                        ELSE 9
                     END ASC
                 ")->orderBy('tanggal_lahir'),
             ])
@@ -99,20 +104,15 @@ class PendudukController extends Controller
                 $q->where(function (Builder $sub) use ($search) {
                     $sub->where('nomor_kk', 'like', "%{$search}%")
                         ->orWhere('alamat', 'like', "%{$search}%")
-                        ->orWhereHas('penduduk', fn (Builder $pQ) => $pQ
+                        ->orWhere('dusun', 'like', "%{$search}%")
+                        ->orWhereHas('kepalaKeluarga', fn (Builder $kp) => $kp
                             ->where('nama_lengkap', 'like', "%{$search}%")
                             ->orWhere('nik', 'like', "%{$search}%"));
                 });
             })
             ->when($dusun !== '', fn (Builder $q) => $q->where('dusun', $dusun))
-            ->when($statusKependudukan !== '', function (Builder $q) use ($statusKependudukan) {
-                $q->whereHas('penduduk', fn (Builder $pQ) => $pQ->where('status_kependudukan', $statusKependudukan));
-            })
             ->when($statusKesejahteraan !== '', function (Builder $q) use ($statusKesejahteraan) {
-                $q->where(function (Builder $sub) use ($statusKesejahteraan) {
-                    $sub->where('status_kesejahteraan', $statusKesejahteraan)
-                        ->orWhereHas('penduduk', fn (Builder $pQ) => $pQ->where('status_kesejahteraan', $statusKesejahteraan));
-                });
+                $q->where('status_kesejahteraan', $statusKesejahteraan);
             })
             ->orderBy('nomor_kk');
 
@@ -164,10 +164,15 @@ class PendudukController extends Controller
             ->filter(fn (KartuKeluarga $kk) => $this->kependudukanService->needsKepalaKeluargaUpdate($kk))
             ->count();
 
+        $totalKkAktif = KartuKeluarga::query()->aktif()->count();
+        $totalKk = KartuKeluarga::query()->count();
+        $totalKkNonaktif = max(0, $totalKk - $totalKkAktif);
+
         $ringkasan = [
             'total_penduduk_aktif' => Penduduk::query()->aktif()->count(),
-            'total_kk_aktif' => KartuKeluarga::query()->aktif()->count(),
-            'total_kk' => KartuKeluarga::query()->count(),
+            'total_kk_aktif' => $totalKkAktif,
+            'total_kk' => $totalKk,
+            'total_kk_nonaktif' => $totalKkNonaktif,
             'total_prioritas_dtsen_aktif' => Penduduk::query()->aktif()->prioritasDtsen()->count(),
             'total_mutasi' => Penduduk::query()
                 ->whereIn('status_kependudukan', [
@@ -206,7 +211,12 @@ class PendudukController extends Controller
                     WHEN 'kepala_keluarga' THEN 1
                     WHEN 'istri' THEN 2
                     WHEN 'anak' THEN 3
-                    ELSE 4
+                    WHEN 'cucu' THEN 4
+                    WHEN 'orang_tua' THEN 5
+                    WHEN 'kakek' THEN 6
+                    WHEN 'nenek' THEN 7
+                    WHEN 'famili_lain' THEN 8
+                    ELSE 9
                 END ASC
             ")->orderBy('tanggal_lahir'),
             'penerimaBansos' => fn ($q) => $q->orderByDesc('tahun_anggaran')->orderByDesc('id'),
@@ -226,30 +236,58 @@ class PendudukController extends Controller
     public function searchNik(Request $request): JsonResponse
     {
         $q = trim((string) $request->input('q', ''));
-        if ($q === '') {
+        $dusunFilter = trim((string) $request->input('dusun', ''));
+        $jkFilter = trim((string) $request->input('jenis_kelamin', ''));
+        $dtsenFilter = trim((string) $request->input('status_kesejahteraan', ''));
+        $hubunganFilter = trim((string) $request->input('hubungan_keluarga', ''));
+        $statusParam = $request->input('status_kependudukan');
+        $hasStatusFilter = (is_array($statusParam) && count($statusParam) > 0)
+            || (is_string($statusParam) && trim($statusParam) !== '');
+
+        $hasAnyFilter = $dusunFilter !== ''
+            || $jkFilter !== ''
+            || $dtsenFilter !== ''
+            || $hubunganFilter !== ''
+            || $hasStatusFilter;
+
+        if ($q === '' && ! $hasAnyFilter) {
             return response()->json(['data' => []]);
         }
 
-        $statusParam = $request->input('status_kependudukan');
         $jenisSurat = (string) $request->input('jenis_surat', '');
         $includeMeninggal = $request->boolean('include_meninggal') || $jenisSurat === JenisSurat::Kematian->value;
         $allStatus = $request->boolean('all_status');
 
         $query = Penduduk::query()
             ->with(['kartuKeluarga.penduduk', 'penerimaBansos'])
-            ->where(function (Builder $sub) use ($q) {
-                $sub->where('nik', 'like', "%{$q}%")
-                    ->orWhere('nama_lengkap', 'like', "%{$q}%")
-                    ->orWhereHas('kartuKeluarga', fn (Builder $kkQ) => $kkQ->where('nomor_kk', 'like', "%{$q}%"));
-            });
+            ->when($q !== '', function (Builder $builder) use ($q) {
+                $builder->where(function (Builder $sub) use ($q) {
+                    $sub->where('nik', 'like', "%{$q}%")
+                        ->orWhere('nama_lengkap', 'like', "%{$q}%")
+                        ->orWhereHas('kartuKeluarga', fn (Builder $kkQ) => $kkQ->where('nomor_kk', 'like', "%{$q}%"));
+                });
+            })
+            ->when($dusunFilter !== '', function (Builder $builder) use ($dusunFilter) {
+                $builder->whereHas('kartuKeluarga', fn (Builder $kkQ) => $kkQ->where('dusun', $dusunFilter));
+            })
+            ->when($jkFilter !== '', fn (Builder $builder) => $builder->where('jenis_kelamin', $jkFilter))
+            ->when($dtsenFilter !== '', function (Builder $builder) use ($dtsenFilter) {
+                $desils = array_values(array_filter(array_map('trim', explode(',', $dtsenFilter))));
+                if (count($desils) > 1) {
+                    $builder->whereIn('status_kesejahteraan', $desils);
+                } elseif (count($desils) === 1) {
+                    $builder->where('status_kesejahteraan', $desils[0]);
+                }
+            })
+            ->when($hubunganFilter !== '', fn (Builder $builder) => $builder->where('hubungan_keluarga', $hubunganFilter));
 
-        if (! $allStatus) {
-            if (is_array($statusParam) && count($statusParam) > 0) {
-                $query->whereIn('status_kependudukan', $statusParam);
-            } elseif (is_string($statusParam) && trim($statusParam) !== '') {
-                $statuses = array_map('trim', explode(',', $statusParam));
-                $query->whereIn('status_kependudukan', $statuses);
-            } elseif ($includeMeninggal) {
+        if (is_array($statusParam) && count($statusParam) > 0) {
+            $query->whereIn('status_kependudukan', $statusParam);
+        } elseif (is_string($statusParam) && trim($statusParam) !== '') {
+            $statuses = array_map('trim', explode(',', $statusParam));
+            $query->whereIn('status_kependudukan', $statuses);
+        } elseif (! $allStatus) {
+            if ($includeMeninggal) {
                 // Loket Internal Surat Kematian mengizinkan subjek Aktif maupun Meninggal Dunia yang belum punya Surat Kematian Terbit
                 $query->whereIn('status_kependudukan', [
                     StatusKependudukan::Aktif->value,
@@ -265,7 +303,7 @@ class PendudukController extends Controller
 
         $items = $query
             ->orderBy('nama_lengkap')
-            ->limit(15)
+            ->limit(25)
             ->get()
             ->map(function (Penduduk $p) {
                 $kk = $p->kartuKeluarga;
@@ -301,14 +339,7 @@ class PendudukController extends Controller
                     'rt' => $kk?->rt,
                     'rw' => $kk?->rw,
                     'alamat' => $kk?->alamat,
-                    'kartu_keluarga' => $kk ? [
-                        'id' => $kk->id,
-                        'nomor_kk' => $kk->nomor_kk,
-                        'dusun' => $kk->dusun,
-                        'rt' => $kk->rt,
-                        'rw' => $kk->rw,
-                        'alamat' => $kk->alamat,
-                    ] : null,
+                    'kartu_keluarga' => $kk ? $this->transformKartuKeluargaRow($kk) : null,
                 ];
             })
             ->values();

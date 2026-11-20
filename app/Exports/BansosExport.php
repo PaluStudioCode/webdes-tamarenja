@@ -39,7 +39,9 @@ class BansosExport extends StringValueBinder implements FromCollection, ShouldAu
             'nomor_kk',
             'nik',
             'nama_lengkap',
+            'nama_kelompok',
             'dusun',
+            'kategori_bantuan',
             'jenis_bantuan',
             'nama_program_bantuan',
             'bentuk_nominal',
@@ -56,6 +58,7 @@ class BansosExport extends StringValueBinder implements FromCollection, ShouldAu
         $tahun = isset($this->filters['tahun_anggaran']) && (string) $this->filters['tahun_anggaran'] !== ''
             ? (int) $this->filters['tahun_anggaran']
             : null;
+        $kategori = trim((string) ($this->filters['kategori_bantuan'] ?? ''));
         $jenis = trim((string) ($this->filters['jenis_bantuan'] ?? ''));
         $tahap = trim((string) ($this->filters['tahap_penyaluran'] ?? ''));
         $status = trim((string) ($this->filters['status_kepesertaan'] ?? ''));
@@ -65,6 +68,7 @@ class BansosExport extends StringValueBinder implements FromCollection, ShouldAu
         return PenerimaBansos::query()
             ->with(['penduduk.kartuKeluarga'])
             ->when($tahun !== null, fn (Builder $q) => $q->where('tahun_anggaran', $tahun))
+            ->when($kategori !== '', fn (Builder $q) => $q->where('kategori_bantuan', $kategori))
             ->when($jenis !== '', fn (Builder $q) => $q->where('jenis_bantuan', $jenis))
             ->when($tahap !== '', fn (Builder $q) => $q->where('tahap_penyaluran', $tahap))
             ->when($status !== '', fn (Builder $q) => $q->where('status_kepesertaan', $status))
@@ -96,9 +100,15 @@ class BansosExport extends StringValueBinder implements FromCollection, ShouldAu
         $jenisVal = $item->jenis_bantuan instanceof JenisBansos
             ? $item->jenis_bantuan->value
             : (string) $item->jenis_bantuan;
-        $jenisLabel = $item->jenis_bantuan instanceof JenisBansos
-            ? $item->jenis_bantuan->label()
+        $enumJenis = $item->jenis_bantuan instanceof JenisBansos
+            ? $item->jenis_bantuan
+            : JenisBansos::tryFrom($jenisVal);
+        $jenisLabel = $enumJenis
+            ? $enumJenis->label()
             : $jenisVal;
+        $kategoriVal = $enumJenis
+            ? $enumJenis->kategori()
+            : ($item->kategori_bantuan ?: 'per_kk');
 
         $ekonomiVal = $item->kategori_ekonomi instanceof StatusKesejahteraan
             ? $item->kategori_ekonomi->value
@@ -112,7 +122,9 @@ class BansosExport extends StringValueBinder implements FromCollection, ShouldAu
             (string) ($kk?->nomor_kk ?? ''),
             (string) ($penduduk?->nik ?? ''),
             (string) ($penduduk?->nama_lengkap ?? ''),
+            (string) ($item->nama_kelompok ?? ''),
             (string) ($kk?->dusun ?? ''),
+            $kategoriVal,
             $jenisVal,
             $jenisLabel,
             (string) $item->bentuk_nominal,

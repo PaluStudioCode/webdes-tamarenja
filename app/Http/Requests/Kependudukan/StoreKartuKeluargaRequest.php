@@ -100,7 +100,17 @@ class StoreKartuKeluargaRequest extends FormRequest
             'anggota.*.hubungan_keluarga' => [
                 'required',
                 'string',
-                Rule::in(['kepala_keluarga', 'istri', 'anak', 'lainnya']),
+                Rule::in([
+                    'kepala_keluarga',
+                    'istri',
+                    'anak',
+                    'cucu',
+                    'orang_tua',
+                    'kakek',
+                    'nenek',
+                    'famili_lain',
+                    'lainnya',
+                ]),
             ],
         ];
     }

@@ -355,14 +355,14 @@ async function submitBatalkan() {
                 </template>
 
                 <template #cell-actions="{ row }">
-                    <div class="flex items-center justify-end gap-2 whitespace-nowrap">
+                    <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <a
                             v-if="row.status === 'terbit'"
                             :href="`/panel/persuratan/surat-keluar/${row.id}/pdf`"
                             :data-testid="`btn-cetak-ulang-${row.id}`"
-                            class="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-900"
                         >
-                            <Printer class="mr-1 h-3.5 w-3.5" />
+                            <Printer class="h-3.5 w-3.5" />
                             <span>Cetak</span>
                         </a>
 
@@ -370,10 +370,10 @@ async function submitBatalkan() {
                             v-if="row.status === 'terbit' && isOperator"
                             type="button"
                             :data-testid="`btn-batalkan-surat-${row.id}`"
-                            class="inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 text-xs font-medium text-red-600 shadow-xs transition-colors hover:bg-red-50 hover:text-red-700"
                             @click="openBatalkanModal(row)"
                         >
-                            <Ban class="mr-1 h-3.5 w-3.5 text-red-600" />
+                            <Ban class="h-3.5 w-3.5" />
                             <span>Batalkan</span>
                         </button>
 

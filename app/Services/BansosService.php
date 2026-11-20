@@ -17,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 class BansosService
 {
     /**
-     * Daftar nilai status kesejahteraan yang termasuk sasaran prioritas DTSEN Desil 1-4.
+     * Daftar nilai status kesejahteraan yang termasuk sasaran prioritas DTSEN Desil 1-5.
      *
      * @return list<string>
      */
@@ -26,7 +26,9 @@ class BansosService
         return [
             StatusKesejahteraan::DtsenDesil1->value,
             StatusKesejahteraan::DtsenDesil2->value,
-            StatusKesejahteraan::DtsenDesil34->value,
+            StatusKesejahteraan::DtsenDesil3->value,
+            StatusKesejahteraan::DtsenDesil4->value,
+            StatusKesejahteraan::DtsenDesil5->value,
         ];
     }
 
@@ -65,6 +67,12 @@ class BansosService
         $jenisBantuan = $data['jenis_bantuan'] instanceof JenisBansos
             ? $data['jenis_bantuan']->value
             : (string) $data['jenis_bantuan'];
+        $enumJenis = JenisBansos::tryFrom($jenisBantuan);
+        $kategoriBantuan = $enumJenis ? $enumJenis->kategori() : 'per_kk';
+        $isPerKk = $enumJenis ? $enumJenis->isPerKk() : true;
+        $namaKelompok = ($enumJenis && $enumJenis->isKelompok() && isset($data['nama_kelompok']) && trim((string) $data['nama_kelompok']) !== '')
+            ? trim((string) $data['nama_kelompok'])
+            : null;
 
         $tahunAnggaran = (int) $data['tahun_anggaran'];
         $tahapPenyaluran = trim((string) $data['tahap_penyaluran']);
@@ -74,7 +82,7 @@ class BansosService
                 : (string) $data['status_kepesertaan'])
             : StatusPesertaBansos::Aktif->value;
 
-        if ($penduduk->kartu_keluarga_id && $statusKepesertaan === StatusPesertaBansos::Aktif->value) {
+        if ($isPerKk && $penduduk->kartu_keluarga_id && $statusKepesertaan === StatusPesertaBansos::Aktif->value) {
             $duplicate = PenerimaBansos::query()
                 ->whereHas('penduduk', function (Builder $q) use ($penduduk) {
                     $q->where('kartu_keluarga_id', $penduduk->kartu_keluarga_id)
@@ -101,6 +109,8 @@ class BansosService
         return DB::transaction(function () use (
             $penduduk,
             $jenisBantuan,
+            $kategoriBantuan,
+            $namaKelompok,
             $tahunAnggaran,
             $tahapPenyaluran,
             $snapshotEkonomi,
@@ -119,6 +129,8 @@ class BansosService
             $payload = [
                 'penduduk_id' => $penduduk->id,
                 'jenis_bantuan' => $jenisBantuan,
+                'kategori_bantuan' => $kategoriBantuan,
+                'nama_kelompok' => $namaKelompok,
                 'bentuk_nominal' => trim((string) $data['bentuk_nominal']),
                 'tahun_anggaran' => $tahunAnggaran,
                 'tahap_penyaluran' => $tahapPenyaluran,
@@ -204,10 +216,18 @@ class BansosService
         $jenisBantuan = isset($data['jenis_bantuan'])
             ? ($data['jenis_bantuan'] instanceof JenisBansos ? $data['jenis_bantuan']->value : (string) $data['jenis_bantuan'])
             : ($penerimaBansos->jenis_bantuan instanceof JenisBansos ? $penerimaBansos->jenis_bantuan->value : (string) $penerimaBansos->jenis_bantuan);
+        $enumJenis = JenisBansos::tryFrom($jenisBantuan);
+        $kategoriBantuan = $enumJenis ? $enumJenis->kategori() : 'per_kk';
+        $isPerKk = $enumJenis ? $enumJenis->isPerKk() : true;
+        $namaKelompok = ($enumJenis && $enumJenis->isKelompok())
+            ? (array_key_exists('nama_kelompok', $data)
+                ? (trim((string) $data['nama_kelompok']) !== '' ? trim((string) $data['nama_kelompok']) : null)
+                : $penerimaBansos->nama_kelompok)
+            : null;
 
         $tahunAnggaran = isset($data['tahun_anggaran']) ? (int) $data['tahun_anggaran'] : (int) $penerimaBansos->tahun_anggaran;
 
-        if ($penduduk->kartu_keluarga_id && $statusKepesertaan === StatusPesertaBansos::Aktif->value) {
+        if ($isPerKk && $penduduk->kartu_keluarga_id && $statusKepesertaan === StatusPesertaBansos::Aktif->value) {
             $duplicate = PenerimaBansos::query()
                 ->where('id', '!=', $penerimaBansos->id)
                 ->whereHas('penduduk', function (Builder $q) use ($penduduk) {
@@ -235,6 +255,8 @@ class BansosService
         $penerimaBansos->update([
             'penduduk_id' => $penduduk->id,
             'jenis_bantuan' => $jenisBantuan,
+            'kategori_bantuan' => $kategoriBantuan,
+            'nama_kelompok' => $namaKelompok,
             'bentuk_nominal' => isset($data['bentuk_nominal']) ? trim((string) $data['bentuk_nominal']) : $penerimaBansos->bentuk_nominal,
             'tahun_anggaran' => isset($data['tahun_anggaran']) ? (int) $data['tahun_anggaran'] : $penerimaBansos->tahun_anggaran,
             'tahap_penyaluran' => isset($data['tahap_penyaluran']) ? trim((string) $data['tahap_penyaluran']) : $penerimaBansos->tahap_penyaluran,
@@ -329,7 +351,9 @@ class BansosService
                 $priorityOrder = [
                     StatusKesejahteraan::DtsenDesil1->value => 1,
                     StatusKesejahteraan::DtsenDesil2->value => 2,
-                    StatusKesejahteraan::DtsenDesil34->value => 3,
+                    StatusKesejahteraan::DtsenDesil3->value => 3,
+                    StatusKesejahteraan::DtsenDesil4->value => 4,
+                    StatusKesejahteraan::DtsenDesil5->value => 5,
                 ];
 
                 $topPriorityMember = $anggotaPrioritas->sortBy(function (Penduduk $p) use ($priorityOrder) {
@@ -355,8 +379,8 @@ class BansosService
                     'nik_kepala_keluarga' => $representasi?->nik,
                     'nama_kepala_keluarga' => $representasi?->nama_lengkap,
                     'hubungan_representasi' => $representasi?->hubungan_keluarga,
-                    'status_kesejahteraan' => $desilEnum?->value ?? StatusKesejahteraan::DtsenDesil34->value,
-                    'status_kesejahteraan_label' => $desilEnum?->label() ?? 'DTSEN Desil 3-4',
+                    'status_kesejahteraan' => $desilEnum?->value ?? StatusKesejahteraan::DtsenDesil3->value,
+                    'status_kesejahteraan_label' => $desilEnum?->label() ?? 'Desil 3',
                     'jumlah_anggota_aktif' => $anggotaAktif->count(),
                     'jumlah_anggota_prioritas' => $anggotaPrioritas->count(),
                     'anggota_prioritas' => $anggotaPrioritas->map(fn (Penduduk $m) => [
@@ -417,8 +441,10 @@ class BansosService
             ->orderByRaw("CASE
                 WHEN status_kesejahteraan = 'dtsen_desil_1' THEN 1
                 WHEN status_kesejahteraan = 'dtsen_desil_2' THEN 2
-                WHEN status_kesejahteraan = 'dtsen_desil_3_4' THEN 3
-                ELSE 4 END")
+                WHEN status_kesejahteraan = 'dtsen_desil_3' THEN 3
+                WHEN status_kesejahteraan = 'dtsen_desil_4' THEN 4
+                WHEN status_kesejahteraan = 'dtsen_desil_5' THEN 5
+                ELSE 6 END")
             ->orderBy('nama_lengkap')
             ->get()
             ->map(function (Penduduk $p) {

@@ -167,19 +167,7 @@ const fotoTahapan = computed(() => [
                         class="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-3 shadow-xs"
                     >
                         <div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-bold text-slate-800">{{ cp.label }}</span>
-                                <span
-                                    :class="[
-                                        'rounded px-1.5 py-0.5 text-[10px] font-semibold',
-                                        cp.hasFile
-                                            ? 'bg-emerald-100 text-emerald-800'
-                                            : 'bg-slate-100 text-slate-400',
-                                    ]"
-                                >
-                                    {{ cp.hasFile ? 'Tersedia' : 'Kosong' }}
-                                </span>
-                            </div>
+                            <span class="text-xs font-bold text-slate-800">{{ cp.label }}</span>
                             <p class="mt-0.5 text-[11px] text-slate-500">{{ cp.desc }}</p>
                         </div>
 

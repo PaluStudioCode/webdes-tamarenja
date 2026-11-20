@@ -19,7 +19,18 @@ const props = defineProps({
         type: String,
         default: 'lg',
         validator: (val) =>
-            ['sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl'].includes(val),
+            [
+                'sm',
+                'md',
+                'lg',
+                'xl',
+                '2xl',
+                '3xl',
+                '4xl',
+                '5xl',
+                '6xl',
+                '7xl',
+            ].includes(val),
     },
     closeable: {
         type: Boolean,
@@ -37,6 +48,9 @@ const MAX_WIDTH_MAP = {
     '2xl': 'max-w-2xl',
     '3xl': 'max-w-3xl',
     '4xl': 'max-w-4xl',
+    '5xl': 'max-w-5xl',
+    '6xl': 'max-w-6xl',
+    '7xl': 'max-w-7xl',
 };
 
 const widthClass = computed(
@@ -103,6 +117,13 @@ onUnmounted(() => {
                         >
                             {{ title }}
                         </h2>
+                        <p
+                            v-if="subtitle"
+                            data-testid="base-modal-subtitle"
+                            class="mt-0.5 text-xs text-slate-500"
+                        >
+                            {{ subtitle }}
+                        </p>
                     </div>
 
                     <button

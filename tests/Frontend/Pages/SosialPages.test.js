@@ -21,7 +21,7 @@ describe('Sub-Fase 8.3: Antarmuka Modul 4 Bansos & Dokumentasi Kegiatan (/panel/
         page.props.filter_tahun = 2026;
     });
 
-    it('Sosial/Bansos merender perpindahan 2 tab, toggle filter Per KK [Default] vs Per Individu, serta tombol Import, Export, dan Cetak Daftar Hadir F4', async () => {
+    it('Sosial/Bansos merender tabel penerima bansos yang bersih tanpa tab pemerataan, filter 3 kategori bantuan, dropdown kategori pada modal, serta tombol Import, Export, dan Cetak Daftar Hadir F4', async () => {
         const samplePenerima = [
             {
                 id: 11,
@@ -32,59 +32,35 @@ describe('Sub-Fase 8.3: Antarmuka Modul 4 Bansos & Dokumentasi Kegiatan (/panel/
                 dusun: 'Dusun I',
                 rt: '001',
                 rw: '001',
+                kategori_bantuan: 'per_kk',
+                kategori_bantuan_label: 'Bantuan Sosial Per KK',
                 jenis_bantuan: 'blt_dd',
                 jenis_bantuan_label: 'BLT Dana Desa (BLT-DD)',
                 bentuk_nominal: 'Rp 300.000 / Bulan',
                 tahun_anggaran: 2026,
                 tahap_penyaluran: 'Tahap I',
-                kategori_ekonomi: 'dtsen_desil_1',
-                kategori_ekonomi_label: 'DTSEN Desil 1 (Miskin Ekstrem)',
                 status_kepesertaan: 'aktif',
                 status_kepesertaan_label: 'Aktif',
             },
-        ];
-
-        const samplePemerataanKk = [
             {
-                kartu_keluarga_id: 301,
+                id: 12,
+                penduduk_id: 202,
+                nik: '7203081506850009',
+                nama_lengkap: 'Hasan Basri',
                 nomor_kk: '7203080101200099',
                 dusun: 'Dusun II',
                 rt: '002',
                 rw: '001',
-                penduduk_id: 401,
-                nik_kepala_keluarga: '7203081506850009',
-                nama_kepala_keluarga: 'Hasan Basri',
-                status_kesejahteraan: 'dtsen_desil_1',
-                status_kesejahteraan_label: 'DTSEN Desil 1 (Miskin Ekstrem)',
-                jumlah_anggota_aktif: 4,
-                jumlah_anggota_prioritas: 4,
-            },
-        ];
-
-        const samplePemerataanIndividu = [
-            {
-                penduduk_id: 401,
-                kartu_keluarga_id: 301,
-                nik: '7203081506850009',
-                nama_lengkap: 'Hasan Basri',
-                hubungan_keluarga: 'kepala_keluarga',
-                pekerjaan: 'Petani',
-                nomor_kk: '7203080101200099',
-                dusun: 'Dusun II',
-                status_kesejahteraan: 'dtsen_desil_1',
-                status_kesejahteraan_label: 'DTSEN Desil 1 (Miskin Ekstrem)',
-            },
-            {
-                penduduk_id: 402,
-                kartu_keluarga_id: 301,
-                nik: '7203085506880010',
-                nama_lengkap: 'Aminah Basri',
-                hubungan_keluarga: 'istri',
-                pekerjaan: 'IRT',
-                nomor_kk: '7203080101200099',
-                dusun: 'Dusun II',
-                status_kesejahteraan: 'dtsen_desil_1',
-                status_kesejahteraan_label: 'DTSEN Desil 1 (Miskin Ekstrem)',
+                kategori_bantuan: 'kelompok',
+                kategori_bantuan_label: 'Bantuan Kelompok Masyarakat',
+                nama_kelompok: 'Kelompok Tani Harapan Makmur',
+                jenis_bantuan: 'bantuan_kelompok_tani',
+                jenis_bantuan_label: 'Bantuan Kelompok Tani (Poktan)',
+                bentuk_nominal: 'Bibit / Pupuk / Alsintan',
+                tahun_anggaran: 2026,
+                tahap_penyaluran: 'Tahap I',
+                status_kepesertaan: 'aktif',
+                status_kepesertaan_label: 'Aktif',
             },
         ];
 
@@ -92,15 +68,12 @@ describe('Sub-Fase 8.3: Antarmuka Modul 4 Bansos & Dokumentasi Kegiatan (/panel/
             props: {
                 tahun_anggaran: 2026,
                 penerima_bansos: samplePenerima,
-                pemerataan_kk: samplePemerataanKk,
-                pemerataan_individu: samplePemerataanIndividu,
-                mode_pemerataan: 'per_kk',
                 ringkasan: {
-                    total_penerima: 1,
-                    total_aktif: 1,
-                    total_graduasi: 0,
-                    jumlah_kk_belum_terima: 1,
-                    jumlah_individu_belum_terima: 2,
+                    total_penerima: 2,
+                    total_aktif: 2,
+                    total_per_kk: 1,
+                    total_perorangan: 0,
+                    total_kelompok: 1,
                 },
             },
         });
@@ -114,27 +87,104 @@ describe('Sub-Fase 8.3: Antarmuka Modul 4 Bansos & Dokumentasi Kegiatan (/panel/
         expect(wrapper.find('[data-testid="btn-open-import-bansos"]').exists()).toBe(true);
         expect(wrapper.find('[data-testid="btn-tambah-bansos"]').exists()).toBe(true);
 
-        // 2. Default berada di Tab 1 (Daftar Penerima Bansos)
+        // 2. Pastikan tab Pemerataan Bantuan sudah dihapus dan langsung menampilkan Daftar Penerima Bansos
+        expect(wrapper.find('[data-testid="tab-pemerataan-bantuan"]').exists()).toBe(false);
         expect(wrapper.find('[data-testid="section-daftar-penerima"]').exists()).toBe(true);
         expect(wrapper.text()).toContain('Budi Santoso');
-
-        // 3. Pindah ke Tab 2 (Pemerataan Bantuan) -> Default menampilkan Mode Per KK
-        await wrapper.find('[data-testid="tab-pemerataan-bantuan"]').trigger('click');
-        expect(wrapper.find('[data-testid="section-pemerataan-bantuan"]').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="table-pemerataan-kk"]').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="table-pemerataan-individu"]').exists()).toBe(false);
         expect(wrapper.text()).toContain('Hasan Basri');
-        expect(wrapper.text()).toContain('4 prioritas dari 4 anggota aktif');
+        expect(wrapper.text()).toContain('Kelompok Tani Harapan Makmur');
 
-        // 4. Klik Toggle Per Individu -> beralih ke tabel Per Individu
-        await wrapper.find('[data-testid="toggle-pemerataan-per-individu"]').trigger('click');
-        expect(wrapper.find('[data-testid="table-pemerataan-kk"]').exists()).toBe(false);
-        expect(wrapper.find('[data-testid="table-pemerataan-individu"]').exists()).toBe(true);
-        expect(wrapper.text()).toContain('Aminah Basri');
+        // 3. Cek kelengkapan filter tabel (Kategori, Program, Tahap, Tahun Anggaran)
+        expect(wrapper.find('[data-testid="filter-kategori-bansos"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="filter-jenis-bansos"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="filter-tahap-bansos"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="filter-tahun-bansos"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="filter-dusun-bansos"]').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="filter-status-bansos"]').exists()).toBe(false);
 
-        // Klik kembali Toggle Per KK (Default)
-        await wrapper.find('[data-testid="toggle-pemerataan-per-kk"]').trigger('click');
-        expect(wrapper.find('[data-testid="table-pemerataan-kk"]').exists()).toBe(true);
+        // Filter berdasarkan Kategori Kelompok -> hanya menampilkan Hasan Basri
+        await wrapper.find('[data-testid="filter-kategori-bansos"]').setValue('kelompok');
+        expect(wrapper.text()).not.toContain('Budi Santoso');
+        expect(wrapper.text()).toContain('Hasan Basri');
+        expect(wrapper.find('[data-testid="btn-cetak-bansos-f4"]').attributes('href')).toContain(
+            'kategori_bantuan=kelompok',
+        );
+
+        // 4. Buka Modal Tambah Penerima & uji dropdown Kategori Bantuan Sosial
+        await wrapper.find('[data-testid="btn-tambah-bansos"]').trigger('click');
+        expect(wrapper.find('[data-testid="form-penerima-bansos"]').exists()).toBe(true);
+        const selectKategori = wrapper.find('[data-testid="select-kategori-bantuan"]');
+        expect(selectKategori.exists()).toBe(true);
+        expect(selectKategori.element.tagName).toBe('SELECT');
+        expect(wrapper.find('[data-testid="input-nama-kelompok"]').exists()).toBe(false);
+
+        // Pilih kategori Kelompok pada dropdown -> menampilkan input Nama Kelompok / Usaha dan menyaring program kelompok
+        await selectKategori.setValue('kelompok');
+        await selectKategori.trigger('change');
+        expect(wrapper.find('[data-testid="input-nama-kelompok"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="select-jenis-bantuan"]').element.value).toBe(
+            'bantuan_kelompok_tani',
+        );
+
+        // 5. Uji input banyak penerima sekaligus + validasi wajib Desil 1-5 & tolak NIK yang sudah menerima
+        await selectKategori.setValue('per_kk');
+        await selectKategori.trigger('change');
+        await wrapper.find('[data-testid="select-jenis-bantuan"]').setValue('blt_dd');
+        await wrapper.find('[data-testid="select-jenis-bantuan"]').trigger('change');
+
+        // Coba pilih warga Non-Prioritas (bukan Desil 1-5) -> ditolak
+        wrapper.vm.handleSelectResident({
+            id: 301,
+            nik: '7203081205900301',
+            nama_lengkap: 'Warga Mampu Non Desil',
+            nomor_kk: '7203080101200301',
+            status_kesejahteraan: 'non_prioritas',
+        });
+        await flushPromises();
+        expect(wrapper.find('[data-testid="resident-selection-error"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="resident-selection-error"]').text()).toContain(
+            'bukan kategori Desil 1–5',
+        );
+        expect(wrapper.find('[data-testid="selected-residents-list"]').exists()).toBe(false);
+
+        // Coba pilih Budi Santoso yang sudah menerima BLT-DD Tahap I 2026 -> ditolak
+        wrapper.vm.handleSelectResident({
+            id: 201,
+            nik: '7203081205900001',
+            nama_lengkap: 'Budi Santoso',
+            nomor_kk: '7203080101200001',
+            status_kesejahteraan: 'dtsen_desil_1',
+        });
+        await flushPromises();
+        expect(wrapper.find('[data-testid="resident-selection-error"]').text()).toContain(
+            'sudah terdaftar menerima bantuan',
+        );
+
+        // Pilih 2 warga Desil 1-5 yang memenuhi syarat -> keduanya masuk ke daftar penerima
+        wrapper.vm.handleSelectResident({
+            id: 302,
+            nik: '7203081205900302',
+            nama_lengkap: 'Aminah Desil Dua',
+            nomor_kk: '7203080101200302',
+            dusun: 'Dusun I',
+            status_kesejahteraan: 'dtsen_desil_2',
+        });
+        wrapper.vm.handleSelectResident({
+            id: 303,
+            nik: '7203081205900303',
+            nama_lengkap: 'Rahmat Desil Lima',
+            nomor_kk: '7203080101200303',
+            dusun: 'Dusun II',
+            status_kesejahteraan: 'dtsen_desil_5',
+        });
+        await flushPromises();
+
+        expect(wrapper.find('[data-testid="selected-residents-list"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="selected-resident-item-302"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="selected-resident-item-303"]').exists()).toBe(true);
+        expect(wrapper.find('[data-testid="btn-submit-bansos"]').text()).toContain(
+            'Simpan 2 Penerima',
+        );
     });
 
     it('Sosial/KegiatanForm memvalidasi batas 1-5 foto, penyusunan sampul utama, pemilihan status Draft vs Published, serta tampilan Read-Only bagi kepala_desa', async () => {

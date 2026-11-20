@@ -454,8 +454,6 @@ class EndToEndGovernanceWorkflowTest extends TestCase
         $publicRoutes = [
             '/',
             '/profil',
-            '/transparansi/apbdes',
-            '/transparansi/pembangunan',
             '/transparansi/pembangunan/cetak-pdf',
             '/transparansi/statistik-penduduk',
             '/kegiatan',
@@ -466,6 +464,9 @@ class EndToEndGovernanceWorkflowTest extends TestCase
         foreach ($publicRoutes as $route) {
             $this->get($route)->assertOk();
         }
+
+        $this->get('/transparansi/apbdes')->assertRedirect('/');
+        $this->get('/transparansi/pembangunan')->assertRedirect('/#pembangunan');
 
         // Pastikan aset fisik kegiatan, PPID, proyek, dan surat masuk yang dibuat DummyDesaSeeder valid & tidak 404
         $publishedKegiatan = KegiatanDesa::query()->published()->firstOrFail();

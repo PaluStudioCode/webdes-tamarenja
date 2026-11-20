@@ -221,6 +221,20 @@ function triggerRowAction(action, row) {
     emit('action', { key: action.key, row });
 }
 
+function getActionClass(act) {
+    if (act?.variant === 'danger') {
+        return 'border border-red-200 bg-white text-red-600 shadow-xs hover:bg-red-50 hover:text-red-700';
+    }
+    if (
+        act?.variant === 'primary' ||
+        act?.key === 'detail' ||
+        act?.key === 'lihat'
+    ) {
+        return 'border border-blue-200 bg-blue-50 text-blue-700 shadow-xs hover:bg-blue-100 hover:text-blue-800';
+    }
+    return 'border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900';
+}
+
 function toggleRowMenu(id) {
     openMenuRowId.value = openMenuRowId.value === id ? null : id;
 }
@@ -364,9 +378,7 @@ onUnmounted(() => {
                                                     :data-testid="`row-action-${act.key}-${rowIndex}`"
                                                     :class="[
                                                         'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
-                                                        act.variant === 'danger'
-                                                            ? 'text-red-600 hover:bg-red-50 hover:text-red-700'
-                                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                                                        getActionClass(act),
                                                     ]"
                                                 >
                                                     <component
@@ -384,9 +396,7 @@ onUnmounted(() => {
                                                     :data-testid="`row-action-${act.key}-${rowIndex}`"
                                                     :class="[
                                                         'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
-                                                        act.variant === 'danger'
-                                                            ? 'text-red-600 hover:bg-red-50 hover:text-red-700'
-                                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                                                        getActionClass(act),
                                                     ]"
                                                 >
                                                     <component
@@ -404,9 +414,7 @@ onUnmounted(() => {
                                                     :data-testid="`row-action-${act.key}-${rowIndex}`"
                                                     :class="[
                                                         'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
-                                                        act.variant === 'danger'
-                                                            ? 'text-red-600 hover:bg-red-50 hover:text-red-700'
-                                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                                                        getActionClass(act),
                                                     ]"
                                                     @click="triggerRowAction(act, row)"
                                                 >
@@ -430,7 +438,7 @@ onUnmounted(() => {
                                                 type="button"
                                                 aria-label="Aksi lainnya"
                                                 :data-testid="`row-more-btn-${rowIndex}`"
-                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800"
                                                 @click.stop="toggleRowMenu(getRowId(row, rowIndex))"
                                             >
                                                 <MoreHorizontal
@@ -503,7 +511,10 @@ onUnmounted(() => {
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 :data-testid="`row-action-${act.key}-${rowIndex}`"
-                                                class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                                :class="[
+                                                    'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
+                                                    getActionClass(act),
+                                                ]"
                                             >
                                                 <component
                                                     :is="act.icon"
@@ -518,7 +529,10 @@ onUnmounted(() => {
                                                 v-else-if="act.href"
                                                 :href="act.href"
                                                 :data-testid="`row-action-${act.key}-${rowIndex}`"
-                                                class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                                :class="[
+                                                    'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
+                                                    getActionClass(act),
+                                                ]"
                                             >
                                                 <component
                                                     :is="act.icon"
@@ -533,7 +547,10 @@ onUnmounted(() => {
                                                 v-else
                                                 type="button"
                                                 :data-testid="`row-action-${act.key}-${rowIndex}`"
-                                                class="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                                                :class="[
+                                                    'inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
+                                                    getActionClass(act),
+                                                ]"
                                                 @click="triggerRowAction(act, row)"
                                             >
                                                 <component
@@ -558,7 +575,7 @@ onUnmounted(() => {
                                                 type="button"
                                                 aria-label="Aksi lainnya"
                                                 :data-testid="`row-more-btn-${rowIndex}`"
-                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-xs transition-colors hover:bg-slate-50 hover:text-slate-800"
                                                 @click.stop="
                                                     toggleRowMenu(
                                                         getRowId(row, rowIndex),
