@@ -49,9 +49,9 @@ describe('Portal Publik Pages (Sub-Fase 10.1)', () => {
             id: idx,
             judul: `Kegiatan Desa ${idx}`,
             slug: `kegiatan-desa-${idx}`,
-            kategori_label: 'Gotong Royong',
+            kategori_label: 'Musyawarah Desa (Musdes)',
             tanggal_kegiatan: `2026-04-0${idx}`,
-            lokasi_dusun: 'Dusun I',
+            lokasi_dusun: 'Aula Kantor Desa Tamarenja',
             ringkasan: `Ringkasan kegiatan ${idx}`,
             foto_sampul_url: null,
         }));
@@ -67,25 +67,117 @@ describe('Portal Publik Pages (Sub-Fase 10.1)', () => {
                 profil: {
                     nama_desa: 'Tamarenja',
                     daftar_dusun: ['Dusun I', 'Dusun II'],
+                    jam_pelayanan: 'Senin - Jumat, 08.00 - 15.30 WITA',
+                    alamat_kantor: 'Jl. Hi. Paggaru No. 80 Tamarenja Kode Pos 94353',
+                    no_wa_pelayanan: '6281245001122',
                 },
+                sotk_pemerintah: [
+                    {
+                        id: 1,
+                        nama_lengkap: 'Baswan Laramang',
+                        jabatan: 'Kepala Desa',
+                        kelompok_sotk: 'pimpinan',
+                    },
+                ],
                 proyek_terbaru: proyekList,
                 kegiatan_terbaru: kegiatanList,
+                dokumen_ppid_terbaru: [
+                    {
+                        id: 1,
+                        judul_dokumen: 'Perdes APBDes Tahun Anggaran 2026',
+                        kategori: 'perdes_apbdes',
+                        kategori_label: 'Perdes APBDes',
+                        tahun_dokumen: 2026,
+                        ukuran_file_kb: 420,
+                        jumlah_unduhan: 3,
+                        download_url: '/unduhan/1/file',
+                    },
+                ],
             },
         });
 
         expect(wrapper.find('[data-testid="beranda-sorotan-apbdes"]').exists()).toBe(false);
+        expect(wrapper.find('#profil').exists()).toBe(true);
+        expect(wrapper.find('#potensi').exists()).toBe(true);
+        expect(wrapper.find('#sotk').exists()).toBe(true);
         expect(wrapper.find('#pembangunan').exists()).toBe(true);
         expect(wrapper.find('#kegiatan').exists()).toBe(true);
-        expect(wrapper.findAll('[data-testid="beranda-proyek-card"]')).toHaveLength(4);
+        expect(wrapper.find('#ppid').exists()).toBe(true);
+        expect(wrapper.find('#layanan-mandiri').exists()).toBe(true);
+
+        // Section Potensi & Komoditas Desa dan Section Dokumen Publik PPID tampil rapi
+        const potensiSection = wrapper.find('[data-testid="beranda-potensi-section"]');
+        expect(potensiSection.exists()).toBe(true);
+        expect(potensiSection.findAll('[data-testid="beranda-potensi-card"]')).toHaveLength(3);
+        expect(potensiSection.text()).toContain('Sentra Salak Tamarenja');
+
+        const ppidSection = wrapper.find('[data-testid="beranda-ppid-section"]');
+        expect(ppidSection.exists()).toBe(true);
+        expect(ppidSection.findAll('[data-testid="beranda-ppid-card"]')).toHaveLength(1);
+        expect(ppidSection.text()).toContain('Perdes APBDes Tahun Anggaran 2026');
+        expect(ppidSection.get('[data-testid="link-selengkapnya-ppid"]').attributes('href')).toBe('/unduhan');
+
+        // Papan Struktur Organisasi memiliki section sendiri terpisah dari #profil
+        expect(wrapper.find('#profil').find('#sotk').exists()).toBe(false);
+        expect(wrapper.find('[data-testid="beranda-sotk-section"]').exists()).toBe(true);
+
+        // Setiap section heading tidak memiliki deskripsi heading
+        expect(wrapper.text()).not.toContain('Gambaran umum wilayah, visi-misi pembangunan berkelanjutan');
+        expect(wrapper.text()).not.toContain('Informasi proyek pembangunan fisik serta dokumentasi foto progres');
+        expect(wrapper.text()).not.toContain('Dokumentasi musyawarah desa, gotong royong, pembangunan sosial');
+        expect(wrapper.text()).not.toContain('Akses pengurusan surat administrasi resmi dan pengecekan status bantuan sosial');
+
+        // Proyek card: tidak ada badge jumlah foto (X/3 Foto) dan sumber dana tampil sebagai teks biasa tanpa badge
+        const proyekCards = wrapper.findAll('[data-testid="beranda-proyek-card"]');
+        expect(proyekCards).toHaveLength(4);
+        expect(proyekCards[0].text()).not.toContain('/3 Foto');
+        expect(proyekCards[0].text()).toContain('Dana Desa (DDS)');
+        expect(proyekCards[0].find('span.bg-blue-50').exists()).toBe(false);
+
         expect(wrapper.find('[data-testid="publik-download-rekap-pembangunan-pdf"]').exists()).toBe(false);
         expect(wrapper.text()).not.toContain('Unduh PDF Rekap');
         expect(wrapper.find('[role="progressbar"]').exists()).toBe(false);
-        expect(wrapper.findAll('[data-testid="beranda-kegiatan-card"]')).toHaveLength(3);
+
+        // Kegiatan card: tidak ada badge kategori maupun informasi lokasi
+        const kegiatanCards = wrapper.findAll('[data-testid="beranda-kegiatan-card"]');
+        expect(kegiatanCards).toHaveLength(3);
+        expect(kegiatanCards[0].text()).not.toContain('Musyawarah Desa');
+        expect(kegiatanCards[0].text()).not.toContain('Aula Kantor Desa Tamarenja');
+
         expect(wrapper.find('[data-testid="beranda-statistik-section"]').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="cta-layanan-mandiri"]').exists()).toBe(true);
-        expect(wrapper.find('#layanan-mandiri').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="card-layanan-surat"]').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="card-layanan-bansos"]').exists()).toBe(true);
+        const ctaLayanan = wrapper.find('[data-testid="cta-layanan-mandiri"]');
+        expect(ctaLayanan.exists()).toBe(true);
+        expect(ctaLayanan.findAll('svg')).toHaveLength(0);
+        expect(wrapper.find('a[href="#profil"]').exists()).toBe(false);
+
+        // Seksi Profil Desa tidak menampilkan heading Sejarah & Karakteristik Wilayah, Mata Pencaharian, & Jam Pelayanan
+        const profilSection = wrapper.find('#profil');
+        expect(profilSection.text()).not.toContain('Sejarah & Karakteristik Wilayah');
+        expect(profilSection.text()).not.toContain('Membangun Kemandirian & Kesejahteraan');
+        expect(profilSection.text()).not.toContain('Mata Pencaharian Utama');
+        expect(profilSection.text()).not.toContain('Jam Pelayanan Kantor');
+
+        // Layanan Mandiri card: tidak ada badge & tidak ada icon selain checklist
+        const suratCard = wrapper.get('[data-testid="card-layanan-surat"]');
+        const bansosCard = wrapper.get('[data-testid="card-layanan-bansos"]');
+        expect(suratCard.text()).not.toContain('10 Jenis Surat');
+        expect(bansosCard.text()).not.toContain('Transparan & Terlindungi');
+        expect(suratCard.findAll('svg')).toHaveLength(3);
+        expect(bansosCard.findAll('svg')).toHaveLength(3);
+
+        // Component Bantuan Operasional Pelayanan dihapus
+        expect(wrapper.find('#layanan-mandiri').text()).not.toContain('Bantuan Operasional Pelayanan');
+        expect(wrapper.find('#layanan-mandiri').text()).not.toContain('Jl. Hi. Paggaru No. 80');
+
+        // Indikator IDM & PODESKEL di seksi Profil Desa
+        const indikatorDesa = wrapper.find('[data-testid="beranda-indikator-desa"]');
+        expect(indikatorDesa.exists()).toBe(true);
+        expect(indikatorDesa.text()).toContain('Desa Maju');
+        expect(indikatorDesa.text()).toContain('0,7143');
+        expect(indikatorDesa.text()).toContain('Desa Swasembada');
+        expect(indikatorDesa.text()).toContain('Ketahanan Sosial (IKS)');
+        expect(indikatorDesa.text()).toContain('Ketahanan Ekonomi (IKE)');
+        expect(indikatorDesa.text()).toContain('Lingkungan & Sarpras (IKL)');
     });
 
     it('renders pembangunan without dusun filter tabs and navigates 0%, 50%, 100% slider modal photos in Beranda.vue', async () => {
@@ -143,7 +235,7 @@ describe('Portal Publik Pages (Sub-Fase 10.1)', () => {
         // Buka modal slider foto pada proyek pertama
         await wrapper.findAll('[data-testid="btn-lihat-foto-progres"]')[0].trigger('click');
         expect(wrapper.find('[data-testid="beranda-proyek-modal"]').exists()).toBe(true);
-        expect(wrapper.find('[data-testid="beranda-proyek-modal"]').findComponent({ name: 'StatusBadge' }).exists()).toBe(true);
+        expect(wrapper.find('[data-testid="beranda-proyek-modal"]').findComponent({ name: 'StatusBadge' }).exists()).toBe(false);
         expect(wrapper.find('[data-testid="beranda-proyek-modal"]').text()).toContain('Dusun I');
         expect(wrapper.find('[data-testid="beranda-proyek-modal"]').text()).toContain('Sedang Dikerjakan');
         expect(wrapper.find('[data-testid="slider-stage-label"]').text()).toContain('Titik 0%');
@@ -189,6 +281,13 @@ describe('Portal Publik Pages (Sub-Fase 10.1)', () => {
                 },
             },
         });
+
+        const cardWrapper = kegiatanWrapper.find('[data-testid="publik-kegiatan-card-1"]');
+        const cardHtml = cardWrapper.html();
+        expect(cardHtml).toContain('Baca Dokumentasi Lengkap');
+        expect(cardHtml).toContain('Dokumentasi Foto');
+        expect(cardHtml).not.toContain('lucide-map-pin');
+        expect(cardWrapper.find('.bg-blue-50').exists()).toBe(false);
 
         await kegiatanWrapper.find('[data-testid="publik-filter-kategori-kegiatan"]').setValue('gotong_royong');
         expect(router.get).toHaveBeenCalledWith(

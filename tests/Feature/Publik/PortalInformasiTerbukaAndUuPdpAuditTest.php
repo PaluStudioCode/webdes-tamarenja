@@ -118,6 +118,7 @@ class PortalInformasiTerbukaAndUuPdpAuditTest extends TestCase
                 ->component('Publik/Beranda')
                 ->has('proyek_terbaru', 5)
                 ->has('kegiatan_terbaru', 3)
+                ->has('dokumen_ppid_terbaru')
                 ->has('statistik_penduduk')
                 ->missing('sorotan_apbdes')
                 ->where('tahun_aktif', 2026)

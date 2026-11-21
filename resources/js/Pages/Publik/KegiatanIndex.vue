@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowRight, Calendar, Hammer, MapPin } from 'lucide-vue-next';
+import { ArrowRight, Calendar, ImageIcon } from 'lucide-vue-next';
 import EmptyState from '@/Components/EmptyState.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { formatDateId } from '@/Utils/formatters';
@@ -98,67 +98,69 @@ function selectKategori(val) {
                     v-for="item in rows"
                     :key="item.id"
                     :data-testid="`publik-kegiatan-card-${item.id}`"
-                    class="flex flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white"
+                    class="group flex flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white transition-all hover:border-blue-300 hover:shadow-sm"
                 >
                     <div>
-                        <div
-                            class="flex h-44 w-full items-center justify-center bg-slate-100"
-                        >
+                        <!-- Foto Sampul Kegiatan -->
+                        <div class="h-48 w-full overflow-hidden bg-slate-100">
                             <img
                                 v-if="item.foto_sampul_url"
                                 :src="item.foto_sampul_url"
                                 :alt="item.judul"
-                                class="h-full w-full object-cover"
+                                class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                loading="lazy"
                             />
-                            <Hammer v-else class="h-8 w-8 text-slate-300" />
+                            <div
+                                v-else
+                                class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-slate-400"
+                            >
+                                <ImageIcon class="h-8 w-8 text-slate-300" />
+                                <span class="text-xs font-medium">Dokumentasi Foto</span>
+                            </div>
                         </div>
 
+                        <!-- Konten Kartu -->
                         <div class="space-y-2.5 p-5">
+                            <!-- Tanggal Kegiatan -->
                             <div
-                                class="flex items-center justify-between text-xs text-slate-500"
+                                v-if="item.tanggal_kegiatan"
+                                class="text-xs text-slate-500"
                             >
-                                <span
-                                    class="rounded bg-blue-50 px-2 py-0.5 font-medium text-blue-700"
-                                >
-                                    {{ item.kategori_label }}
-                                </span>
-                                <span
-                                    class="inline-flex items-center gap-1 tabular-nums"
-                                >
-                                    <Calendar class="h-3.5 w-3.5" />
+                                <span class="inline-flex items-center gap-1.5 font-medium tabular-nums">
+                                    <Calendar class="h-3.5 w-3.5 text-slate-400" />
                                     {{ formatDateId(item.tanggal_kegiatan) }}
                                 </span>
                             </div>
 
-                            <h2 class="text-base font-semibold text-slate-900">
+                            <!-- Judul Kegiatan -->
+                            <h2 class="text-base font-semibold leading-snug text-slate-900 transition-colors group-hover:text-blue-700">
                                 <Link
                                     :href="`/kegiatan/${item.slug}`"
-                                    class="hover:text-blue-700"
+                                    class="line-clamp-2 focus:outline-none"
+                                    :title="item.judul"
                                 >
                                     {{ item.judul }}
                                 </Link>
                             </h2>
 
+                            <!-- Ringkasan / Snippet Uraian -->
                             <p
-                                class="inline-flex items-center gap-1 text-xs text-slate-500"
+                                v-if="item.ringkasan"
+                                class="line-clamp-2 text-xs leading-relaxed text-slate-600 sm:text-sm"
                             >
-                                <MapPin class="h-3.5 w-3.5" />
-                                <span>{{ item.lokasi_dusun }}</span>
-                            </p>
-
-                            <p class="text-xs leading-relaxed text-slate-600">
                                 {{ item.ringkasan }}
                             </p>
                         </div>
                     </div>
 
-                    <div class="border-t border-slate-100 px-5 py-3">
+                    <!-- Footer Kartu: Tautan Baca Selengkapnya -->
+                    <div class="border-t border-slate-100 bg-slate-50 px-5 py-3.5">
                         <Link
                             :href="`/kegiatan/${item.slug}`"
-                            class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline"
+                            class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 transition-colors hover:text-blue-800"
                         >
-                            <span>Baca Artikel &amp; Galeri Foto</span>
-                            <ArrowRight class="h-3.5 w-3.5" />
+                            <span>Baca Dokumentasi Lengkap</span>
+                            <ArrowRight class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                         </Link>
                     </div>
                 </article>

@@ -3,29 +3,20 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     ArrowRight,
-    Briefcase,
     Calendar,
     Camera,
     CheckCircle2,
     ChevronLeft,
     ChevronRight,
-    Clock,
-    Compass,
-    FileCheck2,
+    Download,
+    FileText,
     Hammer,
-    HandHeart,
-    Home,
     ImageIcon,
     MapPin,
-    MessageCircle,
-    Newspaper,
     Quote,
-    ShieldCheck,
     User,
-    Users,
 } from 'lucide-vue-next';
 import BaseModal from '@/Components/BaseModal.vue';
-import StatusBadge from '@/Components/StatusBadge.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import { formatDateId, formatRupiah } from '@/Utils/formatters';
 
@@ -84,12 +75,62 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    dokumen_ppid_terbaru: {
+        type: Array,
+        default: () => [],
+    },
+    indikator_desa: {
+        type: Object,
+        default: () => ({
+            idm: {
+                status: 'Desa Maju',
+                skor: '0,7143',
+                iks: '0,8214',
+                ike: '0,7550',
+                ikl: '0,5667',
+            },
+            podeskel: {
+                tingkat_perkembangan: 'Desa Swasembada',
+                fasilitas_kesehatan: 'Poskesdes & 3 Posyandu Dusun',
+                fasilitas_pendidikan: 'PAUD/TK & SD Negeri Tamarenja',
+                modal_sosial: 'Percontohan Nasional Kemendes (2015)',
+                komoditas_utama: 'Kebun Salak Tamarenja seluas 300–350 Ha',
+                akses_pasar: 'Pemasaran lintas provinsi (Sulbar, Sulsel, Sulteng, Sulut)',
+                potensi_ekonomi: 'Potensi agrowisata petik buah perbukitan',
+                topografi: 'Topografi 100–300 mdpl diapit dua sungai alami',
+                sumber_air: 'Daerah Irigasi (D.I) Sinente & Katandona',
+                akses_wilayah: 'Akses 3 dusun: Katandona, Sinente, Irigasi',
+            },
+        }),
+    },
 });
 
 const page = usePage();
 const namaDesa = computed(
     () => props.profil?.nama_desa || page.props?.profil_desa?.nama_desa || 'Tamarenja',
 );
+
+const indikatorDesa = computed(() => ({
+    idm: {
+        status: props.indikator_desa?.idm?.status || 'Desa Maju',
+        skor: props.indikator_desa?.idm?.skor || '0,7143',
+        iks: props.indikator_desa?.idm?.iks || '0,8214',
+        ike: props.indikator_desa?.idm?.ike || '0,7550',
+        ikl: props.indikator_desa?.idm?.ikl || '0,5667',
+    },
+    podeskel: {
+        tingkat_perkembangan: props.indikator_desa?.podeskel?.tingkat_perkembangan || 'Desa Swasembada',
+        fasilitas_kesehatan: props.indikator_desa?.podeskel?.fasilitas_kesehatan || 'Poskesdes & 3 Posyandu Dusun',
+        fasilitas_pendidikan: props.indikator_desa?.podeskel?.fasilitas_pendidikan || 'PAUD/TK & SD Negeri Tamarenja',
+        modal_sosial: props.indikator_desa?.podeskel?.modal_sosial || 'Percontohan Nasional Kemendes (2015)',
+        komoditas_utama: props.indikator_desa?.podeskel?.komoditas_utama || 'Kebun Salak Tamarenja seluas 300–350 Ha',
+        akses_pasar: props.indikator_desa?.podeskel?.akses_pasar || 'Pemasaran lintas provinsi (Sulbar, Sulsel, Sulteng, Sulut)',
+        potensi_ekonomi: props.indikator_desa?.podeskel?.potensi_ekonomi || 'Potensi agrowisata petik buah perbukitan',
+        topografi: props.indikator_desa?.podeskel?.topografi || 'Topografi 100–300 mdpl diapit dua sungai alami',
+        sumber_air: props.indikator_desa?.podeskel?.sumber_air || 'Daerah Irigasi (D.I) Sinente & Katandona',
+        akses_wilayah: props.indikator_desa?.podeskel?.akses_wilayah || 'Akses 3 dusun: Katandona, Sinente, Irigasi',
+    },
+}));
 
 // Pemetaan Hierarkis SOTK Permendagri No. 84/2015 ala Papan Struktur Baliho Kantor Desa
 const kades = computed(() => {
@@ -181,6 +222,18 @@ const stafLainList = computed(() => {
 
 const topKegiatan = computed(() => (props.kegiatan_terbaru || []).slice(0, 3));
 
+const topDokumenPpid = computed(() =>
+    (props.dokumen_ppid_terbaru || []).slice(0, 4),
+);
+
+function formatUkuranKb(kb) {
+    const val = Number(kb || 0);
+    if (val >= 1024) {
+        return `${(val / 1024).toFixed(1)} MB`;
+    }
+    return `${val || 1} KB`;
+}
+
 // Modal Slider Foto Progres Pembangunan (Titik 0%, 50%, 100%)
 const sliderStages = [
     {
@@ -230,6 +283,22 @@ const modalSubtitle = computed(() => {
     return parts.join(' • ');
 });
 
+function getStatusLabel(proyek) {
+    if (!proyek) {
+        return '';
+    }
+    if (proyek.status_label) {
+        return proyek.status_label;
+    }
+    const map = {
+        rencana: 'Rencana',
+        sedang_dikerjakan: 'Sedang Dikerjakan',
+        selesai: 'Selesai',
+        belum_dimulai: 'Belum Dimulai',
+    };
+    return map[proyek.status_proyek] || proyek.status_proyek || '-';
+}
+
 function openModalSlider(proyek, initialSlide = 0) {
     activeModalProyek.value = proyek;
     activeSlide.value = initialSlide;
@@ -248,13 +317,6 @@ function nextSlide() {
 
 function prevSlide() {
     activeSlide.value = (activeSlide.value - 1 + sliderStages.length) % sliderStages.length;
-}
-
-function countAvailablePhotos(proyek) {
-    if (!proyek) {
-        return 0;
-    }
-    return ['foto_0_url', 'foto_50_url', 'foto_100_url'].filter((key) => Boolean(proyek[key])).length;
 }
 
 function handleSliderKeydown(event) {
@@ -302,19 +364,19 @@ onUnmounted(() => {
                 ></div>
 
                 <div class="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div class="max-w-3xl py-14 sm:py-20 lg:py-24 space-y-6">
-                        <!-- Lokasi Administratif (Clean Typography, Bebas Badge Padat) -->
-                        <p class="text-xs font-medium tracking-widest uppercase text-blue-300 sm:text-sm">
-                            Pemerintah Desa {{ namaDesa }} &bull; Kec. Sindue Tobata, Kab. Donggala
+                    <div class="max-w-3xl space-y-6 py-14 sm:py-20 lg:py-24">
+                        <!-- Lokasi Administratif -->
+                        <p class="text-xs font-semibold uppercase tracking-widest text-blue-300 sm:text-sm">
+                            Pemerintah Desa {{ namaDesa }} &bull; Kec. {{ profil.kecamatan || 'Sindue Tobata' }}, Kab. {{ profil.kabupaten || 'Donggala' }}
                         </p>
 
                         <!-- Headline Utama -->
-                        <h1 class="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight">
-                            Portal Resmi Informasi &amp; Layanan Publik Desa
+                        <h1 class="text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
+                            Portal Resmi Pemerintah Desa {{ namaDesa }}
                         </h1>
 
                         <!-- Sambutan Singkat -->
-                        <blockquote class="border-l-3 border-blue-500 pl-4 text-sm leading-relaxed text-slate-300 sm:text-base">
+                        <blockquote class="border-l-4 border-blue-500 pl-4 text-sm leading-relaxed text-slate-300 sm:text-base">
                             "{{ sambutan.sambutan_kepala_desa }}"
                         </blockquote>
 
@@ -323,23 +385,15 @@ onUnmounted(() => {
                             <a
                                 href="/layanan-mandiri"
                                 data-testid="cta-layanan-mandiri"
-                                class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900"
+                                class="inline-flex h-11 min-h-[44px] items-center justify-center rounded-md bg-blue-700 px-5 text-sm font-semibold text-white transition-colors hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900"
                             >
-                                <FileCheck2 class="h-4 w-4" />
                                 <span>Ajukan Surat &amp; Cek Bansos</span>
-                            </a>
-
-                            <a
-                                href="#profil"
-                                class="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-700 bg-slate-800/80 px-4 text-sm font-medium text-slate-200 transition hover:bg-slate-700/80 hover:text-white"
-                            >
-                                <span>Profil Desa</span>
                             </a>
 
                             <Link
                                 href="/unduhan"
                                 data-testid="hero-link-unduhan"
-                                class="inline-flex h-11 items-center justify-center gap-1.5 px-3 text-sm font-medium text-blue-300 transition hover:text-white hover:underline"
+                                class="inline-flex h-11 min-h-[44px] items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium text-blue-300 transition-colors hover:text-white hover:underline"
                             >
                                 <span>Pusat Unduhan PPID</span>
                                 <ArrowRight class="h-4 w-4" />
@@ -350,72 +404,61 @@ onUnmounted(() => {
             </section>
         </template>
 
-        <div class="space-y-14">
-            <!-- Seksi 2: Profil Desa, Visi-Misi & Bagan SOTK Bergaris Hubung ala Baliho Kantor Desa -->
+        <div class="space-y-12">
+            <!-- Seksi 2: Profil Desa, Data Demografi & Visi-Misi -->
             <section
                 id="profil"
                 data-testid="beranda-profil-section"
-                class="scroll-mt-20 space-y-12"
+                class="scroll-mt-24 space-y-8"
             >
-                <!-- Section Header (Clean, Modern, Centered) -->
-                <div class="mx-auto max-w-3xl space-y-2 text-center">
+                <!-- Section Header -->
+                <div class="mx-auto max-w-3xl space-y-1.5 text-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
-                        Profil Pemerintahan Desa
+                        Profil Desa
                     </p>
-                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
-                        Mengenal Lebih Dekat Desa {{ namaDesa }}
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                        Profil Desa {{ namaDesa }}
                     </h2>
-                    <p class="text-sm leading-relaxed text-slate-600">
-                        Gambaran umum wilayah, visi-misi pembangunan berkelanjutan, serta bagan struktur organisasi kepemimpinan desa.
-                    </p>
                 </div>
 
-                <!-- Bagian 1: Narasi Wilayah & 2 Card Visi-Misi yang Disetujui -->
-                <div class="grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12">
-                    <!-- Kolom Kiri (7 Cols): Frameless Editorial Layout (Bebas dari Wadah Card) -->
+                <!-- Narasi Wilayah & 2 Card Visi-Misi -->
+                <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-10">
+                    <!-- Kolom Kiri (7 Cols) -->
                     <div class="space-y-6 lg:col-span-7">
-                        <div class="space-y-3">
-                            <p class="text-xs font-bold uppercase tracking-widest text-blue-600">
-                                Sejarah &amp; Karakteristik Wilayah
+                        <div class="space-y-4 text-sm leading-relaxed text-slate-600 sm:text-base">
+                            <p>
+                                {{
+                                    profil.sejarah_singkat ||
+                                    `Desa ${namaDesa} merupakan desa pedalaman berbasis perkebunan yang terletak di kawasan lembah perbukitan Kecamatan ${profil.kecamatan || 'Sindue Tobata'}, Kabupaten ${profil.kabupaten || 'Donggala'}, diapit oleh dua aliran sungai besar pada ketinggian 100–300 mdpl. Diresmikan sebagai desa definitif pada tahun 1961, perekonomian desa mengalami transformasi besar sejak masuknya bibit salak pada tahun 1982 yang kemudian berkembang pesat menjadi komoditas unggulan utama daerah. Berkat kerja keras dan gotong royong warganya dalam mengelola potensi perkebunan, Desa Tamarenja berhasil meraih predikat Desa Terbaik se-Sulawesi Tengah dan Desa Percontohan Nasional Kementerian Desa pada tahun 2015.`
+                                }}
                             </p>
-                            <h3 class="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl leading-snug">
-                                Membangun Kemandirian &amp; Kesejahteraan Desa {{ namaDesa }}
-                            </h3>
-                            <div class="space-y-4 text-sm leading-relaxed text-slate-600 sm:text-base">
-                                <p>
-                                    {{
-                                        profil.sejarah_singkat ||
-                                        `Desa ${namaDesa} merupakan salah satu desa di wilayah pesisir Kecamatan ${profil.kecamatan || 'Sindue Tobata'}, Kabupaten ${profil.kabupaten || 'Donggala'}, Provinsi ${profil.provinsi || 'Sulawesi Tengah'}. Berdiri di atas landasan kebersamaan dan kearifan lokal yang kuat, desa kami terus bergerak maju melalui tata kelola pemerintahan yang partisipatif, transparan, dan berkeadilan.`
-                                    }}
-                                </p>
-                                <p>
-                                    {{
-                                        profil.potensi_unggulan ||
-                                        'Dengan bentang alam strategis yang menghubungkan perbukitan subur dan pesisir Selat Makassar, komoditas unggulan desa bertumpu pada perkebunan kelapa, cengkeh, tanaman pangan hortikultura, serta potensi perikanan tangkap yang menjadi urat nadi perekonomian masyarakat.'
-                                    }}
-                                </p>
-                            </div>
+                            <p>
+                                {{
+                                    profil.potensi_unggulan ||
+                                    'Sentra perkebunan Salak Tamarenja seluas 300–350 hektare dengan cita rasa manis renyah yang dipasarkan lintas provinsi, potensi agrowisata petik salak di lembah perbukitan asri, komoditas perkebunan pisang dan kelapa, serta ketersediaan sumber air melimpah dari dua sungai besar desa.'
+                                }}
+                            </p>
                         </div>
 
-                        <!-- Data Administratif & Demografi Terbuka (Hairline Dividers, Bukan Card) -->
-                        <div class="space-y-6 border-t border-slate-200/80 pt-6">
+                        <!-- Data Administratif & Demografi Terbuka -->
+                        <div class="space-y-6 border-t border-slate-200 pt-6">
                             <!-- Kelompok 1: Wilayah Administratif -->
                             <dl class="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
                                 <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Kecamatan</dt>
-                                    <dd class="mt-1 text-sm sm:text-base font-semibold text-slate-900">
+                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Kecamatan</dt>
+                                    <dd class="mt-1 text-sm font-semibold text-slate-900 sm:text-base">
                                         {{ profil.kecamatan || 'Sindue Tobata' }}
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Kabupaten</dt>
-                                    <dd class="mt-1 text-sm sm:text-base font-semibold text-slate-900">
+                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Kabupaten</dt>
+                                    <dd class="mt-1 text-sm font-semibold text-slate-900 sm:text-base">
                                         {{ profil.kabupaten || 'Donggala' }}
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Wilayah Kewilayahan</dt>
-                                    <dd class="mt-1 text-sm sm:text-base font-semibold text-slate-900">
+                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Wilayah Kewilayahan</dt>
+                                    <dd class="mt-1 text-sm font-semibold tabular-nums text-slate-900 sm:text-base">
                                         {{
                                             profil.daftar_dusun?.length
                                                 ? `${profil.daftar_dusun.length} Dusun Terdaftar`
@@ -424,53 +467,38 @@ onUnmounted(() => {
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Kode Wilayah Kemendagri</dt>
-                                    <dd class="mt-1 font-mono text-sm sm:text-base font-medium text-slate-700">
-                                        {{ profil.kode_wilayah || '72.03.11.2001' }}
+                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Kode Wilayah Kemendagri</dt>
+                                    <dd class="mt-1 font-mono text-sm font-medium tabular-nums text-slate-700 sm:text-base">
+                                        {{ profil.kode_wilayah || '72.03.25.2004' }}
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Provinsi</dt>
-                                    <dd class="mt-1 text-sm sm:text-base font-semibold text-slate-900">
+                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Provinsi</dt>
+                                    <dd class="mt-1 text-sm font-semibold text-slate-900 sm:text-base">
                                         {{ profil.provinsi || 'Sulawesi Tengah' }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Jam Pelayanan Kantor</dt>
-                                    <dd class="mt-1 text-sm sm:text-base font-medium text-slate-700">
-                                        {{ profil.jam_pelayanan || 'Senin - Jumat (08.00 - 15.00)' }}
                                     </dd>
                                 </div>
                             </dl>
 
-                            <!-- Kelompok 2: Data Demografi Warga & Mata Pencaharian (Frameless) -->
-                            <div data-testid="beranda-statistik-section" class="border-t border-slate-100 pt-5">
+                            <!-- Kelompok 2: Data Demografi Warga -->
+                            <div data-testid="beranda-statistik-section" class="border-t border-slate-200 pt-5">
                                 <dl class="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
                                     <div>
-                                        <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Total Penduduk</dt>
-                                        <dd class="mt-1 text-sm sm:text-base font-bold text-slate-900">
+                                        <dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Total Penduduk</dt>
+                                        <dd class="mt-1 text-sm font-bold tabular-nums text-slate-900 sm:text-base">
                                             {{ Number(statistik_penduduk.total_penduduk || 0).toLocaleString('id-ID') }} <span class="text-xs font-normal text-slate-500">Jiwa</span>
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Kepala Keluarga (KK)</dt>
-                                        <dd class="mt-1 text-sm sm:text-base font-bold text-slate-900">
+                                        <dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Kepala Keluarga (KK)</dt>
+                                        <dd class="mt-1 text-sm font-bold tabular-nums text-slate-900 sm:text-base">
                                             {{ Number(statistik_penduduk.total_kk || 0).toLocaleString('id-ID') }} <span class="text-xs font-normal text-slate-500">KK</span>
                                         </dd>
                                     </div>
                                     <div>
-                                        <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Komposisi Gender</dt>
-                                        <dd class="mt-1 text-sm sm:text-base font-semibold text-slate-900">
+                                        <dt class="text-xs font-medium uppercase tracking-wider text-slate-500">Komposisi Gender</dt>
+                                        <dd class="mt-1 text-sm font-semibold tabular-nums text-slate-900 sm:text-base">
                                             {{ Number(statistik_penduduk.laki_laki || 0).toLocaleString('id-ID') }} L <span class="text-slate-300">/</span> {{ Number(statistik_penduduk.perempuan || 0).toLocaleString('id-ID') }} P
-                                        </dd>
-                                    </div>
-                                    <div class="col-span-2 sm:col-span-3">
-                                        <dt class="text-xs font-medium uppercase tracking-wider text-slate-400">Mata Pencaharian Utama</dt>
-                                        <dd class="mt-1 text-sm text-slate-800">
-                                            <span v-if="statistik_penduduk.pekerjaan_utama && statistik_penduduk.pekerjaan_utama.length > 0" class="leading-relaxed">
-                                                {{ statistik_penduduk.pekerjaan_utama.map(p => `${p.nama} (${p.jumlah})`).join(' • ') }}
-                                            </span>
-                                            <span v-else class="text-slate-400 italic">Belum ada data mata pencaharian</span>
                                         </dd>
                                     </div>
                                 </dl>
@@ -478,15 +506,14 @@ onUnmounted(() => {
                         </div>
                     </div>
 
-                    <!-- Kolom Kanan (5 Cols): 2 Card yang Disetujui (Visi & Misi) -->
+                    <!-- Kolom Kanan (5 Cols): Visi & Misi -->
                     <div class="space-y-5 lg:col-span-5">
-                        <!-- Card 1: Visi Utama Pemerintah Desa (Executive Deep Navy) -->
-                        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 p-6 sm:p-7 text-white shadow-md">
-                            <!-- Subtle Ambient Glow -->
+                        <!-- Card 1: Visi Utama Pemerintah Desa -->
+                        <div class="relative overflow-hidden rounded-lg border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 p-6 text-white shadow-sm">
                             <div class="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-blue-500/20 blur-2xl"></div>
 
                             <div class="relative space-y-3">
-                                <div class="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-blue-300">
+                                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-300">
                                     <Quote class="h-4 w-4" />
                                     <span>Visi Pemerintah Desa</span>
                                 </div>
@@ -499,11 +526,11 @@ onUnmounted(() => {
                             </div>
                         </div>
 
-                        <!-- Card 2: 5 Misi Pembangunan Desa (Crisp Numbered List) -->
-                        <div class="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
-                            <h4 class="text-xs font-semibold tracking-wider uppercase text-slate-500">
+                        <!-- Card 2: Misi Pembangunan Desa -->
+                        <div class="rounded-lg border border-slate-200 bg-white p-6">
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">
                                 Misi Pembangunan Desa
-                            </h4>
+                            </h3>
                             <ol
                                 v-if="profil.misi && profil.misi.length > 0"
                                 class="mt-4 space-y-3"
@@ -513,7 +540,7 @@ onUnmounted(() => {
                                     :key="idx"
                                     class="flex items-start gap-3"
                                 >
-                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-semibold tabular-nums text-blue-700">
                                         {{ idx + 1 }}
                                     </span>
                                     <span class="text-sm leading-relaxed text-slate-700">
@@ -523,15 +550,15 @@ onUnmounted(() => {
                             </ol>
                             <ol v-else class="mt-4 space-y-3">
                                 <li class="flex items-start gap-3">
-                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">1</span>
+                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-semibold tabular-nums text-blue-700">1</span>
                                     <span class="text-sm leading-relaxed text-slate-700">Meningkatkan tata kelola pemerintahan yang bersih, melayani, dan partisipatif.</span>
                                 </li>
                                 <li class="flex items-start gap-3">
-                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">2</span>
+                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-semibold tabular-nums text-blue-700">2</span>
                                     <span class="text-sm leading-relaxed text-slate-700">Mendorong percepatan pembangunan infrastruktur dan fasilitas umum desa yang merata.</span>
                                 </li>
                                 <li class="flex items-start gap-3">
-                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">3</span>
+                                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-semibold tabular-nums text-blue-700">3</span>
                                     <span class="text-sm leading-relaxed text-slate-700">Memberdayakan potensi ekonomi kerakyatan melalui pertanian, perkebunan, dan UMKM.</span>
                                 </li>
                             </ol>
@@ -539,25 +566,224 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <!-- Bagian 2: Bagan SOTK Bergaris Hubung ala Baliho Kantor Desa (Permendagri No. 84/2015) -->
-                <div class="space-y-6 pt-6">
-                    <div class="border-b border-slate-200 pb-4">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
-                            Papan Struktur Organisasi (Permendagri No. 84/2015)
-                        </p>
-                        <h3 class="mt-1 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                            Bagan Struktur Kepemimpinan &amp; Lembaga Desa
-                        </h3>
+                <!-- Kartu Indikator IDM & PODESKEL (Standar, Bersih & Profesional) -->
+                <div
+                    data-testid="beranda-indikator-desa"
+                    class="rounded-lg border border-slate-200 bg-slate-50/70 p-5 sm:p-6"
+                >
+                    <div class="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h3 class="text-base font-semibold text-slate-900">
+                                Indikator Kemandirian &amp; Perkembangan Desa
+                            </h3>
+                            <p class="text-xs text-slate-500">
+                                Pengukuran resmi Indeks Desa Membangun (Kemendes PDTT) &amp; Profil Potensi Desa (Kemendagri)
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                                IDM: {{ indikatorDesa.idm.status }} ({{ indikatorDesa.idm.skor }})
+                            </span>
+                            <span class="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                                Prodeskel: {{ indikatorDesa.podeskel.tingkat_perkembangan }}
+                            </span>
+                        </div>
                     </div>
 
+                    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <!-- Pilar 1: Indeks Ketahanan Sosial (IKS) -->
+                        <div class="rounded-md border border-slate-200/80 bg-white p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-medium uppercase tracking-wider text-slate-500">Ketahanan Sosial (IKS)</span>
+                                <span class="text-xs font-semibold tabular-nums text-emerald-700">Skor {{ indikatorDesa.idm.iks }}</span>
+                            </div>
+                            <div class="mt-1 text-sm font-semibold text-slate-900">
+                                Fasilitas Dasar &amp; Modal Sosial
+                            </div>
+                            <ul class="mt-2 space-y-1.5 text-xs text-slate-600">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>Layanan: {{ indikatorDesa.podeskel.fasilitas_kesehatan }}</span>
+                                </li>
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>Pendidikan: {{ indikatorDesa.podeskel.fasilitas_pendidikan }}</span>
+                                </li>
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>Prestasi: {{ indikatorDesa.podeskel.modal_sosial }}</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Pilar 2: Indeks Ketahanan Ekonomi (IKE) -->
+                        <div class="rounded-md border border-slate-200/80 bg-white p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-medium uppercase tracking-wider text-slate-500">Ketahanan Ekonomi (IKE)</span>
+                                <span class="text-xs font-semibold tabular-nums text-emerald-700">Skor {{ indikatorDesa.idm.ike }}</span>
+                            </div>
+                            <div class="mt-1 text-sm font-semibold text-slate-900">
+                                Sentra Salak &amp; Agribisnis
+                            </div>
+                            <ul class="mt-2 space-y-1.5 text-xs text-slate-600">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>{{ indikatorDesa.podeskel.komoditas_utama }}</span>
+                                </li>
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>{{ indikatorDesa.podeskel.akses_pasar }}</span>
+                                </li>
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>{{ indikatorDesa.podeskel.potensi_ekonomi }}</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Pilar 3: Ketahanan Lingkungan & Sarpras (IKL) -->
+                        <div class="rounded-md border border-slate-200/80 bg-white p-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-medium uppercase tracking-wider text-slate-500">Lingkungan &amp; Sarpras (IKL)</span>
+                                <span class="text-xs font-semibold tabular-nums text-emerald-700">Skor {{ indikatorDesa.idm.ikl }}</span>
+                            </div>
+                            <div class="mt-1 text-sm font-semibold text-slate-900">
+                                Lembah Perbukitan &amp; Dua Sungai
+                            </div>
+                            <ul class="mt-2 space-y-1.5 text-xs text-slate-600">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>{{ indikatorDesa.podeskel.topografi }}</span>
+                                </li>
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>{{ indikatorDesa.podeskel.sumber_air }}</span>
+                                </li>
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-slate-400">&bull;</span>
+                                    <span>{{ indikatorDesa.podeskel.akses_wilayah }}</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Seksi Baru: Potensi & Komoditas Desa (#potensi) -->
+            <section
+                id="potensi"
+                data-testid="beranda-potensi-section"
+                class="scroll-mt-24 space-y-8 border-t border-slate-200 pt-12"
+            >
+                <div class="mx-auto max-w-3xl space-y-1.5 text-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                        Potensi Wilayah
+                    </p>
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                        Potensi &amp; Komoditas Desa
+                    </h2>
+                </div>
+
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                    <!-- Kartu 1: Sentra Perkebunan Salak -->
+                    <article
+                        data-testid="beranda-potensi-card"
+                        class="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-6"
+                    >
+                        <div class="space-y-2.5">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                                Komoditas Utama
+                            </p>
+                            <h3 class="text-lg font-semibold text-slate-900">
+                                Sentra Salak Tamarenja
+                            </h3>
+                            <p class="text-sm leading-relaxed text-slate-600">
+                                Budidaya salak yang dirintis sejak tahun 1982 telah berkembang menjadi sentra perkebunan utama dengan karakter buah manis dan renyah yang menjadi penopang ekonomi keluarga petani.
+                            </p>
+                        </div>
+
+                        <div class="mt-5 border-t border-slate-100 pt-3.5 text-xs font-medium text-slate-700">
+                            {{ indikatorDesa.podeskel.komoditas_utama }}
+                        </div>
+                    </article>
+
+                    <!-- Kartu 2: Agrowisata & Ekologi Lembah -->
+                    <article
+                        data-testid="beranda-potensi-card"
+                        class="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-6"
+                    >
+                        <div class="space-y-2.5">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                                Agrowisata &amp; Ekologi
+                            </p>
+                            <h3 class="text-lg font-semibold text-slate-900">
+                                Kawasan Lembah &amp; Kebun Salak
+                            </h3>
+                            <p class="text-sm leading-relaxed text-slate-600">
+                                Bentang alam lembah perbukitan yang sejuk dan diapit dua aliran sungai besar dengan ketersediaan air melimpah, mendukung pengembangan kawasan agrowisata petik buah langsung dari kebun.
+                            </p>
+                        </div>
+
+                        <div class="mt-5 border-t border-slate-100 pt-3.5 text-xs font-medium text-slate-700">
+                            {{ indikatorDesa.podeskel.potensi_ekonomi }}
+                        </div>
+                    </article>
+
+                    <!-- Kartu 3: Distribusi & Pertanian Pendukung -->
+                    <article
+                        data-testid="beranda-potensi-card"
+                        class="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-6"
+                    >
+                        <div class="space-y-2.5">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                                Perdagangan &amp; Pertanian
+                            </p>
+                            <h3 class="text-lg font-semibold text-slate-900">
+                                Distribusi Lintas Provinsi
+                            </h3>
+                            <p class="text-sm leading-relaxed text-slate-600">
+                                Rantai pasok panen salak menjangkau pasar regional antardaerah di Pulau Sulawesi secara berkelanjutan, dilengkapi hasil bumi pendukung seperti pisang, kelapa, dan tanaman pangan.
+                            </p>
+                        </div>
+
+                        <div class="mt-5 border-t border-slate-100 pt-3.5 text-xs font-medium text-slate-700">
+                            {{ indikatorDesa.podeskel.akses_pasar }}
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <!-- Seksi 3: Papan Struktur Organisasi (Section Sendiri) -->
+            <section
+                id="sotk"
+                data-testid="beranda-sotk-section"
+                class="scroll-mt-24 space-y-8 border-t border-slate-200 pt-12"
+            >
+                <div class="mx-auto max-w-3xl space-y-1.5 text-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                        Pemerintahan Desa
+                    </p>
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                        Struktur Organisasi Desa
+                    </h2>
+                </div>
+
+                <div
+                    v-if="!kades && !sekdes && !bpdLeader && kaurList.length === 0 && kasiList.length === 0 && kadusList.length === 0 && stafLainList.length === 0"
+                    class="rounded-lg border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500"
+                >
+                    Belum ada data struktur organisasi pemerintahan desa yang dipublikasikan.
+                </div>
+
+                <div v-else class="space-y-3">
                     <!-- Petunjuk Geser Horizontal di Mobile -->
-                    <div class="flex items-center justify-end gap-1.5 text-xs text-slate-400 sm:hidden">
+                    <div class="flex items-center justify-end gap-1.5 text-xs text-slate-500 sm:hidden">
                         <span>&larr; Geser untuk melihat bagan lengkap &rarr;</span>
                     </div>
 
-                    <!-- Papan Kanvas SOTK (Scrollable Canvas ala Cetak Biru / Baliho Desa) -->
-                    <div class="relative overflow-x-auto rounded-2xl border border-slate-200/90 bg-slate-50/70 p-6 sm:p-10 shadow-2xs">
-                        <div class="min-w-[960px] mx-auto flex flex-col items-center">
+                    <!-- Papan Kanvas SOTK -->
+                    <div class="relative overflow-x-auto rounded-lg border border-slate-200 bg-slate-100/60 p-6 sm:p-8">
+                        <div class="mx-auto flex min-w-[960px] flex-col items-center">
                             
                             <!-- ================= BAGIAN 1: KEPALA DESA, BPD BESERTA TURUNANNYA, & SEKDES ================= -->
                             <div class="flex items-start justify-center">
@@ -571,9 +797,9 @@ onUnmounted(() => {
                                     <article
                                         v-if="kades"
                                         data-testid="beranda-sotk-card"
-                                        class="group relative w-60 overflow-hidden rounded-2xl border-2 border-blue-600 bg-white shadow-md transition-all hover:shadow-lg"
+                                        class="group relative w-60 overflow-hidden rounded-lg border-2 border-blue-700 bg-white shadow-sm transition-all hover:shadow-md"
                                     >
-                                        <div class="bg-blue-600 py-1.5 text-center text-xs font-bold uppercase tracking-wider text-white">
+                                        <div class="bg-blue-700 py-1.5 text-center text-xs font-bold uppercase tracking-wider text-white">
                                             Kepala Desa
                                         </div>
                                         <div class="relative flex h-48 w-full items-end justify-center overflow-hidden bg-gradient-to-t from-slate-100 via-slate-50 to-white px-3 pt-3">
@@ -609,7 +835,7 @@ onUnmounted(() => {
                                     <article
                                         v-if="sekdes"
                                         data-testid="beranda-sotk-card"
-                                        class="group relative w-56 overflow-hidden rounded-xl border border-slate-300 bg-white shadow-xs transition-all hover:border-blue-500 hover:shadow-md"
+                                        class="group relative w-56 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm transition-all hover:border-blue-400 hover:shadow-md"
                                     >
                                         <div class="bg-slate-100 py-1 text-center text-xs font-bold uppercase tracking-wider text-slate-700">
                                             Sekretaris Desa
@@ -619,7 +845,7 @@ onUnmounted(() => {
                                                 v-if="sekdes.foto_url"
                                                 :src="sekdes.foto_url"
                                                 :alt="sekdes.nama_lengkap"
-                                                class="h-full w-auto object-contain object-bottom drop-shadow-xs transition-transform duration-300 group-hover:scale-105"
+                                                class="h-full w-auto object-contain object-bottom drop-shadow-sm transition-transform duration-300 group-hover:scale-105"
                                             />
                                             <div v-else class="flex h-full w-full items-center justify-center text-slate-300">
                                                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
@@ -651,7 +877,7 @@ onUnmounted(() => {
                                         <!-- KARTU KETUA BPD -->
                                         <article
                                             data-testid="beranda-sotk-card"
-                                            class="group relative w-56 overflow-hidden rounded-2xl border-2 border-slate-700 bg-white shadow-md transition-all hover:shadow-lg"
+                                            class="group relative w-56 overflow-hidden rounded-lg border-2 border-slate-700 bg-white shadow-sm transition-all hover:shadow-md"
                                         >
                                             <div class="bg-slate-800 py-1.5 text-center text-xs font-bold uppercase tracking-wider text-white">
                                                 Badan Permusyawaratan Desa
@@ -708,14 +934,14 @@ onUnmounted(() => {
 
                                                     <article
                                                         data-testid="beranda-sotk-card"
-                                                        class="group w-48 sm:w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs"
+                                                        class="group w-48 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-all hover:border-blue-300 hover:shadow-md sm:w-52"
                                                     >
                                                         <div class="relative flex h-36 w-full items-end justify-center overflow-hidden bg-gradient-to-t from-slate-100 via-slate-50 to-white px-2 pt-2">
                                                             <img
                                                                 v-if="anggota.foto_url"
                                                                 :src="anggota.foto_url"
                                                                 :alt="anggota.nama_lengkap"
-                                                                class="h-full w-auto object-contain object-bottom drop-shadow-xs transition-transform duration-200 group-hover:scale-105"
+                                                                class="h-full w-auto object-contain object-bottom drop-shadow-sm transition-transform duration-200 group-hover:scale-105"
                                                             />
                                                             <div v-else class="flex h-full w-full items-center justify-center text-slate-300">
                                                                 <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
@@ -769,14 +995,14 @@ onUnmounted(() => {
 
                                     <article
                                         data-testid="beranda-sotk-card"
-                                        class="group w-48 sm:w-52 h-[216px] flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs"
+                                        class="group flex h-[216px] w-48 flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-all hover:border-blue-300 hover:shadow-md sm:w-52"
                                     >
                                         <div class="relative flex h-36 w-full items-end justify-center overflow-hidden bg-gradient-to-t from-slate-100 via-slate-50 to-white px-2 pt-2">
                                             <img
                                                 v-if="kaur.foto_url"
                                                 :src="kaur.foto_url"
                                                 :alt="kaur.nama_lengkap"
-                                                class="h-full w-auto object-contain object-bottom drop-shadow-xs transition-transform duration-200 group-hover:scale-105"
+                                                class="h-full w-auto object-contain object-bottom drop-shadow-sm transition-transform duration-200 group-hover:scale-105"
                                             />
                                             <div v-else class="flex h-full w-full items-center justify-center text-slate-300">
                                                 <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
@@ -826,14 +1052,14 @@ onUnmounted(() => {
 
                                     <article
                                         data-testid="beranda-sotk-card"
-                                        class="group w-48 sm:w-52 h-[216px] flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs transition-all hover:border-blue-400 hover:shadow-xs"
+                                        class="group flex h-[216px] w-48 flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-all hover:border-blue-300 hover:shadow-md sm:w-52"
                                     >
                                         <div class="relative flex h-36 w-full items-end justify-center overflow-hidden bg-gradient-to-t from-slate-100 via-slate-50 to-white px-2 pt-2">
                                             <img
                                                 v-if="kasi.foto_url"
                                                 :src="kasi.foto_url"
                                                 :alt="kasi.nama_lengkap"
-                                                class="h-full w-auto object-contain object-bottom drop-shadow-xs transition-transform duration-200 group-hover:scale-105"
+                                                class="h-full w-auto object-contain object-bottom drop-shadow-sm transition-transform duration-200 group-hover:scale-105"
                                             />
                                             <div v-else class="flex h-full w-full items-center justify-center text-slate-300">
                                                 <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
@@ -883,14 +1109,14 @@ onUnmounted(() => {
 
                                     <article
                                         data-testid="beranda-sotk-card"
-                                        class="group w-48 sm:w-52 h-[216px] flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs transition-all hover:border-amber-400 hover:shadow-xs"
+                                        class="group flex h-[216px] w-48 flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition-all hover:border-blue-300 hover:shadow-md sm:w-52"
                                     >
                                         <div class="relative flex h-36 w-full items-end justify-center overflow-hidden bg-gradient-to-t from-slate-100 via-slate-50 to-white px-2 pt-2">
                                             <img
                                                 v-if="kadus.foto_url"
                                                 :src="kadus.foto_url"
                                                 :alt="kadus.nama_lengkap"
-                                                class="h-full w-auto object-contain object-bottom drop-shadow-xs transition-transform duration-200 group-hover:scale-105"
+                                                class="h-full w-auto object-contain object-bottom drop-shadow-sm transition-transform duration-200 group-hover:scale-105"
                                             />
                                             <div v-else class="flex h-full w-full items-center justify-center text-slate-300">
                                                 <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
@@ -922,7 +1148,7 @@ onUnmounted(() => {
                                     v-for="staf in stafLainList"
                                     :key="staf.id"
                                     data-testid="beranda-sotk-card"
-                                    class="group w-48 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 text-center shadow-2xs"
+                                    class="group w-48 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 text-center shadow-sm"
                                 >
                                     <p class="truncate text-xs font-bold text-slate-900">{{ staf.nama_lengkap }}</p>
                                     <p class="truncate text-[11px] text-slate-500">{{ staf.jabatan }}</p>
@@ -934,27 +1160,24 @@ onUnmounted(() => {
                 </div>
             </section>
 
-            <!-- Seksi 3: Dokumentasi Pembangunan Desa (Simpel + Modal Slider Foto 0%, 50%, 100%) -->
+            <!-- Seksi 4: Dokumentasi Pembangunan Desa -->
             <section
                 id="pembangunan"
                 data-testid="beranda-proyek-section"
-                class="scroll-mt-24 space-y-8 border-t border-slate-200/80 pt-12"
+                class="scroll-mt-24 space-y-8 border-t border-slate-200 pt-12"
             >
-                <div class="mx-auto max-w-3xl space-y-2 text-center">
+                <div class="mx-auto max-w-3xl space-y-1.5 text-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
-                        Dokumentasi Infrastruktur Desa
+                        Pembangunan Fisik
                     </p>
-                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                         Dokumentasi Pembangunan Desa
                     </h2>
-                    <p class="text-sm leading-relaxed text-slate-600">
-                        Informasi proyek pembangunan fisik serta dokumentasi foto progres lapangan di Desa {{ namaDesa }}.
-                    </p>
                 </div>
 
                 <div
                     v-if="(proyek_terbaru || []).length === 0"
-                    class="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500"
+                    class="rounded-lg border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500"
                 >
                     Belum ada dokumentasi proyek pembangunan fisik yang dipublikasikan.
                 </div>
@@ -967,7 +1190,7 @@ onUnmounted(() => {
                         v-for="proyek in proyek_terbaru"
                         :key="proyek.id"
                         data-testid="beranda-proyek-card"
-                        class="group flex cursor-pointer flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs transition-all hover:border-blue-300 hover:shadow-md"
+                        class="group flex cursor-pointer flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white transition-all hover:border-blue-300 hover:shadow-sm"
                         @click="openModalSlider(proyek)"
                     >
                         <div>
@@ -984,26 +1207,17 @@ onUnmounted(() => {
                                     class="flex flex-col items-center justify-center gap-1.5 text-slate-400"
                                 >
                                     <Hammer class="h-8 w-8 text-slate-300" />
-                                    <span class="text-[11px] font-medium">Foto belum diunggah</span>
+                                    <span class="text-xs font-medium">Foto belum diunggah</span>
                                 </div>
-
-                                <!-- Indikator Jumlah Foto Progres (Kanan Bawah) -->
-                                <span
-                                    v-if="countAvailablePhotos(proyek) > 0"
-                                    class="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-full bg-slate-900/75 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-xs"
-                                >
-                                    <Camera class="h-3 w-3 text-blue-300" />
-                                    <span>{{ countAvailablePhotos(proyek) }}/3 Foto</span>
-                                </span>
                             </div>
 
                             <!-- Isi Kartu Simpel -->
-                            <div class="space-y-2 p-5">
+                            <div class="space-y-1.5 p-5">
                                 <p class="text-xs font-medium tabular-nums text-slate-500">
                                     TA {{ proyek.tahun_anggaran }}
                                 </p>
 
-                                <h3 class="text-base font-bold leading-snug text-slate-900 transition-colors group-hover:text-blue-700">
+                                <h3 class="text-base font-semibold leading-snug text-slate-900 transition-colors group-hover:text-blue-700">
                                     {{ proyek.nama_kegiatan }}
                                 </h3>
                             </div>
@@ -1013,14 +1227,14 @@ onUnmounted(() => {
                         <div class="space-y-4 border-t border-slate-100 px-5 py-4">
                             <div class="flex items-start justify-between gap-3 text-xs">
                                 <div>
-                                    <span class="block text-[11px] text-slate-400">Pagu Anggaran</span>
-                                    <span class="mt-0.5 block font-bold tabular-nums text-slate-900">
+                                    <span class="block text-[11px] text-slate-500">Pagu Anggaran</span>
+                                    <span class="mt-0.5 block font-semibold tabular-nums text-slate-900">
                                         {{ formatRupiah(proyek.pagu_anggaran) }}
                                     </span>
                                 </div>
                                 <div class="text-right">
-                                    <span class="block text-[11px] text-slate-400">Sumber Dana</span>
-                                    <span class="mt-0.5 inline-block rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                    <span class="block text-[11px] text-slate-500">Sumber Dana</span>
+                                    <span class="mt-0.5 block font-semibold text-slate-900">
                                         {{ proyek.sumber_dana_label || proyek.sumber_dana || '-' }}
                                     </span>
                                 </div>
@@ -1029,7 +1243,7 @@ onUnmounted(() => {
                             <button
                                 type="button"
                                 data-testid="btn-lihat-foto-progres"
-                                class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-50 px-4 py-2.5 text-xs font-semibold text-blue-700 transition-colors group-hover:bg-blue-700 group-hover:text-white"
+                                class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 text-xs font-semibold text-blue-700 transition-colors group-hover:border-blue-700 group-hover:bg-blue-700 group-hover:text-white"
                                 @click.stop="openModalSlider(proyek)"
                             >
                                 <Camera class="h-4 w-4" />
@@ -1038,189 +1252,144 @@ onUnmounted(() => {
                         </div>
                     </article>
                 </div>
+
+                <!-- Modal Slider Foto Progres Pembangunan (Titik 0%, 50%, 100%) -->
+                <BaseModal
+                    :show="isModalOpen"
+                    :title="activeModalProyek?.nama_kegiatan || 'Dokumentasi Foto Progres'"
+                    :subtitle="modalSubtitle"
+                    max-width="2xl"
+                    @close="closeModalSlider"
+                >
+                    <div
+                        v-if="activeModalProyek"
+                        data-testid="beranda-proyek-modal"
+                        class="space-y-4"
+                    >
+                        <!-- Ringkasan Status & Wilayah Dusun Proyek di Modal -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="font-semibold text-slate-900">
+                                    {{ getStatusLabel(activeModalProyek) }}
+                                </span>
+                                <span
+                                    v-if="activeModalProyek.lokasi_dusun"
+                                    class="inline-flex items-center gap-1 font-medium text-slate-600"
+                                >
+                                    <MapPin class="h-3.5 w-3.5 text-slate-400" />
+                                    <span>{{ activeModalProyek.lokasi_dusun }}</span>
+                                </span>
+                            </div>
+                            <div class="tabular-nums text-slate-500">
+                                TA {{ activeModalProyek.tahun_anggaran }}
+                                <span v-if="activeModalProyek.sumber_dana_label || activeModalProyek.sumber_dana">
+                                    &bull; <span>{{ activeModalProyek.sumber_dana_label || activeModalProyek.sumber_dana }}</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Viewport Foto Bersih & Terang -->
+                        <div class="relative flex h-72 w-full items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100 sm:h-96">
+                            <img
+                                v-if="activeSlidePhotoUrl"
+                                :src="activeSlidePhotoUrl"
+                                :alt="`${activeModalProyek.nama_kegiatan} - ${activeStage.label}`"
+                                data-testid="slider-active-image"
+                                class="h-full w-full object-contain"
+                            />
+                            <div
+                                v-else
+                                data-testid="slider-empty-photo"
+                                class="flex flex-col items-center justify-center space-y-2 p-6 text-center"
+                            >
+                                <Camera class="h-8 w-8 text-slate-300" />
+                                <p class="text-sm font-medium text-slate-600">
+                                    Foto belum didokumentasikan untuk tahap ini
+                                </p>
+                                <p class="text-xs text-slate-400">
+                                    {{ activeStage.label }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Kontrol Navigasi Standar: Sebelumnya / Info Tahap / Berikutnya -->
+                        <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                            <button
+                                type="button"
+                                aria-label="Foto Sebelumnya"
+                                data-testid="slider-prev-btn"
+                                class="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                @click="prevSlide"
+                            >
+                                <ChevronLeft class="h-4 w-4" />
+                                <span class="hidden sm:inline">Sebelumnya</span>
+                            </button>
+
+                            <div class="min-w-0 text-center">
+                                <p
+                                    data-testid="slider-stage-label"
+                                    class="text-xs font-bold text-slate-900"
+                                >
+                                    {{ activeStage.label }}
+                                </p>
+                                <p class="truncate text-[11px] text-slate-500">
+                                    {{ activeStage.desc }}
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                aria-label="Foto Berikutnya"
+                                data-testid="slider-next-btn"
+                                class="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                @click="nextSlide"
+                            >
+                                <span class="hidden sm:inline">Berikutnya</span>
+                                <ChevronRight class="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <!-- Keterangan Pelaksana & Volume -->
+                        <div
+                            v-if="activeModalProyek.pelaksana_kegiatan || activeModalProyek.volume_fisik"
+                            class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500"
+                        >
+                            <span v-if="activeModalProyek.pelaksana_kegiatan">
+                                Pelaksana: <strong class="font-medium text-slate-700">{{ activeModalProyek.pelaksana_kegiatan }}</strong>
+                            </span>
+                            <span v-if="activeModalProyek.volume_fisik">
+                                Volume: <strong class="font-medium text-slate-700">{{ activeModalProyek.volume_fisik }}</strong>
+                            </span>
+                        </div>
+                    </div>
+                </BaseModal>
             </section>
 
-            <!-- Modal Slider Foto Progres Pembangunan (Titik 0%, 50%, 100%) -->
-            <BaseModal
-                :show="isModalOpen"
-                :title="activeModalProyek?.nama_kegiatan || 'Dokumentasi Foto Progres'"
-                :subtitle="modalSubtitle"
-                max-width="2xl"
-                @close="closeModalSlider"
-            >
-                <div
-                    v-if="activeModalProyek"
-                    data-testid="beranda-proyek-modal"
-                    class="space-y-4"
-                >
-                    <!-- Ringkasan Status & Wilayah Dusun Proyek di Modal -->
-                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                        <div class="flex items-center gap-2">
-                            <StatusBadge :status="activeModalProyek.status_proyek" />
-                            <span
-                                v-if="activeModalProyek.lokasi_dusun"
-                                class="inline-flex items-center gap-1 text-xs font-medium text-slate-600"
-                            >
-                                <MapPin class="h-3.5 w-3.5 text-blue-600" />
-                                <span>{{ activeModalProyek.lokasi_dusun }}</span>
-                            </span>
-                        </div>
-                        <div class="text-xs text-slate-500">
-                            TA {{ activeModalProyek.tahun_anggaran }}
-                            <span v-if="activeModalProyek.sumber_dana_label || activeModalProyek.sumber_dana">
-                                &bull; <span class="font-medium text-blue-700">{{ activeModalProyek.sumber_dana_label || activeModalProyek.sumber_dana }}</span>
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Tab Pilihan Tahap Progres -->
-                    <div class="grid grid-cols-3 gap-2 rounded-lg bg-slate-100 p-1">
-                        <button
-                            v-for="(stage, idx) in sliderStages"
-                            :key="stage.percent"
-                            type="button"
-                            :data-testid="`slider-tab-${idx}`"
-                            :class="[
-                                'rounded-md px-3 py-2 text-xs font-semibold transition-all',
-                                activeSlide === idx
-                                    ? 'bg-white text-blue-700 shadow-xs'
-                                    : 'text-slate-600 hover:text-slate-900',
-                            ]"
-                            @click="activeSlide = idx"
-                        >
-                            {{ stage.tabLabel }}
-                        </button>
-                    </div>
-
-                    <!-- Viewport Gambar Slider + Kontrol Panah Kiri/Kanan -->
-                    <div class="relative flex h-64 w-full items-center justify-center overflow-hidden rounded-xl bg-slate-950 sm:h-96">
-                        <img
-                            v-if="activeSlidePhotoUrl"
-                            :src="activeSlidePhotoUrl"
-                            :alt="`${activeModalProyek.nama_kegiatan} - ${activeStage.label}`"
-                            data-testid="slider-active-image"
-                            class="h-full w-full object-contain"
-                        />
-                        <div
-                            v-else
-                            data-testid="slider-empty-photo"
-                            class="flex flex-col items-center justify-center space-y-2 p-6 text-center"
-                        >
-                            <Camera class="h-10 w-10 text-slate-600" />
-                            <p class="text-sm font-medium text-slate-300">
-                                Foto belum didokumentasikan untuk tahap ini
-                            </p>
-                            <p class="text-xs text-slate-500">
-                                {{ activeStage.label }}
-                            </p>
-                        </div>
-
-                        <button
-                            type="button"
-                            aria-label="Foto Sebelumnya"
-                            data-testid="slider-prev-btn"
-                            class="absolute left-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/75 text-white backdrop-blur-xs transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-white"
-                            @click="prevSlide"
-                        >
-                            <ChevronLeft class="h-5 w-5" />
-                        </button>
-
-                        <button
-                            type="button"
-                            aria-label="Foto Berikutnya"
-                            data-testid="slider-next-btn"
-                            class="absolute right-3 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-slate-900/75 text-white backdrop-blur-xs transition hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-white"
-                            @click="nextSlide"
-                        >
-                            <ChevronRight class="h-5 w-5" />
-                        </button>
-
-                        <!-- Indikator Titik Slide Bawah -->
-                        <div class="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-slate-900/75 px-3 py-1.5 backdrop-blur-xs">
-                            <button
-                                v-for="(stage, idx) in sliderStages"
-                                :key="stage.percent"
-                                type="button"
-                                :aria-label="`Pilih ${stage.tabLabel}`"
-                                :class="[
-                                    'h-2 rounded-full transition-all',
-                                    activeSlide === idx ? 'w-5 bg-white' : 'w-2 bg-white/40 hover:bg-white/75',
-                                ]"
-                                @click="activeSlide = idx"
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Keterangan Tahap & Pelaksana -->
-                    <div class="flex flex-col justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center">
-                        <div>
-                            <p
-                                data-testid="slider-stage-label"
-                                class="text-xs font-bold uppercase tracking-wider text-blue-700"
-                            >
-                                {{ activeStage.label }}
-                            </p>
-                            <p class="mt-0.5 text-xs text-slate-600">
-                                {{ activeStage.desc }}
-                            </p>
-                        </div>
-                        <div class="text-xs text-slate-500 sm:text-right">
-                            <p v-if="activeModalProyek.pelaksana_kegiatan">
-                                Pelaksana:
-                                <span class="font-semibold text-slate-800">{{ activeModalProyek.pelaksana_kegiatan }}</span>
-                            </p>
-                            <p v-if="activeModalProyek.volume_fisik">
-                                Volume:
-                                <span class="font-semibold text-slate-800">{{ activeModalProyek.volume_fisik }}</span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </BaseModal>
-
-            <!-- Seksi 4: Kabar & Dokumentasi Kegiatan Desa Terkini -->
+            <!-- Seksi 5: Kabar & Kegiatan Desa Terkini (Section Sendiri) -->
             <section
                 id="kegiatan"
                 data-testid="beranda-kegiatan-section"
-                class="space-y-6"
+                class="scroll-mt-24 space-y-8 border-t border-slate-200 pt-12"
             >
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                        <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-blue-700">
-                            <Newspaper class="h-3.5 w-3.5" />
-                            Agenda &amp; Warta Desa
-                        </span>
-                        <h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                            Kabar &amp; Kegiatan Desa Terkini
-                        </h2>
-                        <p class="mt-1 text-sm text-slate-600">
-                            Dokumentasi musyawarah desa, gotong royong, pembangunan sosial, dan agenda pelayanan kemasyarakatan.
-                        </p>
-                    </div>
-
-                    <Link
-                        href="/kegiatan"
-                        data-testid="link-selengkapnya-kegiatan"
-                        class="group inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 transition-colors hover:text-blue-800"
-                    >
-                        <span>Lihat Semua Kegiatan</span>
-                        <ArrowRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </Link>
+                <div class="mx-auto max-w-3xl space-y-1.5 text-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                        Kabar Desa
+                    </p>
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                        Kegiatan &amp; Informasi Desa
+                    </h2>
                 </div>
 
                 <!-- Keadaan Kosong (Empty State) -->
                 <div
                     v-if="topKegiatan.length === 0"
-                    class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-2xs"
+                    class="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white p-8 text-center"
                 >
-                    <div class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-                        <Calendar class="h-6 w-6" />
+                    <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                        <Calendar class="h-5 w-5" />
                     </div>
-                    <h3 class="mt-4 text-base font-semibold text-slate-900">
+                    <p class="mt-3 text-sm font-semibold text-slate-900">
                         Belum Ada Publikasi Kegiatan
-                    </h3>
-                    <p class="mt-1 max-w-md text-xs text-slate-500 sm:text-sm">
-                        Dokumentasi agenda dan kegiatan desa yang telah dipublikasikan akan ditampilkan secara terpusat di sini.
                     </p>
                 </div>
 
@@ -1233,57 +1402,42 @@ onUnmounted(() => {
                         v-for="item in topKegiatan"
                         :key="item.id"
                         data-testid="beranda-kegiatan-card"
-                        class="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-md"
+                        class="group flex flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white transition-all hover:border-blue-300 hover:shadow-sm"
                     >
                         <div>
-                            <!-- Foto Sampul Kegiatan dengan Zoom Hover -->
-                            <div class="relative h-48 sm:h-52 w-full overflow-hidden bg-slate-100">
+                            <!-- Foto Sampul Kegiatan -->
+                            <div class="h-48 w-full overflow-hidden bg-slate-100">
                                 <img
                                     v-if="item.foto_sampul_url"
                                     :src="item.foto_sampul_url"
                                     :alt="item.judul"
-                                    class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                     loading="lazy"
                                 />
                                 <div
                                     v-else
-                                    class="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400"
+                                    class="flex h-full w-full flex-col items-center justify-center gap-1.5 text-slate-400"
                                 >
-                                    <ImageIcon class="h-10 w-10 text-slate-300" />
-                                    <span class="text-xs font-medium text-slate-400">Dokumentasi Foto</span>
+                                    <ImageIcon class="h-8 w-8 text-slate-300" />
+                                    <span class="text-xs font-medium">Dokumentasi Foto</span>
                                 </div>
-
-                                <!-- Badge Kategori Tersemat di Kiri Atas Foto -->
-                                <span
-                                    v-if="item.kategori_label"
-                                    class="absolute left-3.5 top-3.5 inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-blue-700 shadow-2xs backdrop-blur-xs"
-                                >
-                                    {{ item.kategori_label }}
-                                </span>
                             </div>
 
                             <!-- Konten Kartu -->
-                            <div class="space-y-3 p-5 sm:p-6">
-                                <!-- Meta Tanggal & Lokasi Dusun -->
-                                <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
-                                    <span
-                                        v-if="item.tanggal_kegiatan"
-                                        class="inline-flex items-center gap-1.5 font-medium tabular-nums"
-                                    >
+                            <div class="space-y-2.5 p-5">
+                                <!-- Tanggal Kegiatan -->
+                                <div
+                                    v-if="item.tanggal_kegiatan"
+                                    class="text-xs text-slate-500"
+                                >
+                                    <span class="inline-flex items-center gap-1.5 font-medium tabular-nums">
                                         <Calendar class="h-3.5 w-3.5 text-slate-400" />
                                         {{ formatDateId(item.tanggal_kegiatan) }}
-                                    </span>
-                                    <span
-                                        v-if="item.lokasi_dusun"
-                                        class="inline-flex items-center gap-1 font-medium text-slate-600"
-                                    >
-                                        <MapPin class="h-3.5 w-3.5 text-blue-600" />
-                                        {{ item.lokasi_dusun }}
                                     </span>
                                 </div>
 
                                 <!-- Judul Kegiatan -->
-                                <h3 class="text-base sm:text-lg font-bold leading-snug text-slate-900 transition-colors group-hover:text-blue-700">
+                                <h3 class="text-base font-semibold leading-snug text-slate-900 transition-colors group-hover:text-blue-700">
                                     <Link
                                         :href="`/kegiatan/${item.slug}`"
                                         class="line-clamp-2 focus:outline-none"
@@ -1296,7 +1450,7 @@ onUnmounted(() => {
                                 <!-- Ringkasan / Snippet Uraian -->
                                 <p
                                     v-if="item.ringkasan"
-                                    class="line-clamp-2 text-xs sm:text-sm leading-relaxed text-slate-600"
+                                    class="line-clamp-2 text-xs leading-relaxed text-slate-600 sm:text-sm"
                                 >
                                     {{ item.ringkasan }}
                                 </p>
@@ -1304,36 +1458,116 @@ onUnmounted(() => {
                         </div>
 
                         <!-- Footer Kartu: Tautan Baca Selengkapnya -->
-                        <div class="border-t border-slate-100 bg-slate-50/50 px-5 py-3.5 sm:px-6">
+                        <div class="border-t border-slate-100 bg-slate-50 px-5 py-3.5">
                             <Link
                                 :href="`/kegiatan/${item.slug}`"
                                 class="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 transition-colors hover:text-blue-800"
                             >
                                 <span>Baca Dokumentasi Lengkap</span>
-                                <ArrowRight class="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                                <ArrowRight class="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                             </Link>
                         </div>
                     </article>
                 </div>
+
+                <div class="flex justify-center">
+                    <Link
+                        href="/kegiatan"
+                        data-testid="link-selengkapnya-kegiatan"
+                        class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                    >
+                        <span>Lihat Semua Kegiatan</span>
+                        <ArrowRight class="h-4 w-4" />
+                    </Link>
+                </div>
             </section>
 
-            <!-- Seksi 5: Layanan Mandiri Warga & Cek Bansos Desa -->
+            <!-- Seksi Baru: Dokumen Publik PPID Terbaru (#ppid) -->
+            <section
+                id="ppid"
+                data-testid="beranda-ppid-section"
+                class="scroll-mt-24 space-y-8 border-t border-slate-200 pt-12"
+            >
+                <div class="mx-auto max-w-3xl space-y-1.5 text-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                        Keterbukaan Informasi
+                    </p>
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                        Dokumen Publik PPID
+                    </h2>
+                </div>
+
+                <div
+                    v-if="topDokumenPpid.length === 0"
+                    class="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white p-8 text-center"
+                >
+                    <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                        <FileText class="h-5 w-5" />
+                    </div>
+                    <p class="mt-3 text-sm font-semibold text-slate-900">
+                        Belum Ada Dokumen PPID Publik
+                    </p>
+                </div>
+
+                <div
+                    v-else
+                    class="grid grid-cols-1 gap-4 md:grid-cols-2"
+                >
+                    <article
+                        v-for="dok in topDokumenPpid"
+                        :key="dok.id"
+                        data-testid="beranda-ppid-card"
+                        class="flex flex-col justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5 sm:flex-row sm:items-center"
+                    >
+                        <div class="min-w-0 flex-1 space-y-1">
+                            <p class="text-xs font-medium text-slate-500">
+                                <span>{{ dok.kategori_label }}</span>
+                                <span v-if="dok.tahun_dokumen"> &bull; Tahun {{ dok.tahun_dokumen }}</span>
+                                <span> &bull; {{ formatUkuranKb(dok.ukuran_file_kb) }}</span>
+                            </p>
+                            <h3 class="truncate text-base font-semibold text-slate-900" :title="dok.judul_dokumen">
+                                {{ dok.judul_dokumen }}
+                            </h3>
+                        </div>
+
+                        <div class="shrink-0">
+                            <a
+                                :href="dok.download_url"
+                                data-testid="beranda-ppid-download-btn"
+                                class="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                            >
+                                <Download class="h-3.5 w-3.5" />
+                                <span>Unduh PDF</span>
+                            </a>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="flex justify-center">
+                    <Link
+                        href="/unduhan"
+                        data-testid="link-selengkapnya-ppid"
+                        class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                    >
+                        <span>Lihat Semua Dokumen PPID</span>
+                        <ArrowRight class="h-4 w-4" />
+                    </Link>
+                </div>
+            </section>
+
+            <!-- Seksi 6: Layanan Mandiri Warga & Cek Bansos Desa -->
             <section
                 id="layanan-mandiri"
                 data-testid="beranda-layanan-mandiri-section"
-                class="scroll-mt-24 space-y-8 border-t border-slate-200/80 pt-12"
+                class="scroll-mt-24 space-y-8 border-t border-slate-200 pt-12"
             >
-                <div class="mx-auto max-w-3xl space-y-2 text-center">
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-blue-700">
-                        <ShieldCheck class="h-3.5 w-3.5" />
-                        Pelayanan Cepat &amp; Transparan
-                    </span>
-                    <h2 class="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">
-                        Layanan Mandiri Warga Desa {{ namaDesa }}
-                    </h2>
-                    <p class="text-sm leading-relaxed text-slate-600">
-                        Akses pengurusan surat administrasi resmi dan pengecekan status bantuan sosial secara mandiri, cepat, dan terlindungi sesuai ketentuan UU PDP.
+                <div class="mx-auto max-w-3xl space-y-1.5 text-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">
+                        Layanan Publik
                     </p>
+                    <h2 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                        Layanan Mandiri Warga
+                    </h2>
                 </div>
 
                 <!-- 2 Kartu Layanan Unggulan -->
@@ -1341,20 +1575,11 @@ onUnmounted(() => {
                     <!-- Kartu 1: Pengajuan Surat Online -->
                     <div
                         data-testid="card-layanan-surat"
-                        class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-6 sm:p-8 shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-md"
+                        class="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-6 transition-all hover:border-blue-300 hover:shadow-sm"
                     >
-                        <div class="space-y-5">
-                            <div class="flex items-center justify-between">
-                                <div class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                                    <FileCheck2 class="h-6 w-6" />
-                                </div>
-                                <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                                    10 Jenis Surat
-                                </span>
-                            </div>
-
+                        <div class="space-y-4">
                             <div class="space-y-2">
-                                <h3 class="text-xl font-bold text-slate-900 transition-colors group-hover:text-blue-700">
+                                <h3 class="text-lg font-semibold text-slate-900">
                                     Pengajuan Surat Online
                                 </h3>
                                 <p class="text-sm leading-relaxed text-slate-600">
@@ -1363,17 +1588,17 @@ onUnmounted(() => {
                             </div>
 
                             <!-- Poin Keunggulan -->
-                            <ul class="space-y-2.5 border-t border-slate-100 pt-4 text-xs sm:text-sm text-slate-600">
-                                <li class="flex items-center gap-2">
-                                    <CheckCircle2 class="h-4 w-4 shrink-0 text-blue-600" />
+                            <ul class="space-y-2.5 border-t border-slate-100 pt-4 text-sm text-slate-600">
+                                <li class="flex items-start gap-2.5">
+                                    <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
                                     <span>Verifikasi instan identitas kependudukan terpadu</span>
                                 </li>
-                                <li class="flex items-center gap-2">
-                                    <CheckCircle2 class="h-4 w-4 shrink-0 text-blue-600" />
+                                <li class="flex items-start gap-2.5">
+                                    <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
                                     <span>Dilengkapi QR Code verifikasi legalitas dokumen resmi</span>
                                 </li>
-                                <li class="flex items-center gap-2">
-                                    <CheckCircle2 class="h-4 w-4 shrink-0 text-blue-600" />
+                                <li class="flex items-start gap-2.5">
+                                    <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
                                     <span>Notifikasi dan koordinasi cepat petugas via WhatsApp</span>
                                 </li>
                             </ul>
@@ -1382,10 +1607,9 @@ onUnmounted(() => {
                         <div class="pt-6">
                             <Link
                                 href="/layanan-mandiri?tab=pengajuan_surat"
-                                class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                class="inline-flex h-11 min-h-[44px] w-full items-center justify-center rounded-md bg-blue-700 px-5 text-sm font-semibold text-white transition-colors hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-1"
                             >
-                                <span>Ajukan Surat Sekarang</span>
-                                <ArrowRight class="h-4 w-4" />
+                                Ajukan Surat Sekarang
                             </Link>
                         </div>
                     </div>
@@ -1393,20 +1617,11 @@ onUnmounted(() => {
                     <!-- Kartu 2: Cek Bansos Mandiri -->
                     <div
                         data-testid="card-layanan-bansos"
-                        class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-6 sm:p-8 shadow-2xs transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-md"
+                        class="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-6 transition-all hover:border-blue-300 hover:shadow-sm"
                     >
-                        <div class="space-y-5">
-                            <div class="flex items-center justify-between">
-                                <div class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                                    <HandHeart class="h-6 w-6" />
-                                </div>
-                                <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                                    Transparan &amp; Terlindungi
-                                </span>
-                            </div>
-
+                        <div class="space-y-4">
                             <div class="space-y-2">
-                                <h3 class="text-xl font-bold text-slate-900 transition-colors group-hover:text-emerald-700">
+                                <h3 class="text-lg font-semibold text-slate-900">
                                     Cek Bantuan Sosial Desa
                                 </h3>
                                 <p class="text-sm leading-relaxed text-slate-600">
@@ -1415,17 +1630,17 @@ onUnmounted(() => {
                             </div>
 
                             <!-- Poin Keunggulan -->
-                            <ul class="space-y-2.5 border-t border-slate-100 pt-4 text-xs sm:text-sm text-slate-600">
-                                <li class="flex items-center gap-2">
-                                    <CheckCircle2 class="h-4 w-4 shrink-0 text-emerald-600" />
+                            <ul class="space-y-2.5 border-t border-slate-100 pt-4 text-sm text-slate-600">
+                                <li class="flex items-start gap-2.5">
+                                    <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                                     <span>Pencocokan data riil kependudukan desa terverifikasi</span>
                                 </li>
-                                <li class="flex items-center gap-2">
-                                    <CheckCircle2 class="h-4 w-4 shrink-0 text-emerald-600" />
+                                <li class="flex items-start gap-2.5">
+                                    <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                                     <span>Penyamaran NIK &amp; nama warga sesuai UU PDP No. 27/2022</span>
                                 </li>
-                                <li class="flex items-center gap-2">
-                                    <CheckCircle2 class="h-4 w-4 shrink-0 text-emerald-600" />
+                                <li class="flex items-start gap-2.5">
+                                    <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                                     <span>Akses publik terbuka tanpa pungutan biaya</span>
                                 </li>
                             </ul>
@@ -1434,38 +1649,12 @@ onUnmounted(() => {
                         <div class="pt-6">
                             <Link
                                 href="/layanan-mandiri?tab=cek_bansos"
-                                class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                                class="inline-flex h-11 min-h-[44px] w-full items-center justify-center rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-1"
                             >
-                                <span>Cek Status Bansos</span>
-                                <ArrowRight class="h-4 w-4" />
+                                Cek Status Bansos
                             </Link>
                         </div>
                     </div>
-                </div>
-
-                <!-- Bar Informasi Pendukung: Jam Pelayanan & Bantuan Warga -->
-                <div class="flex flex-col items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-5 sm:p-6 sm:flex-row">
-                    <div class="flex flex-wrap items-center gap-y-2 gap-x-6 text-xs sm:text-sm text-slate-600">
-                        <div class="inline-flex items-center gap-2">
-                            <Clock class="h-4 w-4 shrink-0 text-slate-400" />
-                            <span>{{ profil.jam_pelayanan || 'Senin – Jumat, 08.00 – 15.00 WITA' }}</span>
-                        </div>
-                        <div class="inline-flex items-center gap-2">
-                            <MapPin class="h-4 w-4 shrink-0 text-slate-400" />
-                            <span>{{ profil.alamat_kantor || `Kantor Desa ${namaDesa}` }}</span>
-                        </div>
-                    </div>
-
-                    <a
-                        v-if="profil.no_wa_pelayanan"
-                        :href="`https://wa.me/${profil.no_wa_pelayanan.replace(/[^0-9]/g, '')}`"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-                    >
-                        <MessageCircle class="h-4 w-4" />
-                        <span>Bantuan Operasional Pelayanan</span>
-                    </a>
                 </div>
             </section>
         </div>

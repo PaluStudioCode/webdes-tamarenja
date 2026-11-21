@@ -60,6 +60,26 @@ class PortalPublikController extends Controller
             ->values()
             ->all();
 
+        // Maksimal 4 dokumen resmi PPID berstatus publik terbaru
+        $dokumenPpidTerbaru = DokumenPpid::query()
+            ->published()
+            ->orderByDesc('tahun_dokumen')
+            ->orderByDesc('id')
+            ->limit(4)
+            ->get()
+            ->map(fn (DokumenPpid $d) => [
+                'id' => $d->id,
+                'judul_dokumen' => $d->judul_dokumen,
+                'kategori' => $d->kategori,
+                'kategori_label' => SaveDokumenPpidRequest::KATEGORI_OPTIONS[$d->kategori] ?? $d->kategori,
+                'tahun_dokumen' => $d->tahun_dokumen ? (int) $d->tahun_dokumen : null,
+                'ukuran_file_kb' => (int) $d->ukuran_file_kb,
+                'jumlah_unduhan' => (int) $d->jumlah_unduhan,
+                'download_url' => route('publik.unduhan.download', $d->id),
+            ])
+            ->values()
+            ->all();
+
         $perangkatAktif = PerangkatDesa::query()
             ->aktif()
             ->orderBy('urutan')
@@ -134,8 +154,12 @@ class PortalPublikController extends Controller
                 ->where('kelompok_sotk', 'bpd')
                 ->values()
                 ->all(),
+            'indikator_desa' => $profil
+                ? $profil->resolvedIndikatorDesa()
+                : ProfilDesa::defaultIndikatorDesa(),
             'proyek_terbaru' => $proyekSorotan,
             'kegiatan_terbaru' => $kegiatanSorotan,
+            'dokumen_ppid_terbaru' => $dokumenPpidTerbaru,
         ]);
     }
 

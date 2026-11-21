@@ -137,16 +137,15 @@ class DataAwalSeeder extends Seeder
                 'kecamatan' => $existingProfil?->kecamatan ?? 'Sindue Tobata',
                 'kabupaten' => $existingProfil?->kabupaten ?? 'Donggala',
                 'provinsi' => $existingProfil?->provinsi ?? 'Sulawesi Tengah',
-                'kode_wilayah' => $existingProfil?->kode_wilayah ?? '72.03.19.2003',
+                'kode_wilayah' => $existingProfil?->kode_wilayah ?? '72.03.25.2004',
                 'daftar_dusun' => $existingProfil?->daftar_dusun ?? [
-                    'Dusun I',
-                    'Dusun II',
-                    'Dusun III',
-                    'Dusun IV',
+                    'Dusun I (Katandona)',
+                    'Dusun II (Sinente)',
+                    'Dusun III (Irigasi)',
                 ],
                 'alamat_kantor' => ($existingProfil && $existingProfil->alamat_kantor && ! str_contains($existingProfil->alamat_kantor, 'Jl. Trans Sulawesi'))
                     ? $existingProfil->alamat_kantor
-                    : 'Jl. Hi. Paggaru No. 80 Tamarenja Kode Pos 94353',
+                    : 'Jl. Hi. Paggaru No. 80 Tamarenja Kode Pos 94343',
                 'logo_desa_path' => $logoPath,
                 'foto_kepala_desa_path' => $fotoKadesPath,
                 'jam_pelayanan' => $existingProfil?->jam_pelayanan ?? 'Senin - Jumat, 08.00 - 15.30 WITA',
@@ -161,15 +160,20 @@ class DataAwalSeeder extends Seeder
                     ? $existingProfil->nama_sekdes
                     : 'Arif Sandi',
                 'nip_sekdes' => $existingProfil?->nip_sekdes ?? '198604122010011008',
-                'visi' => $existingProfil?->visi ?? 'Terwujudnya Desa Tamarenja yang Mandiri, Transparan, Maju, dan Sejahtera Berlandaskan Gotong Royong.',
+                'visi' => $existingProfil?->visi ?? 'Terwujudnya Desa Tamarenja yang Mandiri, Maju, dan Sejahtera Berbasis Potensi Pertanian dan Agrowisata Salak yang Berkelanjutan.',
                 'misi' => $existingProfil?->misi ?? [
-                    'Meningkatkan kualitas pelayanan administrasi desa yang cepat, tepat, dan transparan.',
-                    'Mempercepat pembangunan infrastruktur perdesaan yang merata di seluruh dusun.',
-                    'Mendorong pemberdayaan ekonomi masyarakat tani, nelayan, dan UMKM desa.',
-                    'Mewujudkan tata kelola anggaran desa dan penyaluran bantuan sosial yang berkeadilan.',
+                    'Meningkatkan kualitas pelayanan administrasi desa yang cepat, transparan, dan berkeadilan bagi seluruh warga.',
+                    'Membangun dan memelihara infrastruktur jalan usaha tani serta sarana publik desa secara merata.',
+                    'Mengembangkan potensi perkebunan salak dan komoditas lokal menuju kemandirian ekonomi desa.',
+                    'Memperkuat tata kelola pemerintahan desa yang akuntabel dan berlandaskan gotong royong.',
                 ],
-                'sejarah_singkat' => $existingProfil?->sejarah_singkat ?? 'Desa Tamarenja merupakan salah satu desa pesisir dan pertanian di Kecamatan Sindue Tobata, Kabupaten Donggala, Provinsi Sulawesi Tengah yang menjunjung tinggi budaya gotong royong.',
-                'potensi_unggulan' => $existingProfil?->potensi_unggulan ?? 'Pertanian perkebunan kelapa & kakao, perikanan tangkap pesisir Selat Makassar, serta usaha mikro olahan hasil bumi.',
+                'sejarah_singkat' => ($existingProfil && ! str_contains($existingProfil->sejarah_singkat ?? '', 'pesisir dan pertanian'))
+                    ? $existingProfil->sejarah_singkat
+                    : 'Desa Tamarenja merupakan desa pedalaman berbasis perkebunan yang terletak di kawasan lembah perbukitan Kecamatan Sindue Tobata, Kabupaten Donggala, diapit oleh dua aliran sungai besar pada ketinggian 100–300 mdpl. Diresmikan sebagai desa definitif pada tahun 1961, perekonomian desa mengalami transformasi besar sejak masuknya bibit salak pada tahun 1982 yang kemudian berkembang pesat menjadi komoditas unggulan utama daerah. Berkat kerja keras dan gotong royong warganya dalam mengelola potensi perkebunan, Desa Tamarenja berhasil meraih predikat Desa Terbaik se-Sulawesi Tengah dan Desa Percontohan Nasional Kementerian Desa pada tahun 2015.',
+                'potensi_unggulan' => ($existingProfil && ! str_contains($existingProfil->potensi_unggulan ?? '', 'Selat Makassar'))
+                    ? $existingProfil->potensi_unggulan
+                    : 'Sentra perkebunan Salak Tamarenja seluas 300–350 hektare dengan cita rasa manis renyah yang dipasarkan lintas provinsi, potensi agrowisata petik salak di lembah perbukitan asri, komoditas perkebunan pisang dan kelapa, serta ketersediaan sumber air melimpah dari dua sungai besar desa.',
+                'indikator_desa' => $existingProfil?->indikator_desa ?? ProfilDesa::defaultIndikatorDesa(),
                 'tahun_anggaran_aktif' => $tahunAktif,
             ]
         );

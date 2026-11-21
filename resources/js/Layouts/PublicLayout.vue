@@ -172,8 +172,8 @@ watch(
                     </a>
 
                     <!-- 4. Kegiatan -->
-                    <Link
-                        href="/kegiatan"
+                    <a
+                        href="/#kegiatan"
                         :class="[
                             'rounded-md px-3 py-2 text-sm font-medium transition-colors',
                             isPathActive('/kegiatan')
@@ -182,7 +182,7 @@ watch(
                         ]"
                     >
                         Kegiatan
-                    </Link>
+                    </a>
 
                     <!-- 5. Unduhan PPID -->
                     <Link
@@ -197,12 +197,13 @@ watch(
                         Unduhan PPID
                     </Link>
 
-                    <!-- 6. Tombol Aksen Layanan Mandiri -->
+                    <!-- 6. Tombol Aksen Login -->
                     <Link
-                        href="/layanan-mandiri"
+                        href="/login"
+                        data-testid="navbar-login-btn"
                         class="ml-2 inline-flex h-10 items-center justify-center rounded-md bg-blue-700 px-4 text-sm font-medium text-white transition-colors hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-1"
                     >
-                        Layanan Mandiri
+                        Login
                     </Link>
                 </nav>
 
@@ -250,13 +251,13 @@ watch(
                         Pembangunan Desa
                     </a>
 
-                    <Link
-                        href="/kegiatan"
+                    <a
+                        href="/#kegiatan"
                         class="flex min-h-[44px] items-center rounded-md px-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
                         @click="closeMenus"
                     >
                         Kegiatan
-                    </Link>
+                    </a>
 
                     <Link
                         href="/unduhan"
@@ -267,11 +268,12 @@ watch(
                     </Link>
 
                     <Link
-                        href="/layanan-mandiri"
+                        href="/login"
+                        data-testid="mobile-navbar-login-btn"
                         class="mt-2 inline-flex min-h-[44px] items-center justify-center rounded-md bg-blue-700 px-4 text-sm font-medium text-white hover:bg-blue-800"
                         @click="closeMenus"
                     >
-                        Layanan Mandiri
+                        Login
                     </Link>
                 </div>
             </div>

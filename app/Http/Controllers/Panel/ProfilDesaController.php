@@ -60,6 +60,7 @@ class ProfilDesaController extends Controller
                 'misi' => array_values($profil->misi ?? []),
                 'sejarah_singkat' => $profil->sejarah_singkat,
                 'potensi_unggulan' => $profil->potensi_unggulan,
+                'indikator_desa' => $profil->resolvedIndikatorDesa(),
                 'tahun_anggaran_aktif' => (int) $profil->tahun_anggaran_aktif,
             ],
         ]);
@@ -103,6 +104,25 @@ class ProfilDesaController extends Controller
                 ? PhoneNormalizerService::normalize((string) $validated['no_wa_pelayanan'])
                 : null;
 
+            $currentIndikator = $profil->resolvedIndikatorDesa();
+            $incomingIndikator = is_array($validated['indikator_desa'] ?? null) ? $validated['indikator_desa'] : [];
+            $mergedIndikator = [
+                'idm' => array_merge(
+                    $currentIndikator['idm'],
+                    array_filter(
+                        is_array($incomingIndikator['idm'] ?? null) ? $incomingIndikator['idm'] : [],
+                        fn ($v) => $v !== null && trim((string) $v) !== ''
+                    )
+                ),
+                'podeskel' => array_merge(
+                    $currentIndikator['podeskel'],
+                    array_filter(
+                        is_array($incomingIndikator['podeskel'] ?? null) ? $incomingIndikator['podeskel'] : [],
+                        fn ($v) => $v !== null && trim((string) $v) !== ''
+                    )
+                ),
+            ];
+
             $profil->fill([
                 'nama_desa' => $validated['nama_desa'],
                 'kode_desa_surat' => $validated['kode_desa_surat'],
@@ -124,6 +144,7 @@ class ProfilDesaController extends Controller
                 'misi' => array_values($validated['misi'] ?? []),
                 'sejarah_singkat' => $validated['sejarah_singkat'] ?? null,
                 'potensi_unggulan' => $validated['potensi_unggulan'] ?? null,
+                'indikator_desa' => $mergedIndikator,
                 'tahun_anggaran_aktif' => (int) $validated['tahun_anggaran_aktif'],
             ]);
 

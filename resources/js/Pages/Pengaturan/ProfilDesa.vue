@@ -59,6 +59,47 @@ const formState = ref({
             : [''],
     sejarah_singkat: props.profil?.sejarah_singkat || '',
     potensi_unggulan: props.profil?.potensi_unggulan || '',
+    indikator_desa: {
+        idm: {
+            status: props.profil?.indikator_desa?.idm?.status || 'Desa Maju',
+            skor: props.profil?.indikator_desa?.idm?.skor || '0,7143',
+            iks: props.profil?.indikator_desa?.idm?.iks || '0,8214',
+            ike: props.profil?.indikator_desa?.idm?.ike || '0,7550',
+            ikl: props.profil?.indikator_desa?.idm?.ikl || '0,5667',
+        },
+        podeskel: {
+            tingkat_perkembangan:
+                props.profil?.indikator_desa?.podeskel?.tingkat_perkembangan ||
+                'Desa Swasembada',
+            fasilitas_kesehatan:
+                props.profil?.indikator_desa?.podeskel?.fasilitas_kesehatan ||
+                'Poskesdes & 3 Posyandu Dusun',
+            fasilitas_pendidikan:
+                props.profil?.indikator_desa?.podeskel?.fasilitas_pendidikan ||
+                'PAUD/TK & SD Negeri Tamarenja',
+            modal_sosial:
+                props.profil?.indikator_desa?.podeskel?.modal_sosial ||
+                'Percontohan Nasional Kemendes (2015)',
+            komoditas_utama:
+                props.profil?.indikator_desa?.podeskel?.komoditas_utama ||
+                'Kebun Salak Tamarenja seluas 300–350 Ha',
+            akses_pasar:
+                props.profil?.indikator_desa?.podeskel?.akses_pasar ||
+                'Pemasaran lintas provinsi (Sulbar, Sulsel, Sulteng, Sulut)',
+            potensi_ekonomi:
+                props.profil?.indikator_desa?.podeskel?.potensi_ekonomi ||
+                'Potensi agrowisata petik buah perbukitan',
+            topografi:
+                props.profil?.indikator_desa?.podeskel?.topografi ||
+                'Topografi 100–300 mdpl diapit dua sungai alami',
+            sumber_air:
+                props.profil?.indikator_desa?.podeskel?.sumber_air ||
+                'Daerah Irigasi (D.I) Sinente & Katandona',
+            akses_wilayah:
+                props.profil?.indikator_desa?.podeskel?.akses_wilayah ||
+                'Akses 3 dusun: Katandona, Sinente, Irigasi',
+        },
+    },
     tahun_anggaran_aktif: Number(
         props.profil?.tahun_anggaran_aktif || new Date().getFullYear(),
     ),
@@ -143,6 +184,10 @@ function submitProfil() {
             .filter(Boolean),
         sejarah_singkat: formState.value.sejarah_singkat || '',
         potensi_unggulan: formState.value.potensi_unggulan || '',
+        indikator_desa: {
+            idm: { ...formState.value.indikator_desa.idm },
+            podeskel: { ...formState.value.indikator_desa.podeskel },
+        },
         tahun_anggaran_aktif: Number(formState.value.tahun_anggaran_aktif),
     };
 
@@ -798,6 +843,257 @@ function submitProfil() {
                                 rows="4"
                                 class="w-full rounded-md border border-slate-300 p-3 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
                             />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seksi 5: Indikator Kemandirian & Perkembangan Desa (IDM & PODESKEL) -->
+            <div
+                data-testid="pengaturan-indikator-desa-section"
+                class="rounded-lg border border-slate-200 bg-white p-6"
+            >
+                <div class="mb-4">
+                    <h2 class="text-base font-semibold text-slate-900">
+                        Indikator Kemandirian &amp; Perkembangan Desa (IDM &amp; PODESKEL)
+                    </h2>
+                    <p class="text-xs text-slate-500">
+                        Atur status, skor Indeks Desa Membangun (Kemendes PDTT), serta rincian potensi &amp; fasilitas Profil Desa (Kemendagri) yang tampil pada Beranda Publik.
+                    </p>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Klasifikasi Utama & Skor IDM -->
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                        <div class="lg:col-span-1">
+                            <label
+                                for="idm_status"
+                                class="mb-1.5 block text-sm font-medium text-slate-700"
+                            >
+                                Status IDM
+                            </label>
+                            <select
+                                id="idm_status"
+                                v-model="formState.indikator_desa.idm.status"
+                                data-testid="input-idm-status"
+                                class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                            >
+                                <option value="Desa Mandiri">Desa Mandiri</option>
+                                <option value="Desa Maju">Desa Maju</option>
+                                <option value="Desa Berkembang">Desa Berkembang</option>
+                                <option value="Desa Tertinggal">Desa Tertinggal</option>
+                                <option value="Desa Sangat Tertinggal">Desa Sangat Tertinggal</option>
+                            </select>
+                        </div>
+
+                        <div class="lg:col-span-1">
+                            <label
+                                for="podeskel_tingkat"
+                                class="mb-1.5 block text-sm font-medium text-slate-700"
+                            >
+                                Status Prodeskel
+                            </label>
+                            <select
+                                id="podeskel_tingkat"
+                                v-model="formState.indikator_desa.podeskel.tingkat_perkembangan"
+                                data-testid="input-podeskel-tingkat"
+                                class="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                            >
+                                <option value="Desa Swasembada">Desa Swasembada</option>
+                                <option value="Desa Swakarya">Desa Swakarya</option>
+                                <option value="Desa Swadaya">Desa Swadaya</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label
+                                for="idm_skor"
+                                class="mb-1.5 block text-sm font-medium text-slate-700"
+                            >
+                                Skor Komposit IDM
+                            </label>
+                            <input
+                                id="idm_skor"
+                                v-model="formState.indikator_desa.idm.skor"
+                                type="text"
+                                placeholder="0,7143"
+                                data-testid="input-idm-skor"
+                                class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="idm_iks"
+                                class="mb-1.5 block text-sm font-medium text-slate-700"
+                            >
+                                Skor Sosial (IKS)
+                            </label>
+                            <input
+                                id="idm_iks"
+                                v-model="formState.indikator_desa.idm.iks"
+                                type="text"
+                                placeholder="0,8214"
+                                data-testid="input-idm-iks"
+                                class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="idm_ike"
+                                class="mb-1.5 block text-sm font-medium text-slate-700"
+                            >
+                                Skor Ekonomi (IKE)
+                            </label>
+                            <input
+                                id="idm_ike"
+                                v-model="formState.indikator_desa.idm.ike"
+                                type="text"
+                                placeholder="0,7550"
+                                data-testid="input-idm-ike"
+                                class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
+                            />
+                        </div>
+
+                        <div>
+                            <label
+                                for="idm_ikl"
+                                class="mb-1.5 block text-sm font-medium text-slate-700"
+                            >
+                                Skor Lingkungan (IKL)
+                            </label>
+                            <input
+                                id="idm_ikl"
+                                v-model="formState.indikator_desa.idm.ikl"
+                                type="text"
+                                placeholder="0,5667"
+                                data-testid="input-idm-ikl"
+                                class="h-10 w-full rounded-md border border-slate-300 px-3 text-sm tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Rincian 3 Pilar Indikator & Potensi PODESKEL -->
+                    <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
+                        <!-- Pilar 1: Ketahanan Sosial (IKS) -->
+                        <div class="space-y-3 rounded-md border border-slate-200 bg-slate-50/70 p-4">
+                            <h3 class="text-sm font-semibold text-slate-900">
+                                1. Rincian Pilar Sosial (IKS)
+                            </h3>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Fasilitas Kesehatan
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.fasilitas_kesehatan"
+                                    type="text"
+                                    data-testid="input-podeskel-kesehatan"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Fasilitas Pendidikan
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.fasilitas_pendidikan"
+                                    type="text"
+                                    data-testid="input-podeskel-pendidikan"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Modal Sosial / Prestasi
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.modal_sosial"
+                                    type="text"
+                                    data-testid="input-podeskel-modal-sosial"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Pilar 2: Ketahanan Ekonomi (IKE) -->
+                        <div class="space-y-3 rounded-md border border-slate-200 bg-slate-50/70 p-4">
+                            <h3 class="text-sm font-semibold text-slate-900">
+                                2. Rincian Pilar Ekonomi (IKE)
+                            </h3>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Komoditas &amp; Lahan Utama
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.komoditas_utama"
+                                    type="text"
+                                    data-testid="input-podeskel-komoditas"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Jangkauan Pasar &amp; Distribusi
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.akses_pasar"
+                                    type="text"
+                                    data-testid="input-podeskel-pasar"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Potensi Pengembangan Ekonomi
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.potensi_ekonomi"
+                                    type="text"
+                                    data-testid="input-podeskel-potensi-ekonomi"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Pilar 3: Lingkungan & Sarpras (IKL) -->
+                        <div class="space-y-3 rounded-md border border-slate-200 bg-slate-50/70 p-4">
+                            <h3 class="text-sm font-semibold text-slate-900">
+                                3. Rincian Lingkungan &amp; Sarpras (IKL)
+                            </h3>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Topografi &amp; Geografis
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.topografi"
+                                    type="text"
+                                    data-testid="input-podeskel-topografi"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Sumber Air &amp; Jaringan Irigasi
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.sumber_air"
+                                    type="text"
+                                    data-testid="input-podeskel-sumber-air"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-slate-600">
+                                    Cakupan &amp; Akses Dusun
+                                </label>
+                                <input
+                                    v-model="formState.indikator_desa.podeskel.akses_wilayah"
+                                    type="text"
+                                    data-testid="input-podeskel-akses-wilayah"
+                                    class="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

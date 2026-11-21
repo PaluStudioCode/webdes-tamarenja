@@ -62,6 +62,27 @@ class PengaturanProfilSotkPpidAndBackupTest extends TestCase
             'misi' => ['Misi Pertama', 'Misi Kedua', 'Misi Ketiga'],
             'sejarah_singkat' => 'Sejarah singkat Desa Tamarenja.',
             'potensi_unggulan' => 'Perkebunan kelapa dan perikanan pesisir.',
+            'indikator_desa' => [
+                'idm' => [
+                    'status' => 'Desa Mandiri',
+                    'skor' => '0,8350',
+                    'iks' => '0,8800',
+                    'ike' => '0,8400',
+                    'ikl' => '0,7850',
+                ],
+                'podeskel' => [
+                    'tingkat_perkembangan' => 'Desa Swasembada',
+                    'fasilitas_kesehatan' => '2 Poskesdes & 4 Posyandu',
+                    'fasilitas_pendidikan' => 'PAUD, SD, & SMP Negeri',
+                    'modal_sosial' => 'Desa Digital Percontohan',
+                    'komoditas_utama' => 'Sentra Salak 400 Ha',
+                    'akses_pasar' => 'Ekspor Regional Sulawesi & Kalimantan',
+                    'potensi_ekonomi' => 'Agrowisata Terpadu',
+                    'topografi' => 'Lembah Subur 100-300 mdpl',
+                    'sumber_air' => 'Irigasi Teknis Sinente',
+                    'akses_wilayah' => 'Seluruh Dusun Teraspal',
+                ],
+            ],
             'tahun_anggaran_aktif' => 2027,
             'logo_desa' => $jpgLogo,
             'foto_kepala_desa' => $fotoKadesAwal,
@@ -76,6 +97,9 @@ class PengaturanProfilSotkPpidAndBackupTest extends TestCase
         $this->assertSame('6281245009988', $profil->no_wa_pelayanan);
         $this->assertSame(['Dusun I', 'Dusun II', 'Dusun V Pesisir'], $profil->daftar_dusun);
         $this->assertSame(['Misi Pertama', 'Misi Kedua', 'Misi Ketiga'], $profil->misi);
+        $this->assertSame('Desa Mandiri', $profil->resolvedIndikatorDesa()['idm']['status']);
+        $this->assertSame('0,8350', $profil->resolvedIndikatorDesa()['idm']['skor']);
+        $this->assertSame('Sentra Salak 400 Ha', $profil->resolvedIndikatorDesa()['podeskel']['komoditas_utama']);
         $this->assertSame(2027, $profil->tahun_anggaran_aktif);
 
         $firstLogoPath = $profil->logo_desa_path;

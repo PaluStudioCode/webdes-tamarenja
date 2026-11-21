@@ -35,6 +35,7 @@ return new class extends Migration
             $table->json('misi')->nullable();
             $table->text('sejarah_singkat')->nullable();
             $table->text('potensi_unggulan')->nullable();
+            $table->json('indikator_desa')->nullable();
             $table->unsignedSmallInteger('tahun_anggaran_aktif');
             $table->timestamps();
         });

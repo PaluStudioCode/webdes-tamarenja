@@ -28,6 +28,18 @@ describe('Sub-Fase 4.1: Halaman Auth/Login.vue di dalam AuthLayout.vue', () => {
         );
     });
 
+    it('dapat mengalihkan visibilitas kata sandi antara password dan text saat tombol mata diklik', async () => {
+        const wrapper = mount(Login);
+        const passwordInput = wrapper.get('[data-testid="login-password-input"]');
+        const toggleBtn = wrapper.get('[data-testid="toggle-password-visibility"]');
+
+        expect(passwordInput.attributes('type')).toBe('password');
+        await toggleBtn.trigger('click');
+        expect(passwordInput.attributes('type')).toBe('text');
+        await toggleBtn.trigger('click');
+        expect(passwordInput.attributes('type')).toBe('password');
+    });
+
     it('menampilkan inline field error tanpa memicu toast ganda serta mengunci tombol + spinner saat processing', () => {
         const customForm = reactive({
             email: 'operator@desa.id',

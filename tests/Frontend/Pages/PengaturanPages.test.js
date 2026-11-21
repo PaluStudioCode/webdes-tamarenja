@@ -80,6 +80,12 @@ describe('Halaman Pengaturan Sistem (/panel/pengaturan/*)', () => {
         expect(wrapper.findAll('[data-testid^="input-misi-"]')).toHaveLength(2);
         await wrapper.get('[data-testid="input-misi-1"]').setValue('Meningkatkan layanan digital desa');
 
+        // Ubah pengaturan Indikator IDM & PODESKEL dari dashboard admin
+        expect(wrapper.find('[data-testid="pengaturan-indikator-desa-section"]').exists()).toBe(true);
+        await wrapper.get('[data-testid="input-idm-status"]').setValue('Desa Mandiri');
+        await wrapper.get('[data-testid="input-idm-skor"]').setValue('0,8290');
+        await wrapper.get('[data-testid="input-podeskel-komoditas"]').setValue('Sentra Salak Modern 400 Ha');
+
         // Submit form
         await wrapper.get('[data-testid="save-profil-btn"]').trigger('click');
 
@@ -89,6 +95,9 @@ describe('Halaman Pengaturan Sistem (/panel/pengaturan/*)', () => {
         expect(payload._method).toBe('PUT');
         expect(payload.daftar_dusun).toEqual(['Dusun I', 'Dusun III Pantai']);
         expect(payload.misi).toEqual(['Misi Awal 1', 'Meningkatkan layanan digital desa']);
+        expect(payload.indikator_desa.idm.status).toBe('Desa Mandiri');
+        expect(payload.indikator_desa.idm.skor).toBe('0,8290');
+        expect(payload.indikator_desa.podeskel.komoditas_utama).toBe('Sentra Salak Modern 400 Ha');
     });
 
     it('membuka modal CRUD perangkat desa pada Sotk.vue dan mengirim data ke endpoint /panel/pengaturan/sotk', async () => {
